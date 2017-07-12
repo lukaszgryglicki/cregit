@@ -21,7 +21,10 @@ my %listDeclarations;
 
 my %languages = ("C" => 1,
                  "C++" => 1,
-                 "Java" => 1);
+                 "Java" => 1,
+		 "Go" => 1,
+                 "Markdown" => 1,
+                 "Yaml" => 1);
 
 use Getopt::Long;
 
@@ -31,12 +34,15 @@ Usage $0 [options] <sourcefilename> <outputfile>*
 Options:
    --srcml2token=<path to srcml2token>
    --srcml=<path to srcml>
-   --language=<C/C++/Java>
+   --go2token=<path to go2token>
+   --simpleTokenizer=<path to simpleTokenizer.pl>
+   --language=<C/C++/Java/Go/Markdown/Yaml>
    --ctags=-<path to ctags-exuberant>
 ";
 
 
-
+my $go2token = "./tokenize/goTokenizer/gotoken";
+my $simpleTokenizer = "./tokenize/text/simpleTokenizer.pl";
 my $srcml   = "srcml";
 my $srcml2token = "srcml2token";
 my $ctags = "ctags-exuberant";
@@ -46,6 +52,8 @@ GetOptions ("srcml=s" => \$srcml,
             "srcml2token=s"   => \$srcml2token,
             "language=s"      => \$language,
             "ctags=s"         => \$ctags,
+            "go2token=s"   => \$go2token,
+            "simpleTokenizer=s" => \$simpleTokenizer,
             "verbose"  => \$verbose)   # flag
   or die($usage);
 
@@ -68,11 +76,25 @@ if ($output ne "") {
     select OUT;
 }
 
-Read_Declarations($filename, $language);
 
-#Declarations_Test();
+if ($language eq "Yaml" or $language eq "Markdown") {
+    open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
+    print "begin_unit\n";
+    while(<parser>) {
+        print("text|" . $_);
+    }
+    close(parser);
+    print "end_unit\n";
+} else {
+    Read_Declarations($filename, $language);
 
-Tokenize($filename);
+    #Declarations_Test();
+
+    Tokenize($filename);
+    if ($output ne "") {
+        close(OUT);
+    }
+}
 
 if ($output ne "") {
     close(OUT);
@@ -85,11 +107,12 @@ sub Tokenize
 {
     my $saveDir = `pwd`;
     chomp $saveDir;
-    #    my $PARSER = "srcml --src-encoding utf8 --position '$filename' | tokenizeSrcML adf | ";
-    my $PARSER = "tokenizeSrcML";
     my ($filename) = @_;
-    #    open(parser, "srcml --src-encoding utf8 -l C --position '$filename' | srcml2token |") or die "Unable to execute ctags on file [$filename]";
-    open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
+    if ($language eq "Go") {
+    	open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
+    } else {
+    	open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
+    }
 
     my $lastLine = -1;
 
@@ -99,6 +122,7 @@ sub Tokenize
         my $line =$_;
         die "unable to parse srcml line [$line]" unless $line =~ /^([0-9]+|-):([0-9]+|-)\s+(.+)$/;
         my ($line, $col, $token) = ($1, $2, $3);
+        $token = Remap_Token($token) if ($language eq "Go");
 #        print STDERR "$line:$col:[$token]\n";
         die "ilegall line [$line] with [$line][$col]" if $line eq '' ;
         if ($line != $lastLine) {
@@ -203,3 +227,61 @@ sub Read_Declarations
     close ctags;
 }
 
+sub Remap_Token {
+    my ($token) = @_;
+
+    if ($token eq "||") {
+        return "barbar|||"
+    }
+
+    if ($token =~ /^(.+)\|(.+)$/) {
+        my ($left, $right) = ($1, $2);
+        return $left . "|" . Unquote($right, $left);
+    } elsif ($token eq "begin_unit" or $token eq "end_unit") {
+        # these tokens should have no text
+        return $token;
+    } else {
+        return ($token . "|" . $token);
+    }
+
+}
+
+sub Unquote {
+    my ($token, $type) = @_;
+
+    if ($type eq "STRING" or
+        $type eq "COMMENT" 
+       ) {
+        $token =~ s/^"(.+)"$/$1/;
+        $token =~ s/\\"/"/g;
+        $token =~ s/\\r/ /g;
+        $token =~ s/\\t/ /g;
+        $token =~ s/\\n/ /g;
+        $token =~ s/\\\\u/\\u/g;
+        $token =~ s/\\\\x/\\x/g;
+
+        # this must be the very last one
+        $token =~ s/\\\\/\\/g;
+    } elsif ($type eq "CHAR") {
+        $token =~ s/^"(.+)"$/$1/;
+        $token =~ s/\\"/"/g;
+        $token =~ s/\\\\/\\/g;
+    } elsif ($type eq ";") {
+        if ($token eq '"\n"') {
+            $token= "";
+        } else {
+            $token =~ s/^"(.+)"$/$1/;
+        }
+    } elsif ($type eq "IDENT") {
+        $token =~ s/^"(.+)"$/$1/;
+    } elsif ($type eq "INT") {
+        $token =~ s/^"(.+)"$/$1/;
+    } elsif ($token ne "") {
+        $token =~ s/^"(.+)"$/$1/;
+    } else {
+    }
+
+    return $token;
+
+
+}
