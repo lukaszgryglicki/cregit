@@ -55,26 +55,31 @@ my %mapLang = (
                "yaml" => "Yaml",
               );
 
+my $logfile = "perllog.txt";
+open(LOG,">>","$logfile") || die ("Error : can't open log file");
 
 if (not defined($ENV{BFG_MEMO_DIR}) ||  $ENV{BFG_MEMO_DIR} eq "") {
+    print LOG "BFG_MEMO_DIR\n";
     die "You must define the environment variable BFG_MEMO_DIR equal to the directory where to memoize"
 }
 
 my $shaDir = $ENV{BFG_MEMO_DIR};
 
 if ($shaDir eq "") {
+    print LOG "SHA_DIR\n";
     die "Directory to use to memoize not set. Use BFG_MEMO_DIR environment variable to set"
 }
 
 my $tokenizeCmd = $ENV{BFG_TOKENIZE_CMD};
 
 if ($tokenizeCmd eq "") {
+    print LOG "TOKENIZE_CMD\n";
     die ("Tokenize command not defined. Use environment variable BFG_TOKENIZE_CMD");
 }
 
-
 my $contents;
 
+print LOG "SHA_DIR_NE\n" if not -d $shaDir;
 die "Sha dir [$shaDir] does not exist" if not -d $shaDir;
 
 my $contents = join( "", <> );
@@ -92,6 +97,7 @@ my $filename = $shaDir . '/' . substr($sha1, 0,2) . '/' . substr($sha1, 2,2) . '
 my $blob = $ENV{BFG_BLOB};
 my $blobFN = $ENV{BFG_FILENAME};
 
+print LOG "BFG_FILENAME\n" if $blobFN eq "";
 die "BFG_FILENAME environment variable not set " if $blobFN eq "";
 
 my $fileExt;
@@ -101,6 +107,7 @@ if ($blobFN =~ /\.([^.]+)/) {
 }
 
 if (not defined($mapLang{$fileExt})) {
+    # print LOG "UNKNOWN_EXT: $fileExt\n";
     die "unknown file extension [$fileExt]";
 }
 
@@ -120,7 +127,11 @@ if (-f $filename) {
 
   my $langOp = "--language=" . $mapLang{$fileExt};
 
-  open(PROC, "$tokenizeCmd $langOp $file |") or die "unable to execute $tokenizeCmd (verify variable BFG_TOKENIZE_CMD) [$tokenizeCmd]";
+  # print LOG "$tokenizeCmd $langOp $file\n";
+  if (!open(PROC, "$tokenizeCmd $langOp $file |")) {
+  	print LOG "OPEN_PROC\n";
+	die "unable to execute $tokenizeCmd (verify variable BFG_TOKENIZE_CMD) [$tokenizeCmd]";
+  }
 
   while (<PROC>) {
       print $_;
