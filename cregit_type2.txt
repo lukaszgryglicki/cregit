@@ -1,0 +1,57 @@
+pbcopy ~/.ssh/id_rsa.pub --> Packet server config
+get IP --> /etc/hosts/
+ssh root@lgcncf
+root@lg:~# passwd root
+root@lg:~# mkdir /home/justa
+root@lg:~# mkdir /home/justa/dev
+root@lg:~# cd /home/justa/dev/
+root@lg:/home/justa/dev# 
+root@lg:/home/justa/dev# apt-get update
+root@lg:/home/justa/dev# apt-get install git
+root@lg:/home/justa/dev# git config --global user.email email@domain.com
+root@lg:/home/justa/devt# git config --global user.name 'User Name'
+git clone https://github.com/lukaszgryglicki/bfg-repo-cleaner.git
+git clone https://github.com/lukaszgryglicki/cregit.git
+git clone https://github.com/kubernetes/kubernetes.git
+cd cregit
+vim readme.org
+goto: http://www.srcml.org/, get deb package (Ubuntu 14.04 64-bit DEB)
+sftp it to lgcncf
+dpkg -i /root/srcml.deb
+apt-get install libarchive13
+srcML should be OK by now.
+BFG patched:
+cd ../bfg-repo-cleaner/
+apt-get install default-jre
+echo "deb https://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list
+apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
+apt-get install apt-transport-https
+apt-get update
+apt-get install sbt
+sbt
+To test if it is working: `sbt bfg/run`
+Back to cregit:
+cd ../cregit/
+apt-get install exuberant-ctags
+srcml2token:
+cd tokenize/srcMLtoken/
+apt-get install g++
+apt-get install libxerces-c-dev
+make
+cp srcml2token /usr/bin/
+Back to creagit:
+cd ../../
+mkdir /tmp/memo
+apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl
+chmod +x ./tokenize/kuber-tokenize.pl
+./run_tokenize.sh (will take long!)
+eventually:
+git push
+pbcopy < /etc/github/oauth (if You configure OAuth to push)
+Now You're after overkill task, then next steps:
+results: vim ../kubernetes.bfg-report/
+./slickgitlog.sh
+./persons.sh
+mkdir /home/justa/dev/kubernetes_blame
+./blame.sh (also takes long when running for 1st time)
+./remapcommits.sh 
