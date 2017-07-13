@@ -2,3 +2,5 @@ jars
 */project/build.properties
 */project/
 */target
+*.db
+*.xls
