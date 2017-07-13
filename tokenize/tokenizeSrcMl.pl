@@ -22,8 +22,9 @@ my %listDeclarations;
 my %languages = ("C" => 1,
                  "C++" => 1,
                  "Java" => 1,
-		 "Go" => 1,
+                 "Go" => 1,
                  "Markdown" => 1,
+                 "Shell" => 1,
                  "Yaml" => 1);
 
 use Getopt::Long;
@@ -36,7 +37,7 @@ Options:
    --srcml=<path to srcml>
    --go2token=<path to go2token>
    --simpleTokenizer=<path to simpleTokenizer.pl>
-   --language=<C/C++/Java/Go/Markdown/Yaml>
+   --language=<C/C++/Java/Go/Markdown/Yaml/Shell>
    --ctags=-<path to ctags-exuberant>
 ";
 
@@ -49,12 +50,12 @@ my $ctags = "ctags-exuberant";
 my $language = "C";
 my $verbose;
 GetOptions ("srcml=s" => \$srcml, 
-            "srcml2token=s"   => \$srcml2token,
-            "language=s"      => \$language,
-            "ctags=s"         => \$ctags,
-            "go2token=s"   => \$go2token,
+            "srcml2token=s" => \$srcml2token,
+            "language=s" => \$language,
+            "ctags=s" => \$ctags,
+            "go2token=s" => \$go2token,
             "simpleTokenizer=s" => \$simpleTokenizer,
-            "verbose"  => \$verbose)   # flag
+            "verbose" => \$verbose)   # flag
   or die($usage);
 
 if (not defined($languages{$language})) {
@@ -77,7 +78,7 @@ if ($output ne "") {
 }
 
 
-if ($language eq "Yaml" or $language eq "Markdown") {
+if ($language eq "Yaml" or $language eq "Markdown" or $language eq "Shell") {
     open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
     print "begin_unit\n";
     while(<parser>) {
@@ -109,9 +110,9 @@ sub Tokenize
     chomp $saveDir;
     my ($filename) = @_;
     if ($language eq "Go") {
-    	open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
+        open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
     } else {
-    	open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
+        open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
     }
 
     my $lastLine = -1;
