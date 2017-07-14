@@ -1,0 +1,41 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+90e753b7d893977fcb7246ab3277eaab11726cf4;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package generators
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import "k8s.io/gengo/types"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		apiScheme                   = types.Name{Package: "k8s.io/kubernetes/pkg/api", Name: "Scheme"}
+0000000000000000000000000000000000000000;;		cacheGenericLister          = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "GenericLister"}
+0000000000000000000000000000000000000000;;		cacheIndexers               = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "Indexers"}
+0000000000000000000000000000000000000000;;		cacheListWatch              = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "ListWatch"}
+0000000000000000000000000000000000000000;;		cacheMetaNamespaceIndexFunc = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "MetaNamespaceIndexFunc"}
+0000000000000000000000000000000000000000;;		cacheNamespaceIndex         = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "NamespaceIndex"}
+0000000000000000000000000000000000000000;;		cacheNewGenericLister       = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "NewGenericLister"}
+0000000000000000000000000000000000000000;;		cacheNewSharedIndexInformer = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "NewSharedIndexInformer"}
+0000000000000000000000000000000000000000;;		cacheSharedIndexInformer    = types.Name{Package: "k8s.io/client-go/tools/cache", Name: "SharedIndexInformer"}
+0000000000000000000000000000000000000000;;		listOptions                 = types.Name{Package: "k8s.io/kubernetes/pkg/api", Name: "ListOptions"}
+0000000000000000000000000000000000000000;;		reflectType                 = types.Name{Package: "reflect", Name: "Type"}
+0000000000000000000000000000000000000000;;		runtimeObject               = types.Name{Package: "k8s.io/apimachinery/pkg/runtime", Name: "Object"}
+0000000000000000000000000000000000000000;;		schemaGroupResource         = types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupResource"}
+0000000000000000000000000000000000000000;;		schemaGroupVersionResource  = types.Name{Package: "k8s.io/apimachinery/pkg/runtime/schema", Name: "GroupVersionResource"}
+0000000000000000000000000000000000000000;;		syncMutex                   = types.Name{Package: "sync", Name: "Mutex"}
+0000000000000000000000000000000000000000;;		timeDuration                = types.Name{Package: "time", Name: "Duration"}
+0000000000000000000000000000000000000000;;		v1ListOptions               = types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ListOptions"}
+0000000000000000000000000000000000000000;;		metav1NamespaceAll          = types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "NamespaceAll"}
+0000000000000000000000000000000000000000;;		watchInterface              = types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}
+0000000000000000000000000000000000000000;;	)

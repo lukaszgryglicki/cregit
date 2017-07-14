@@ -1,0 +1,39 @@
+0000000000000000000000000000000000000000;;	# capnslog, the CoreOS logging package
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	There are far too many logging packages out there, with varying degrees of licenses, far too many features (colorization, all sorts of log frameworks) or are just a pain to use (lack of `Fatalln()`?).
+0000000000000000000000000000000000000000;;	capnslog provides a simple but consistent logging interface suitable for all kinds of projects.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Design Principles
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### `package main` is the place where logging gets turned on and routed
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	A library should not touch log options, only generate log entries. Libraries are silent until main lets them speak.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### All log options are runtime-configurable. 
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Still the job of `main` to expose these configurations. `main` may delegate this to, say, a configuration webhook, but does so explicitly. 
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### There is one log object per package. It is registered under its repository and package name.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	`main` activates logging for its repository and any dependency repositories it would also like to have output in its logstream. `main` also dictates at which level each subpackage logs.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### There is *one* output stream, and it is an `io.Writer` composed with a formatter.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Splitting streams is probably not the job of your program, but rather, your log aggregation framework. If you must split output streams, again, `main` configures this and you can write a very simple two-output struct that satisfies io.Writer.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Fancy colorful formatting and JSON output are beyond the scope of a basic logging framework -- they're application/log-collector dependant. These are, at best, provided as options, but more likely, provided by your application.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### Log objects are an interface
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	An object knows best how to print itself. Log objects can collect more interesting metadata if they wish, however, because text isn't going away anytime soon, they must all be marshalable to text. The simplest log object is a string, which returns itself. If you wish to do more fancy tricks for printing your log objects, see also JSON output -- introspect and write a formatter which can handle your advanced log interface. Making strings is the only thing guaranteed.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	##### Log levels have specific meanings:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	  * Critical: Unrecoverable. Must fail.
+0000000000000000000000000000000000000000;;	  * Error: Data has been lost, a request has failed for a bad reason, or a required resource has been lost
+0000000000000000000000000000000000000000;;	  * Warning: (Hopefully) Temporary conditions that may cause errors, but may work fine. A replica disappearing (that may reconnect) is a warning.
+0000000000000000000000000000000000000000;;	  * Notice: Normal, but important (uncommon) log information.
+0000000000000000000000000000000000000000;;	  * Info: Normal, working log information, everything is fine, but helpful notices for auditing or common operations.
+0000000000000000000000000000000000000000;;	  * Debug: Everything is still fine, but even common operations may be logged, and less helpful but more quantity of notices.
+0000000000000000000000000000000000000000;;	  * Trace: Anything goes, from logging every function call as part of a common operation, to tracing execution of a query.
+0000000000000000000000000000000000000000;;	

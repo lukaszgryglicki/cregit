@@ -1,0 +1,10 @@
+0000000000000000000000000000000000000000;;	package remote
+b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/ginkgo/internal/remote/output_interceptor.go[Godeps/_workspace/src/github.com/onsi/ginkgo/internal/remote/output_interceptor.go][vendor/github.com/onsi/ginkgo/internal/remote/output_interceptor.go];	
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	The OutputInterceptor is used by the ForwardingReporter to
+0000000000000000000000000000000000000000;;	intercept and capture all stdin and stderr output during a test run.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	type OutputInterceptor interface {
+0000000000000000000000000000000000000000;;		StartInterceptingOutput() error
+0000000000000000000000000000000000000000;;		StopInterceptingAndReturnOutput() (string, error)
+0000000000000000000000000000000000000000;;	}

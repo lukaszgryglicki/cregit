@@ -1,0 +1,20 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+49fc080c7ab349e740f17b88dfec514c6a495c45;pkg/genericapiserver/openapi/doc.go[pkg/genericapiserver/openapi/doc.go][staging/src/k8s.io/apiserver/pkg/server/openapi/doc.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package openapi contains code to generate OpenAPI discovery spec (which
+0000000000000000000000000000000000000000;;	// initial version of it also known as Swagger 2.0).
+0000000000000000000000000000000000000000;;	// For more details: https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md
+0000000000000000000000000000000000000000;;	package openapi

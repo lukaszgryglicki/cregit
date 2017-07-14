@@ -1,0 +1,5 @@
+885071b7d07344044421ffe2fd90c1bcd1ee9812;;	sudo: false
+f6a16a4d8b897312bb3a3f91cd5627eccdc71bf5;Godeps/_workspace/src/github.com/prometheus/procfs/.travis.yml[Godeps/_workspace/src/github.com/prometheus/procfs/.travis.yml][vendor/github.com/prometheus/procfs/.travis.yml];	language: go
+f6a16a4d8b897312bb3a3f91cd5627eccdc71bf5;Godeps/_workspace/src/github.com/prometheus/procfs/.travis.yml[Godeps/_workspace/src/github.com/prometheus/procfs/.travis.yml][vendor/github.com/prometheus/procfs/.travis.yml];	go:
+13e1e7cd1550dcd956d3e82fe798021f5812b15e;;	    - 1.6.4
+13e1e7cd1550dcd956d3e82fe798021f5812b15e;;	    - 1.7.4

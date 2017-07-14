@@ -1,0 +1,5 @@
+0000000000000000000000000000000000000000;;	// These files implement ANSI-aware input and output streams for use by the Docker Windows client.
+0000000000000000000000000000000000000000;;	// When asked for the set of standard streams (e.g., stdin, stdout, stderr), the code will create
+0000000000000000000000000000000000000000;;	// and return pseudo-streams that convert ANSI sequences to / from Windows Console API calls.
+b515bda5eede841df021a5bfcc6c5c7c7a1e907e;;	
+0000000000000000000000000000000000000000;;	package windows

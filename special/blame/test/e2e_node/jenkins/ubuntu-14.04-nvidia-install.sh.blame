@@ -1,0 +1,29 @@
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	#!/bin/bash
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# Copyright 2017 The Kubernetes Authors.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	#
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# Licensed under the Apache License, Version 2.0 (the "License");
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# you may not use this file except in compliance with the License.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# You may obtain a copy of the License at
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	#
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	#     http://www.apache.org/licenses/LICENSE-2.0
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	#
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# Unless required by applicable law or agreed to in writing, software
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# distributed under the License is distributed on an "AS IS" BASIS,
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# See the License for the specific language governing permissions and
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# limitations under the License.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# This script is meant to install Nvidia drivers on Ubuntu 14.04 GCE VMs.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# This script is meant to facilitate testing of Nvidia GPU support in Kubernetes.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	echo "Checking for CUDA and installing."
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	# Check for CUDA and try to install.
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	if ! dpkg-query -W cuda; then
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	  curl -O http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	  dpkg -i ./cuda-repo-ubuntu1404_8.0.61-1_amd64.deb
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	  apt-get update
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	  apt-get install cuda -y
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	  apt-get install linux-headers-$(uname -r) -y
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	fi
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	## Pre-loads kernel modules
+d55178d662ae4f6b0ee253779f829a41d7bcfd22;;	nvidia-smi

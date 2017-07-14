@@ -1,0 +1,7 @@
+0000000000000000000000000000000000000000;;	// Package images provides information and interaction with the image API
+0000000000000000000000000000000000000000;;	// resource in the OpenStack Compute service.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// An image is a collection of files used to create or rebuild a server.
+0000000000000000000000000000000000000000;;	// Operators provide a number of pre-built OS images by default. You may also
+0000000000000000000000000000000000000000;;	// create custom images from cloud servers you have launched.
+0000000000000000000000000000000000000000;;	package images

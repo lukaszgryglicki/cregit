@@ -1,0 +1,81 @@
+0000000000000000000000000000000000000000;;	## Changelog
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.7.0](https://github.com/magiconair/properties/tags/v1.7.0) - 20 Mar 2016
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #10](https://github.com/magiconair/properties/issues/10): Add [LoadURL,LoadURLs,MustLoadURL,MustLoadURLs](http://godoc.org/github.com/magiconair/properties#Properties.LoadURL) method to load properties from a URL.
+0000000000000000000000000000000000000000;;	 * [Issue #11](https://github.com/magiconair/properties/issues/11): Add [LoadString,MustLoadString](http://godoc.org/github.com/magiconair/properties#Properties.LoadString) method to load properties from an UTF8 string.
+0000000000000000000000000000000000000000;;	 * [PR #8](https://github.com/magiconair/properties/pull/8): Add [MustFlag](http://godoc.org/github.com/magiconair/properties#Properties.MustFlag) method to provide overrides via command line flags. (@pascaldekloe)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.6.0](https://github.com/magiconair/properties/tags/v1.6.0) - 11 Dec 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * Add [Decode](http://godoc.org/github.com/magiconair/properties#Properties.Decode) method to populate struct from properties via tags.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.6](https://github.com/magiconair/properties/tags/v1.5.6) - 18 Oct 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * Vendored in gopkg.in/check.v1
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.5](https://github.com/magiconair/properties/tags/v1.5.5) - 31 Jul 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [PR #6](https://github.com/magiconair/properties/pull/6): Add [Delete](http://godoc.org/github.com/magiconair/properties#Properties.Delete) method to remove keys including comments. (@gerbenjacobs)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.4](https://github.com/magiconair/properties/tags/v1.5.4) - 23 Jun 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #5](https://github.com/magiconair/properties/issues/5): Allow disabling of property expansion [DisableExpansion](http://godoc.org/github.com/magiconair/properties#Properties.DisableExpansion). When property expansion is disabled Properties become a simple key/value store and don't check for circular references.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.3](https://github.com/magiconair/properties/tags/v1.5.3) - 02 Jun 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #4](https://github.com/magiconair/properties/issues/4): Maintain key order in [Filter()](http://godoc.org/github.com/magiconair/properties#Properties.Filter), [FilterPrefix()](http://godoc.org/github.com/magiconair/properties#Properties.FilterPrefix) and [FilterRegexp()](http://godoc.org/github.com/magiconair/properties#Properties.FilterRegexp)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.2](https://github.com/magiconair/properties/tags/v1.5.2) - 10 Apr 2015
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #3](https://github.com/magiconair/properties/issues/3): Don't print comments in [WriteComment()](http://godoc.org/github.com/magiconair/properties#Properties.WriteComment) if they are all empty
+0000000000000000000000000000000000000000;;	 * Add clickable links to README
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.1](https://github.com/magiconair/properties/tags/v1.5.1) - 08 Dec 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * Added [GetParsedDuration()](http://godoc.org/github.com/magiconair/properties#Properties.GetParsedDuration) and [MustGetParsedDuration()](http://godoc.org/github.com/magiconair/properties#Properties.MustGetParsedDuration) for values specified compatible with
+0000000000000000000000000000000000000000;;	   [time.ParseDuration()](http://golang.org/pkg/time/#ParseDuration).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.5.0](https://github.com/magiconair/properties/tags/v1.5.0) - 18 Nov 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * Added support for single and multi-line comments (reading, writing and updating)
+0000000000000000000000000000000000000000;;	 * The order of keys is now preserved
+0000000000000000000000000000000000000000;;	 * Calling [Set()](http://godoc.org/github.com/magiconair/properties#Properties.Set) with an empty key now silently ignores the call and does not create a new entry
+0000000000000000000000000000000000000000;;	 * Added a [MustSet()](http://godoc.org/github.com/magiconair/properties#Properties.MustSet) method
+0000000000000000000000000000000000000000;;	 * Migrated test library from launchpad.net/gocheck to [gopkg.in/check.v1](http://gopkg.in/check.v1)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.4.2](https://github.com/magiconair/properties/tags/v1.4.2) - 15 Nov 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #2](https://github.com/magiconair/properties/issues/2): Fixed goroutine leak in parser which created two lexers but cleaned up only one
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.4.1](https://github.com/magiconair/properties/tags/v1.4.1) - 13 Nov 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * [Issue #1](https://github.com/magiconair/properties/issues/1): Fixed bug in Keys() method which returned an empty string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.4.0](https://github.com/magiconair/properties/tags/v1.4.0) - 23 Sep 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 * Added [Keys()](http://godoc.org/github.com/magiconair/properties#Properties.Keys) to get the keys
+0000000000000000000000000000000000000000;;	 * Added [Filter()](http://godoc.org/github.com/magiconair/properties#Properties.Filter), [FilterRegexp()](http://godoc.org/github.com/magiconair/properties#Properties.FilterRegexp) and [FilterPrefix()](http://godoc.org/github.com/magiconair/properties#Properties.FilterPrefix) to get a subset of the properties
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.3.0](https://github.com/magiconair/properties/tags/v1.3.0) - 18 Mar 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added support for time.Duration
+0000000000000000000000000000000000000000;;	* Made MustXXX() failure beha[ior configurable (log.Fatal, panic](https://github.com/magiconair/properties/tags/vior configurable (log.Fatal, panic) - custom)
+0000000000000000000000000000000000000000;;	* Changed default of MustXXX() failure from panic to log.Fatal
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.2.0](https://github.com/magiconair/properties/tags/v1.2.0) - 05 Mar 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added MustGet... functions
+0000000000000000000000000000000000000000;;	* Added support for int and uint with range checks on 32 bit platforms
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.1.0](https://github.com/magiconair/properties/tags/v1.1.0) - 20 Jan 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Renamed from goproperties to properties
+0000000000000000000000000000000000000000;;	* Added support for expansion of environment vars in
+0000000000000000000000000000000000000000;;	  filenames and value expressions
+0000000000000000000000000000000000000000;;	* Fixed bug where value expressions were not at the
+0000000000000000000000000000000000000000;;	  start of the string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### [1.0.0](https://github.com/magiconair/properties/tags/v1.0.0) - 7 Jan 2014
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Initial release

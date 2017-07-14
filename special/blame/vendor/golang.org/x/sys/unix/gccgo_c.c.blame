@@ -1,0 +1,41 @@
+0000000000000000000000000000000000000000;;	// Copyright 2015 The Go Authors.  All rights reserved.
+0000000000000000000000000000000000000000;;	// Use of this source code is governed by a BSD-style
+0000000000000000000000000000000000000000;;	// license that can be found in the LICENSE file.
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	// +build gccgo
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	#include <errno.h>
+0000000000000000000000000000000000000000;;	#include <stdint.h>
+0000000000000000000000000000000000000000;;	#include <unistd.h>
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	#define _STRINGIFY2_(x) #x
+0000000000000000000000000000000000000000;;	#define _STRINGIFY_(x) _STRINGIFY2_(x)
+0000000000000000000000000000000000000000;;	#define GOSYM_PREFIX _STRINGIFY_(__USER_LABEL_PREFIX__)
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	// Call syscall from C code because the gccgo support for calling from
+0000000000000000000000000000000000000000;;	// Go to C does not support varargs functions.
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	struct ret {
+0000000000000000000000000000000000000000;;		uintptr_t r;
+0000000000000000000000000000000000000000;;		uintptr_t err;
+0000000000000000000000000000000000000000;;	};
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	struct ret
+0000000000000000000000000000000000000000;;	gccgoRealSyscall(uintptr_t trap, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6, uintptr_t a7, uintptr_t a8, uintptr_t a9)
+0000000000000000000000000000000000000000;;	{
+0000000000000000000000000000000000000000;;		struct ret r;
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;		errno = 0;
+0000000000000000000000000000000000000000;;		r.r = syscall(trap, a1, a2, a3, a4, a5, a6, a7, a8, a9);
+0000000000000000000000000000000000000000;;		r.err = errno;
+0000000000000000000000000000000000000000;;		return r;
+0000000000000000000000000000000000000000;;	}
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	// Define the use function in C so that it is not inlined.
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	extern void use(void *) __asm__ (GOSYM_PREFIX GOPKGPATH ".use") __attribute__((noinline));
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/gccgo_c.c][vendor/golang.org/x/sys/unix/gccgo_c.c];	
+0000000000000000000000000000000000000000;;	void
+0000000000000000000000000000000000000000;;	use(void *p __attribute__ ((unused)))
+0000000000000000000000000000000000000000;;	{
+0000000000000000000000000000000000000000;;	}

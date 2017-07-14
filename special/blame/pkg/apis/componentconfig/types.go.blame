@@ -1,0 +1,947 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2015 The Kubernetes Authors.
+bd963139b3a4db1c3ed6babe2a142f2791e66c50;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package componentconfig
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"sort"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ClientConnectionConfiguration contains details for constructing a client.
+0000000000000000000000000000000000000000;;	type ClientConnectionConfiguration struct {
+0000000000000000000000000000000000000000;;		// kubeConfigFile is the path to a kubeconfig file.
+0000000000000000000000000000000000000000;;		KubeConfigFile string
+0000000000000000000000000000000000000000;;		// acceptContentTypes defines the Accept header sent by clients when connecting to a server, overriding the
+0000000000000000000000000000000000000000;;		// default value of 'application/json'. This field will control all connections to the server used by a particular
+0000000000000000000000000000000000000000;;		// client.
+0000000000000000000000000000000000000000;;		AcceptContentTypes string
+0000000000000000000000000000000000000000;;		// contentType is the content type used when sending data to the server from this client.
+0000000000000000000000000000000000000000;;		ContentType string
+0000000000000000000000000000000000000000;;		// qps controls the number of queries per second allowed for this connection.
+0000000000000000000000000000000000000000;;		QPS float32
+0000000000000000000000000000000000000000;;		// burst allows extra queries to accumulate when a client is exceeding its rate.
+0000000000000000000000000000000000000000;;		Burst int
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// KubeProxyIPTablesConfiguration contains iptables-related configuration
+0000000000000000000000000000000000000000;;	// details for the Kubernetes proxy server.
+0000000000000000000000000000000000000000;;	type KubeProxyIPTablesConfiguration struct {
+0000000000000000000000000000000000000000;;		// masqueradeBit is the bit of the iptables fwmark space to use for SNAT if using
+0000000000000000000000000000000000000000;;		// the pure iptables proxy mode. Values must be within the range [0, 31].
+0000000000000000000000000000000000000000;;		MasqueradeBit *int32
+0000000000000000000000000000000000000000;;		// masqueradeAll tells kube-proxy to SNAT everything if using the pure iptables proxy mode.
+0000000000000000000000000000000000000000;;		MasqueradeAll bool
+0000000000000000000000000000000000000000;;		// syncPeriod is the period that iptables rules are refreshed (e.g. '5s', '1m',
+0000000000000000000000000000000000000000;;		// '2h22m').  Must be greater than 0.
+0000000000000000000000000000000000000000;;		SyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// minSyncPeriod is the minimum period that iptables rules are refreshed (e.g. '5s', '1m',
+0000000000000000000000000000000000000000;;		// '2h22m').
+0000000000000000000000000000000000000000;;		MinSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// KubeProxyConntrackConfiguration contains conntrack settings for
+0000000000000000000000000000000000000000;;	// the Kubernetes proxy server.
+0000000000000000000000000000000000000000;;	type KubeProxyConntrackConfiguration struct {
+0000000000000000000000000000000000000000;;		// max is the maximum number of NAT connections to track (0 to
+0000000000000000000000000000000000000000;;		// leave as-is).  This takes precedence over conntrackMaxPerCore and conntrackMin.
+0000000000000000000000000000000000000000;;		Max int32
+0000000000000000000000000000000000000000;;		// maxPerCore is the maximum number of NAT connections to track
+0000000000000000000000000000000000000000;;		// per CPU core (0 to leave the limit as-is and ignore conntrackMin).
+0000000000000000000000000000000000000000;;		MaxPerCore int32
+0000000000000000000000000000000000000000;;		// min is the minimum value of connect-tracking records to allocate,
+0000000000000000000000000000000000000000;;		// regardless of conntrackMaxPerCore (set conntrackMaxPerCore=0 to leave the limit as-is).
+0000000000000000000000000000000000000000;;		Min int32
+0000000000000000000000000000000000000000;;		// tcpEstablishedTimeout is how long an idle TCP connection will be kept open
+0000000000000000000000000000000000000000;;		// (e.g. '2s').  Must be greater than 0.
+0000000000000000000000000000000000000000;;		TCPEstablishedTimeout metav1.Duration
+0000000000000000000000000000000000000000;;		// tcpCloseWaitTimeout is how long an idle conntrack entry
+0000000000000000000000000000000000000000;;		// in CLOSE_WAIT state will remain in the conntrack
+0000000000000000000000000000000000000000;;		// table. (e.g. '60s'). Must be greater than 0 to set.
+0000000000000000000000000000000000000000;;		TCPCloseWaitTimeout metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// KubeProxyConfiguration contains everything necessary to configure the
+0000000000000000000000000000000000000000;;	// Kubernetes proxy server.
+0000000000000000000000000000000000000000;;	type KubeProxyConfiguration struct {
+0000000000000000000000000000000000000000;;		metav1.TypeMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// featureGates is a comma-separated list of key=value pairs that control
+0000000000000000000000000000000000000000;;		// which alpha/beta features are enabled.
+0000000000000000000000000000000000000000;;		//
+0000000000000000000000000000000000000000;;		// TODO this really should be a map but that requires refactoring all
+0000000000000000000000000000000000000000;;		// components to use config files because local-up-cluster.sh only supports
+0000000000000000000000000000000000000000;;		// the --feature-gates flag right now, which is comma-separated key=value
+0000000000000000000000000000000000000000;;		// pairs.
+0000000000000000000000000000000000000000;;		FeatureGates string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// bindAddress is the IP address for the proxy server to serve on (set to 0.0.0.0
+0000000000000000000000000000000000000000;;		// for all interfaces)
+0000000000000000000000000000000000000000;;		BindAddress string
+0000000000000000000000000000000000000000;;		// healthzBindAddress is the IP address and port for the health check server to serve on,
+0000000000000000000000000000000000000000;;		// defaulting to 0.0.0.0:10256
+0000000000000000000000000000000000000000;;		HealthzBindAddress string
+0000000000000000000000000000000000000000;;		// metricsBindAddress is the IP address and port for the metrics server to serve on,
+0000000000000000000000000000000000000000;;		// defaulting to 127.0.0.1:10249 (set to 0.0.0.0 for all interfaces)
+0000000000000000000000000000000000000000;;		MetricsBindAddress string
+0000000000000000000000000000000000000000;;		// enableProfiling enables profiling via web interface on /debug/pprof handler.
+0000000000000000000000000000000000000000;;		// Profiling handlers will be handled by metrics server.
+0000000000000000000000000000000000000000;;		EnableProfiling bool
+0000000000000000000000000000000000000000;;		// clusterCIDR is the CIDR range of the pods in the cluster. It is used to
+0000000000000000000000000000000000000000;;		// bridge traffic coming from outside of the cluster. If not provided,
+0000000000000000000000000000000000000000;;		// no off-cluster bridging will be performed.
+0000000000000000000000000000000000000000;;		ClusterCIDR string
+0000000000000000000000000000000000000000;;		// hostnameOverride, if non-empty, will be used as the identity instead of the actual hostname.
+0000000000000000000000000000000000000000;;		HostnameOverride string
+0000000000000000000000000000000000000000;;		// clientConnection specifies the kubeconfig file and client connection settings for the proxy
+0000000000000000000000000000000000000000;;		// server to use when communicating with the apiserver.
+0000000000000000000000000000000000000000;;		ClientConnection ClientConnectionConfiguration
+0000000000000000000000000000000000000000;;		// iptables contains iptables-related configuration options.
+0000000000000000000000000000000000000000;;		IPTables KubeProxyIPTablesConfiguration
+0000000000000000000000000000000000000000;;		// oomScoreAdj is the oom-score-adj value for kube-proxy process. Values must be within
+0000000000000000000000000000000000000000;;		// the range [-1000, 1000]
+0000000000000000000000000000000000000000;;		OOMScoreAdj *int32
+0000000000000000000000000000000000000000;;		// mode specifies which proxy mode to use.
+0000000000000000000000000000000000000000;;		Mode ProxyMode
+0000000000000000000000000000000000000000;;		// portRange is the range of host ports (beginPort-endPort, inclusive) that may be consumed
+0000000000000000000000000000000000000000;;		// in order to proxy service traffic. If unspecified (0-0) then ports will be randomly chosen.
+0000000000000000000000000000000000000000;;		PortRange string
+0000000000000000000000000000000000000000;;		// resourceContainer is the absolute name of the resource-only container to create and run
+0000000000000000000000000000000000000000;;		// the Kube-proxy in (Default: /kube-proxy).
+0000000000000000000000000000000000000000;;		ResourceContainer string
+0000000000000000000000000000000000000000;;		// udpIdleTimeout is how long an idle UDP connection will be kept open (e.g. '250ms', '2s').
+0000000000000000000000000000000000000000;;		// Must be greater than 0. Only applicable for proxyMode=userspace.
+0000000000000000000000000000000000000000;;		UDPIdleTimeout metav1.Duration
+0000000000000000000000000000000000000000;;		// conntrack contains conntrack-related configuration options.
+0000000000000000000000000000000000000000;;		Conntrack KubeProxyConntrackConfiguration
+0000000000000000000000000000000000000000;;		// configSyncPeriod is how often configuration from the apiserver is refreshed. Must be greater
+0000000000000000000000000000000000000000;;		// than 0.
+0000000000000000000000000000000000000000;;		ConfigSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Currently two modes of proxying are available: 'userspace' (older, stable) or 'iptables'
+0000000000000000000000000000000000000000;;	// (newer, faster). If blank, use the best-available proxy (currently iptables, but may
+0000000000000000000000000000000000000000;;	// change in future versions).  If the iptables proxy is selected, regardless of how, but
+0000000000000000000000000000000000000000;;	// the system's kernel or iptables versions are insufficient, this always falls back to the
+0000000000000000000000000000000000000000;;	// userspace proxy.
+0000000000000000000000000000000000000000;;	type ProxyMode string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		ProxyModeUserspace ProxyMode = "userspace"
+0000000000000000000000000000000000000000;;		ProxyModeIPTables  ProxyMode = "iptables"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// HairpinMode denotes how the kubelet should configure networking to handle
+0000000000000000000000000000000000000000;;	// hairpin packets.
+0000000000000000000000000000000000000000;;	type HairpinMode string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Enum settings for different ways to handle hairpin packets.
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		// Set the hairpin flag on the veth of containers in the respective
+0000000000000000000000000000000000000000;;		// container runtime.
+0000000000000000000000000000000000000000;;		HairpinVeth = "hairpin-veth"
+0000000000000000000000000000000000000000;;		// Make the container bridge promiscuous. This will force it to accept
+0000000000000000000000000000000000000000;;		// hairpin packets, even if the flag isn't set on ports of the bridge.
+0000000000000000000000000000000000000000;;		PromiscuousBridge = "promiscuous-bridge"
+0000000000000000000000000000000000000000;;		// Neither of the above. If the kubelet is started in this hairpin mode
+0000000000000000000000000000000000000000;;		// and kube-proxy is running in iptables mode, hairpin packets will be
+0000000000000000000000000000000000000000;;		// dropped by the container bridge.
+0000000000000000000000000000000000000000;;		HairpinNone = "none"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A configuration field should go in KubeletFlags instead of KubeletConfiguration if any of these are true:
+0000000000000000000000000000000000000000;;	// - its value will never, or cannot safely be changed during the lifetime of a node
+0000000000000000000000000000000000000000;;	// - its value cannot be safely shared between nodes at the same time (e.g. a hostname)
+0000000000000000000000000000000000000000;;	//   KubeletConfiguration is intended to be shared between nodes
+0000000000000000000000000000000000000000;;	// In general, please try to avoid adding flags or configuration fields,
+0000000000000000000000000000000000000000;;	// we already have a confusingly large amount of them.
+0000000000000000000000000000000000000000;;	// TODO: curate the ordering and structure of this config object
+0000000000000000000000000000000000000000;;	type KubeletConfiguration struct {
+0000000000000000000000000000000000000000;;		metav1.TypeMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// podManifestPath is the path to the directory containing pod manifests to
+0000000000000000000000000000000000000000;;		// run, or the path to a single manifest file
+0000000000000000000000000000000000000000;;		PodManifestPath string
+0000000000000000000000000000000000000000;;		// syncFrequency is the max period between synchronizing running
+0000000000000000000000000000000000000000;;		// containers and config
+0000000000000000000000000000000000000000;;		SyncFrequency metav1.Duration
+0000000000000000000000000000000000000000;;		// fileCheckFrequency is the duration between checking config files for
+0000000000000000000000000000000000000000;;		// new data
+0000000000000000000000000000000000000000;;		FileCheckFrequency metav1.Duration
+0000000000000000000000000000000000000000;;		// httpCheckFrequency is the duration between checking http for new data
+0000000000000000000000000000000000000000;;		HTTPCheckFrequency metav1.Duration
+0000000000000000000000000000000000000000;;		// manifestURL is the URL for accessing the container manifest
+0000000000000000000000000000000000000000;;		ManifestURL string
+0000000000000000000000000000000000000000;;		// manifestURLHeader is the HTTP header to use when accessing the manifest
+0000000000000000000000000000000000000000;;		// URL, with the key separated from the value with a ':', as in 'key:value'
+0000000000000000000000000000000000000000;;		ManifestURLHeader string
+0000000000000000000000000000000000000000;;		// enableServer enables the Kubelet's server
+0000000000000000000000000000000000000000;;		EnableServer bool
+0000000000000000000000000000000000000000;;		// address is the IP address for the Kubelet to serve on (set to 0.0.0.0
+0000000000000000000000000000000000000000;;		// for all interfaces)
+0000000000000000000000000000000000000000;;		Address string
+0000000000000000000000000000000000000000;;		// port is the port for the Kubelet to serve on.
+0000000000000000000000000000000000000000;;		Port int32
+0000000000000000000000000000000000000000;;		// readOnlyPort is the read-only port for the Kubelet to serve on with
+0000000000000000000000000000000000000000;;		// no authentication/authorization (set to 0 to disable)
+0000000000000000000000000000000000000000;;		ReadOnlyPort int32
+0000000000000000000000000000000000000000;;		// tlsCertFile is the file containing x509 Certificate for HTTPS.  (CA cert,
+0000000000000000000000000000000000000000;;		// if any, concatenated after server cert). If tlsCertFile and
+0000000000000000000000000000000000000000;;		// tlsPrivateKeyFile are not provided, a self-signed certificate
+0000000000000000000000000000000000000000;;		// and key are generated for the public address and saved to the directory
+0000000000000000000000000000000000000000;;		// passed to certDir.
+0000000000000000000000000000000000000000;;		TLSCertFile string
+0000000000000000000000000000000000000000;;		// tlsPrivateKeyFile is the ile containing x509 private key matching
+0000000000000000000000000000000000000000;;		// tlsCertFile.
+0000000000000000000000000000000000000000;;		TLSPrivateKeyFile string
+0000000000000000000000000000000000000000;;		// certDirectory is the directory where the TLS certs are located (by
+0000000000000000000000000000000000000000;;		// default /var/run/kubernetes). If tlsCertFile and tlsPrivateKeyFile
+0000000000000000000000000000000000000000;;		// are provided, this flag will be ignored.
+0000000000000000000000000000000000000000;;		CertDirectory string
+0000000000000000000000000000000000000000;;		// authentication specifies how requests to the Kubelet's server are authenticated
+0000000000000000000000000000000000000000;;		Authentication KubeletAuthentication
+0000000000000000000000000000000000000000;;		// authorization specifies how requests to the Kubelet's server are authorized
+0000000000000000000000000000000000000000;;		Authorization KubeletAuthorization
+0000000000000000000000000000000000000000;;		// rootDirectory is the directory path to place kubelet files (volume
+0000000000000000000000000000000000000000;;		// mounts,etc).
+0000000000000000000000000000000000000000;;		RootDirectory string
+0000000000000000000000000000000000000000;;		// seccompProfileRoot is the directory path for seccomp profiles.
+0000000000000000000000000000000000000000;;		SeccompProfileRoot string
+0000000000000000000000000000000000000000;;		// allowPrivileged enables containers to request privileged mode.
+0000000000000000000000000000000000000000;;		// Defaults to false.
+0000000000000000000000000000000000000000;;		AllowPrivileged bool
+0000000000000000000000000000000000000000;;		// hostNetworkSources is a comma-separated list of sources from which the
+0000000000000000000000000000000000000000;;		// Kubelet allows pods to use of host network. Defaults to "*". Valid
+0000000000000000000000000000000000000000;;		// options are "file", "http", "api", and "*" (all sources).
+0000000000000000000000000000000000000000;;		HostNetworkSources []string
+0000000000000000000000000000000000000000;;		// hostPIDSources is a comma-separated list of sources from which the
+0000000000000000000000000000000000000000;;		// Kubelet allows pods to use the host pid namespace. Defaults to "*".
+0000000000000000000000000000000000000000;;		HostPIDSources []string
+0000000000000000000000000000000000000000;;		// hostIPCSources is a comma-separated list of sources from which the
+0000000000000000000000000000000000000000;;		// Kubelet allows pods to use the host ipc namespace. Defaults to "*".
+0000000000000000000000000000000000000000;;		HostIPCSources []string
+0000000000000000000000000000000000000000;;		// registryPullQPS is the limit of registry pulls per second. If 0,
+0000000000000000000000000000000000000000;;		// unlimited. Set to 0 for no limit. Defaults to 5.0.
+0000000000000000000000000000000000000000;;		RegistryPullQPS int32
+0000000000000000000000000000000000000000;;		// registryBurst is the maximum size of a bursty pulls, temporarily allows
+0000000000000000000000000000000000000000;;		// pulls to burst to this number, while still not exceeding registryQps.
+0000000000000000000000000000000000000000;;		// Only used if registryQPS > 0.
+0000000000000000000000000000000000000000;;		RegistryBurst int32
+0000000000000000000000000000000000000000;;		// eventRecordQPS is the maximum event creations per second. If 0, there
+0000000000000000000000000000000000000000;;		// is no limit enforced.
+0000000000000000000000000000000000000000;;		EventRecordQPS int32
+0000000000000000000000000000000000000000;;		// eventBurst is the maximum size of a bursty event records, temporarily
+0000000000000000000000000000000000000000;;		// allows event records to burst to this number, while still not exceeding
+0000000000000000000000000000000000000000;;		// event-qps. Only used if eventQps > 0
+0000000000000000000000000000000000000000;;		EventBurst int32
+0000000000000000000000000000000000000000;;		// enableDebuggingHandlers enables server endpoints for log collection
+0000000000000000000000000000000000000000;;		// and local running of containers and commands
+0000000000000000000000000000000000000000;;		EnableDebuggingHandlers bool
+0000000000000000000000000000000000000000;;		// enableContentionProfiling enables lock contention profiling, if enableDebuggingHandlers is true.
+0000000000000000000000000000000000000000;;		EnableContentionProfiling bool
+0000000000000000000000000000000000000000;;		// minimumGCAge is the minimum age for a finished container before it is
+0000000000000000000000000000000000000000;;		// garbage collected.
+0000000000000000000000000000000000000000;;		MinimumGCAge metav1.Duration
+0000000000000000000000000000000000000000;;		// maxPerPodContainerCount is the maximum number of old instances to
+0000000000000000000000000000000000000000;;		// retain per container. Each container takes up some disk space.
+0000000000000000000000000000000000000000;;		MaxPerPodContainerCount int32
+0000000000000000000000000000000000000000;;		// maxContainerCount is the maximum number of old instances of containers
+0000000000000000000000000000000000000000;;		// to retain globally. Each container takes up some disk space.
+0000000000000000000000000000000000000000;;		MaxContainerCount int32
+0000000000000000000000000000000000000000;;		// cAdvisorPort is the port of the localhost cAdvisor endpoint
+0000000000000000000000000000000000000000;;		CAdvisorPort int32
+0000000000000000000000000000000000000000;;		// healthzPort is the port of the localhost healthz endpoint
+0000000000000000000000000000000000000000;;		HealthzPort int32
+0000000000000000000000000000000000000000;;		// healthzBindAddress is the IP address for the healthz server to serve
+0000000000000000000000000000000000000000;;		// on.
+0000000000000000000000000000000000000000;;		HealthzBindAddress string
+0000000000000000000000000000000000000000;;		// oomScoreAdj is The oom-score-adj value for kubelet process. Values
+0000000000000000000000000000000000000000;;		// must be within the range [-1000, 1000].
+0000000000000000000000000000000000000000;;		OOMScoreAdj int32
+0000000000000000000000000000000000000000;;		// registerNode enables automatic registration with the apiserver.
+0000000000000000000000000000000000000000;;		RegisterNode bool
+0000000000000000000000000000000000000000;;		// clusterDomain is the DNS domain for this cluster. If set, kubelet will
+0000000000000000000000000000000000000000;;		// configure all containers to search this domain in addition to the
+0000000000000000000000000000000000000000;;		// host's search domains.
+0000000000000000000000000000000000000000;;		ClusterDomain string
+0000000000000000000000000000000000000000;;		// masterServiceNamespace is The namespace from which the kubernetes
+0000000000000000000000000000000000000000;;		// master services should be injected into pods.
+0000000000000000000000000000000000000000;;		MasterServiceNamespace string
+0000000000000000000000000000000000000000;;		// clusterDNS is a list of IP address for a cluster DNS server.  If set,
+0000000000000000000000000000000000000000;;		// kubelet will configure all containers to use this for DNS resolution
+0000000000000000000000000000000000000000;;		// instead of the host's DNS servers
+0000000000000000000000000000000000000000;;		ClusterDNS []string
+0000000000000000000000000000000000000000;;		// streamingConnectionIdleTimeout is the maximum time a streaming connection
+0000000000000000000000000000000000000000;;		// can be idle before the connection is automatically closed.
+0000000000000000000000000000000000000000;;		StreamingConnectionIdleTimeout metav1.Duration
+0000000000000000000000000000000000000000;;		// nodeStatusUpdateFrequency is the frequency that kubelet posts node
+0000000000000000000000000000000000000000;;		// status to master. Note: be cautious when changing the constant, it
+0000000000000000000000000000000000000000;;		// must work with nodeMonitorGracePeriod in nodecontroller.
+0000000000000000000000000000000000000000;;		NodeStatusUpdateFrequency metav1.Duration
+0000000000000000000000000000000000000000;;		// imageMinimumGCAge is the minimum age for an unused image before it is
+0000000000000000000000000000000000000000;;		// garbage collected.
+0000000000000000000000000000000000000000;;		ImageMinimumGCAge metav1.Duration
+0000000000000000000000000000000000000000;;		// imageGCHighThresholdPercent is the percent of disk usage after which
+0000000000000000000000000000000000000000;;		// image garbage collection is always run.
+0000000000000000000000000000000000000000;;		ImageGCHighThresholdPercent int32
+0000000000000000000000000000000000000000;;		// imageGCLowThresholdPercent is the percent of disk usage before which
+0000000000000000000000000000000000000000;;		// image garbage collection is never run. Lowest disk usage to garbage
+0000000000000000000000000000000000000000;;		// collect to.
+0000000000000000000000000000000000000000;;		ImageGCLowThresholdPercent int32
+0000000000000000000000000000000000000000;;		// lowDiskSpaceThresholdMB is the absolute free disk space, in MB, to
+0000000000000000000000000000000000000000;;		// maintain. When disk space falls below this threshold, new pods would
+0000000000000000000000000000000000000000;;		// be rejected.
+0000000000000000000000000000000000000000;;		LowDiskSpaceThresholdMB int32
+0000000000000000000000000000000000000000;;		// How frequently to calculate and cache volume disk usage for all pods
+0000000000000000000000000000000000000000;;		VolumeStatsAggPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// volumePluginDir is the full path of the directory in which to search
+0000000000000000000000000000000000000000;;		// for additional third party volume plugins
+0000000000000000000000000000000000000000;;		VolumePluginDir string
+0000000000000000000000000000000000000000;;		// cloudProvider is the provider for cloud services.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		CloudProvider string
+0000000000000000000000000000000000000000;;		// cloudConfigFile is the path to the cloud provider configuration file.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		CloudConfigFile string
+0000000000000000000000000000000000000000;;		// KubeletCgroups is the absolute name of cgroups to isolate the kubelet in.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		KubeletCgroups string
+0000000000000000000000000000000000000000;;		// Enable QoS based Cgroup hierarchy: top level cgroups for QoS Classes
+0000000000000000000000000000000000000000;;		// And all Burstable and BestEffort pods are brought up under their
+0000000000000000000000000000000000000000;;		// specific top level QoS cgroup.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		CgroupsPerQOS bool
+0000000000000000000000000000000000000000;;		// driver that the kubelet uses to manipulate cgroups on the host (cgroupfs or systemd)
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		CgroupDriver string
+0000000000000000000000000000000000000000;;		// Cgroups that container runtime is expected to be isolated in.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		RuntimeCgroups string
+0000000000000000000000000000000000000000;;		// SystemCgroups is absolute name of cgroups in which to place
+0000000000000000000000000000000000000000;;		// all non-kernel processes that are not already in a container. Empty
+0000000000000000000000000000000000000000;;		// for no container. Rolling back the flag requires a reboot.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		SystemCgroups string
+0000000000000000000000000000000000000000;;		// CgroupRoot is the root cgroup to use for pods.
+0000000000000000000000000000000000000000;;		// If CgroupsPerQOS is enabled, this is the root of the QoS cgroup hierarchy.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		CgroupRoot string
+0000000000000000000000000000000000000000;;		// containerRuntime is the container runtime to use.
+0000000000000000000000000000000000000000;;		ContainerRuntime string
+0000000000000000000000000000000000000000;;		// remoteRuntimeEndpoint is the endpoint of remote runtime service
+0000000000000000000000000000000000000000;;		RemoteRuntimeEndpoint string
+0000000000000000000000000000000000000000;;		// remoteImageEndpoint is the endpoint of remote image service
+0000000000000000000000000000000000000000;;		RemoteImageEndpoint string
+0000000000000000000000000000000000000000;;		// runtimeRequestTimeout is the timeout for all runtime requests except long running
+0000000000000000000000000000000000000000;;		// requests - pull, logs, exec and attach.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		RuntimeRequestTimeout metav1.Duration
+0000000000000000000000000000000000000000;;		// experimentalMounterPath is the path of mounter binary. Leave empty to use the default mount path
+0000000000000000000000000000000000000000;;		ExperimentalMounterPath string
+0000000000000000000000000000000000000000;;		// lockFilePath is the path that kubelet will use to as a lock file.
+0000000000000000000000000000000000000000;;		// It uses this file as a lock to synchronize with other kubelet processes
+0000000000000000000000000000000000000000;;		// that may be running.
+0000000000000000000000000000000000000000;;		LockFilePath string
+0000000000000000000000000000000000000000;;		// ExitOnLockContention is a flag that signifies to the kubelet that it is running
+0000000000000000000000000000000000000000;;		// in "bootstrap" mode. This requires that 'LockFilePath' has been set.
+0000000000000000000000000000000000000000;;		// This will cause the kubelet to listen to inotify events on the lock file,
+0000000000000000000000000000000000000000;;		// releasing it and exiting when another process tries to open that file.
+0000000000000000000000000000000000000000;;		ExitOnLockContention bool
+0000000000000000000000000000000000000000;;		// How should the kubelet configure the container bridge for hairpin packets.
+0000000000000000000000000000000000000000;;		// Setting this flag allows endpoints in a Service to loadbalance back to
+0000000000000000000000000000000000000000;;		// themselves if they should try to access their own Service. Values:
+0000000000000000000000000000000000000000;;		//   "promiscuous-bridge": make the container bridge promiscuous.
+0000000000000000000000000000000000000000;;		//   "hairpin-veth":       set the hairpin flag on container veth interfaces.
+0000000000000000000000000000000000000000;;		//   "none":               do nothing.
+0000000000000000000000000000000000000000;;		// Generally, one must set --hairpin-mode=veth-flag to achieve hairpin NAT,
+0000000000000000000000000000000000000000;;		// because promiscous-bridge assumes the existence of a container bridge named cbr0.
+0000000000000000000000000000000000000000;;		HairpinMode string
+0000000000000000000000000000000000000000;;		// maxPods is the number of pods that can run on this Kubelet.
+0000000000000000000000000000000000000000;;		MaxPods int32
+0000000000000000000000000000000000000000;;		// The CIDR to use for pod IP addresses, only used in standalone mode.
+0000000000000000000000000000000000000000;;		// In cluster mode, this is obtained from the master.
+0000000000000000000000000000000000000000;;		PodCIDR string
+0000000000000000000000000000000000000000;;		// ResolverConfig is the resolver configuration file used as the basis
+0000000000000000000000000000000000000000;;		// for the container DNS resolution configuration."), []
+0000000000000000000000000000000000000000;;		ResolverConfig string
+0000000000000000000000000000000000000000;;		// cpuCFSQuota is Enable CPU CFS quota enforcement for containers that
+0000000000000000000000000000000000000000;;		// specify CPU limits
+0000000000000000000000000000000000000000;;		CPUCFSQuota bool
+0000000000000000000000000000000000000000;;		// containerized should be set to true if kubelet is running in a container.
+0000000000000000000000000000000000000000;;		Containerized bool
+0000000000000000000000000000000000000000;;		// maxOpenFiles is Number of files that can be opened by Kubelet process.
+0000000000000000000000000000000000000000;;		MaxOpenFiles int64
+0000000000000000000000000000000000000000;;		// registerSchedulable tells the kubelet to register the node as
+0000000000000000000000000000000000000000;;		// schedulable. Won't have any effect if register-node is false.
+0000000000000000000000000000000000000000;;		// DEPRECATED: use registerWithTaints instead
+0000000000000000000000000000000000000000;;		RegisterSchedulable bool
+0000000000000000000000000000000000000000;;		// registerWithTaints are an array of taints to add to a node object when
+0000000000000000000000000000000000000000;;		// the kubelet registers itself. This only takes effect when registerNode
+0000000000000000000000000000000000000000;;		// is true and upon the initial registration of the node.
+0000000000000000000000000000000000000000;;		RegisterWithTaints []api.Taint
+0000000000000000000000000000000000000000;;		// contentType is contentType of requests sent to apiserver.
+0000000000000000000000000000000000000000;;		ContentType string
+0000000000000000000000000000000000000000;;		// kubeAPIQPS is the QPS to use while talking with kubernetes apiserver
+0000000000000000000000000000000000000000;;		KubeAPIQPS int32
+0000000000000000000000000000000000000000;;		// kubeAPIBurst is the burst to allow while talking with kubernetes
+0000000000000000000000000000000000000000;;		// apiserver
+0000000000000000000000000000000000000000;;		KubeAPIBurst int32
+0000000000000000000000000000000000000000;;		// serializeImagePulls when enabled, tells the Kubelet to pull images one
+0000000000000000000000000000000000000000;;		// at a time. We recommend *not* changing the default value on nodes that
+0000000000000000000000000000000000000000;;		// run docker daemon with version  < 1.9 or an Aufs storage backend.
+0000000000000000000000000000000000000000;;		// Issue #10959 has more details.
+0000000000000000000000000000000000000000;;		SerializeImagePulls bool
+0000000000000000000000000000000000000000;;		// outOfDiskTransitionFrequency is duration for which the kubelet has to
+0000000000000000000000000000000000000000;;		// wait before transitioning out of out-of-disk node condition status.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		OutOfDiskTransitionFrequency metav1.Duration
+0000000000000000000000000000000000000000;;		// nodeLabels to add when registering the node in the cluster.
+0000000000000000000000000000000000000000;;		NodeLabels map[string]string
+0000000000000000000000000000000000000000;;		// nonMasqueradeCIDR configures masquerading: traffic to IPs outside this range will use IP masquerade.
+0000000000000000000000000000000000000000;;		NonMasqueradeCIDR string
+0000000000000000000000000000000000000000;;		// enable gathering custom metrics.
+0000000000000000000000000000000000000000;;		EnableCustomMetrics bool
+0000000000000000000000000000000000000000;;		// Comma-delimited list of hard eviction expressions.  For example, 'memory.available<300Mi'.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionHard string
+0000000000000000000000000000000000000000;;		// Comma-delimited list of soft eviction expressions.  For example, 'memory.available<300Mi'.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionSoft string
+0000000000000000000000000000000000000000;;		// Comma-delimeted list of grace periods for each soft eviction signal.  For example, 'memory.available=30s'.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionSoftGracePeriod string
+0000000000000000000000000000000000000000;;		// Duration for which the kubelet has to wait before transitioning out of an eviction pressure condition.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionPressureTransitionPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// Maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionMaxPodGracePeriod int32
+0000000000000000000000000000000000000000;;		// Comma-delimited list of minimum reclaims (e.g. imagefs.available=2Gi) that describes the minimum amount of resource the kubelet will reclaim when performing a pod eviction if that resource is under pressure.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		EvictionMinimumReclaim string
+0000000000000000000000000000000000000000;;		// If enabled, the kubelet will integrate with the kernel memcg notification to determine if memory eviction thresholds are crossed rather than polling.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		ExperimentalKernelMemcgNotification bool
+0000000000000000000000000000000000000000;;		// Maximum number of pods per core. Cannot exceed MaxPods
+0000000000000000000000000000000000000000;;		PodsPerCore int32
+0000000000000000000000000000000000000000;;		// enableControllerAttachDetach enables the Attach/Detach controller to
+0000000000000000000000000000000000000000;;		// manage attachment/detachment of volumes scheduled to this node, and
+0000000000000000000000000000000000000000;;		// disables kubelet from executing any attach/detach operations
+0000000000000000000000000000000000000000;;		EnableControllerAttachDetach bool
+0000000000000000000000000000000000000000;;		// A set of ResourceName=Percentage (e.g. memory=50%) pairs that describe
+0000000000000000000000000000000000000000;;		// how pod resource requests are reserved at the QoS level.
+0000000000000000000000000000000000000000;;		// Currently only memory is supported. [default=none]"
+0000000000000000000000000000000000000000;;		ExperimentalQOSReserved ConfigurationMap
+0000000000000000000000000000000000000000;;		// Default behaviour for kernel tuning
+0000000000000000000000000000000000000000;;		ProtectKernelDefaults bool
+0000000000000000000000000000000000000000;;		// If true, Kubelet ensures a set of iptables rules are present on host.
+0000000000000000000000000000000000000000;;		// These rules will serve as utility for various components, e.g. kube-proxy.
+0000000000000000000000000000000000000000;;		// The rules will be created based on IPTablesMasqueradeBit and IPTablesDropBit.
+0000000000000000000000000000000000000000;;		MakeIPTablesUtilChains bool
+0000000000000000000000000000000000000000;;		// iptablesMasqueradeBit is the bit of the iptables fwmark space to use for SNAT
+0000000000000000000000000000000000000000;;		// Values must be within the range [0, 31].
+0000000000000000000000000000000000000000;;		// Warning: Please match the value of corresponding parameter in kube-proxy
+0000000000000000000000000000000000000000;;		// TODO: clean up IPTablesMasqueradeBit in kube-proxy
+0000000000000000000000000000000000000000;;		IPTablesMasqueradeBit int32
+0000000000000000000000000000000000000000;;		// iptablesDropBit is the bit of the iptables fwmark space to use for dropping packets. Kubelet will ensure iptables mark and drop rules.
+0000000000000000000000000000000000000000;;		// Values must be within the range [0, 31]. Must be different from IPTablesMasqueradeBit
+0000000000000000000000000000000000000000;;		IPTablesDropBit int32
+0000000000000000000000000000000000000000;;		// Whitelist of unsafe sysctls or sysctl patterns (ending in *).
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		AllowedUnsafeSysctls []string
+0000000000000000000000000000000000000000;;		// featureGates is a string of comma-separated key=value pairs that describe feature
+0000000000000000000000000000000000000000;;		// gates for alpha/experimental features.
+0000000000000000000000000000000000000000;;		FeatureGates string
+0000000000000000000000000000000000000000;;		// TODO(#34726:1.8.0): Remove the opt-in for failing when swap is enabled.
+0000000000000000000000000000000000000000;;		// Tells the Kubelet to fail to start if swap is enabled on the node.
+0000000000000000000000000000000000000000;;		ExperimentalFailSwapOn bool
+0000000000000000000000000000000000000000;;		// This flag, if set, enables a check prior to mount operations to verify that the required components
+0000000000000000000000000000000000000000;;		// (binaries, etc.) to mount the volume are available on the underlying node. If the check is enabled
+0000000000000000000000000000000000000000;;		// and fails the mount operation fails.
+0000000000000000000000000000000000000000;;		ExperimentalCheckNodeCapabilitiesBeforeMount bool
+0000000000000000000000000000000000000000;;		// This flag, if set, instructs the kubelet to keep volumes from terminated pods mounted to the node.
+0000000000000000000000000000000000000000;;		// This can be useful for debugging volume related issues.
+0000000000000000000000000000000000000000;;		KeepTerminatedPodVolumes bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		/* following flags are meant for Node Allocatable */
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G) pairs
+0000000000000000000000000000000000000000;;		// that describe resources reserved for non-kubernetes components.
+0000000000000000000000000000000000000000;;		// Currently only cpu and memory are supported. [default=none]
+0000000000000000000000000000000000000000;;		// See http://kubernetes.io/docs/user-guide/compute-resources for more detail.
+0000000000000000000000000000000000000000;;		SystemReserved ConfigurationMap
+0000000000000000000000000000000000000000;;		// A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G) pairs
+0000000000000000000000000000000000000000;;		// that describe resources reserved for kubernetes system components.
+0000000000000000000000000000000000000000;;		// Currently only cpu and memory are supported. [default=none]
+0000000000000000000000000000000000000000;;		// See http://kubernetes.io/docs/user-guide/compute-resources for more detail.
+0000000000000000000000000000000000000000;;		KubeReserved ConfigurationMap
+0000000000000000000000000000000000000000;;		// This flag helps kubelet identify absolute name of top level cgroup used to enforce `SystemReserved` compute resource reservation for OS system daemons.
+0000000000000000000000000000000000000000;;		// Refer to [Node Allocatable](https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md) doc for more information.
+0000000000000000000000000000000000000000;;		SystemReservedCgroup string
+0000000000000000000000000000000000000000;;		// This flag helps kubelet identify absolute name of top level cgroup used to enforce `KubeReserved` compute resource reservation for Kubernetes node system daemons.
+0000000000000000000000000000000000000000;;		// Refer to [Node Allocatable](https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md) doc for more information.
+0000000000000000000000000000000000000000;;		KubeReservedCgroup string
+0000000000000000000000000000000000000000;;		// This flag specifies the various Node Allocatable enforcements that Kubelet needs to perform.
+0000000000000000000000000000000000000000;;		// This flag accepts a list of options. Acceptable options are `pods`, `system-reserved` & `kube-reserved`.
+0000000000000000000000000000000000000000;;		// Refer to [Node Allocatable](https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md) doc for more information.
+0000000000000000000000000000000000000000;;		EnforceNodeAllocatable []string
+0000000000000000000000000000000000000000;;		// This flag, if set, will avoid including `EvictionHard` limits while computing Node Allocatable.
+0000000000000000000000000000000000000000;;		// Refer to [Node Allocatable](https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md) doc for more information.
+0000000000000000000000000000000000000000;;		ExperimentalNodeAllocatableIgnoreEvictionThreshold bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletAuthorizationMode string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		// KubeletAuthorizationModeAlwaysAllow authorizes all authenticated requests
+0000000000000000000000000000000000000000;;		KubeletAuthorizationModeAlwaysAllow KubeletAuthorizationMode = "AlwaysAllow"
+0000000000000000000000000000000000000000;;		// KubeletAuthorizationModeWebhook uses the SubjectAccessReview API to determine authorization
+0000000000000000000000000000000000000000;;		KubeletAuthorizationModeWebhook KubeletAuthorizationMode = "Webhook"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletAuthorization struct {
+0000000000000000000000000000000000000000;;		// mode is the authorization mode to apply to requests to the kubelet server.
+0000000000000000000000000000000000000000;;		// Valid values are AlwaysAllow and Webhook.
+0000000000000000000000000000000000000000;;		// Webhook mode uses the SubjectAccessReview API to determine authorization.
+0000000000000000000000000000000000000000;;		Mode KubeletAuthorizationMode
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// webhook contains settings related to Webhook authorization.
+0000000000000000000000000000000000000000;;		Webhook KubeletWebhookAuthorization
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletWebhookAuthorization struct {
+0000000000000000000000000000000000000000;;		// cacheAuthorizedTTL is the duration to cache 'authorized' responses from the webhook authorizer.
+0000000000000000000000000000000000000000;;		CacheAuthorizedTTL metav1.Duration
+0000000000000000000000000000000000000000;;		// cacheUnauthorizedTTL is the duration to cache 'unauthorized' responses from the webhook authorizer.
+0000000000000000000000000000000000000000;;		CacheUnauthorizedTTL metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletAuthentication struct {
+0000000000000000000000000000000000000000;;		// x509 contains settings related to x509 client certificate authentication
+0000000000000000000000000000000000000000;;		X509 KubeletX509Authentication
+0000000000000000000000000000000000000000;;		// webhook contains settings related to webhook bearer token authentication
+0000000000000000000000000000000000000000;;		Webhook KubeletWebhookAuthentication
+0000000000000000000000000000000000000000;;		// anonymous contains settings related to anonymous authentication
+0000000000000000000000000000000000000000;;		Anonymous KubeletAnonymousAuthentication
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletX509Authentication struct {
+0000000000000000000000000000000000000000;;		// clientCAFile is the path to a PEM-encoded certificate bundle. If set, any request presenting a client certificate
+0000000000000000000000000000000000000000;;		// signed by one of the authorities in the bundle is authenticated with a username corresponding to the CommonName,
+0000000000000000000000000000000000000000;;		// and groups corresponding to the Organization in the client certificate.
+0000000000000000000000000000000000000000;;		ClientCAFile string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletWebhookAuthentication struct {
+0000000000000000000000000000000000000000;;		// enabled allows bearer token authentication backed by the tokenreviews.authentication.k8s.io API
+0000000000000000000000000000000000000000;;		Enabled bool
+0000000000000000000000000000000000000000;;		// cacheTTL enables caching of authentication results
+0000000000000000000000000000000000000000;;		CacheTTL metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeletAnonymousAuthentication struct {
+0000000000000000000000000000000000000000;;		// enabled allows anonymous requests to the kubelet server.
+0000000000000000000000000000000000000000;;		// Requests that are not rejected by another authentication method are treated as anonymous requests.
+0000000000000000000000000000000000000000;;		// Anonymous requests have a username of system:anonymous, and a group name of system:unauthenticated.
+0000000000000000000000000000000000000000;;		Enabled bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeSchedulerConfiguration struct {
+0000000000000000000000000000000000000000;;		metav1.TypeMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// port is the port that the scheduler's http service runs on.
+0000000000000000000000000000000000000000;;		Port int32
+0000000000000000000000000000000000000000;;		// address is the IP address to serve on.
+0000000000000000000000000000000000000000;;		Address string
+0000000000000000000000000000000000000000;;		// algorithmProvider is the scheduling algorithm provider to use.
+0000000000000000000000000000000000000000;;		AlgorithmProvider string
+0000000000000000000000000000000000000000;;		// policyConfigFile is the filepath to the scheduler policy configuration.
+0000000000000000000000000000000000000000;;		PolicyConfigFile string
+0000000000000000000000000000000000000000;;		// enableProfiling enables profiling via web interface.
+0000000000000000000000000000000000000000;;		EnableProfiling bool
+0000000000000000000000000000000000000000;;		// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
+0000000000000000000000000000000000000000;;		EnableContentionProfiling bool
+0000000000000000000000000000000000000000;;		// contentType is contentType of requests sent to apiserver.
+0000000000000000000000000000000000000000;;		ContentType string
+0000000000000000000000000000000000000000;;		// kubeAPIQPS is the QPS to use while talking with kubernetes apiserver.
+0000000000000000000000000000000000000000;;		KubeAPIQPS float32
+0000000000000000000000000000000000000000;;		// kubeAPIBurst is the QPS burst to use while talking with kubernetes apiserver.
+0000000000000000000000000000000000000000;;		KubeAPIBurst int32
+0000000000000000000000000000000000000000;;		// schedulerName is name of the scheduler, used to select which pods
+0000000000000000000000000000000000000000;;		// will be processed by this scheduler, based on pod's "spec.SchedulerName".
+0000000000000000000000000000000000000000;;		SchedulerName string
+0000000000000000000000000000000000000000;;		// RequiredDuringScheduling affinity is not symmetric, but there is an implicit PreferredDuringScheduling affinity rule
+0000000000000000000000000000000000000000;;		// corresponding to every RequiredDuringScheduling affinity rule.
+0000000000000000000000000000000000000000;;		// HardPodAffinitySymmetricWeight represents the weight of implicit PreferredDuringScheduling affinity rule, in the range 0-100.
+0000000000000000000000000000000000000000;;		HardPodAffinitySymmetricWeight int
+0000000000000000000000000000000000000000;;		// Indicate the "all topologies" set for empty topologyKey when it's used for PreferredDuringScheduling pod anti-affinity.
+0000000000000000000000000000000000000000;;		// DEPRECATED: This is no longer used.
+0000000000000000000000000000000000000000;;		FailureDomains string
+0000000000000000000000000000000000000000;;		// leaderElection defines the configuration of leader election client.
+0000000000000000000000000000000000000000;;		LeaderElection LeaderElectionConfiguration
+0000000000000000000000000000000000000000;;		// LockObjectNamespace defines the namespace of the lock object
+0000000000000000000000000000000000000000;;		LockObjectNamespace string
+0000000000000000000000000000000000000000;;		// LockObjectName defines the lock object name
+0000000000000000000000000000000000000000;;		LockObjectName string
+0000000000000000000000000000000000000000;;		// PolicyConfigMapName is the name of the ConfigMap object that specifies
+0000000000000000000000000000000000000000;;		// the scheduler's policy config. If UseLegacyPolicyConfig is true, scheduler
+0000000000000000000000000000000000000000;;		// uses PolicyConfigFile. If UseLegacyPolicyConfig is false and
+0000000000000000000000000000000000000000;;		// PolicyConfigMapName is not empty, the ConfigMap object with this name must
+0000000000000000000000000000000000000000;;		// exist in PolicyConfigMapNamespace before scheduler initialization.
+0000000000000000000000000000000000000000;;		PolicyConfigMapName string
+0000000000000000000000000000000000000000;;		// PolicyConfigMapNamespace is the namespace where the above policy config map
+0000000000000000000000000000000000000000;;		// is located. If none is provided default system namespace ("kube-system")
+0000000000000000000000000000000000000000;;		// will be used.
+0000000000000000000000000000000000000000;;		PolicyConfigMapNamespace string
+0000000000000000000000000000000000000000;;		// UseLegacyPolicyConfig tells the scheduler to ignore Policy ConfigMap and
+0000000000000000000000000000000000000000;;		// to use PolicyConfigFile if available.
+0000000000000000000000000000000000000000;;		UseLegacyPolicyConfig bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// LeaderElectionConfiguration defines the configuration of leader election
+0000000000000000000000000000000000000000;;	// clients for components that can run with leader election enabled.
+0000000000000000000000000000000000000000;;	type LeaderElectionConfiguration struct {
+0000000000000000000000000000000000000000;;		// leaderElect enables a leader election client to gain leadership
+0000000000000000000000000000000000000000;;		// before executing the main loop. Enable this when running replicated
+0000000000000000000000000000000000000000;;		// components for high availability.
+0000000000000000000000000000000000000000;;		LeaderElect bool
+0000000000000000000000000000000000000000;;		// leaseDuration is the duration that non-leader candidates will wait
+0000000000000000000000000000000000000000;;		// after observing a leadership renewal until attempting to acquire
+0000000000000000000000000000000000000000;;		// leadership of a led but unrenewed leader slot. This is effectively the
+0000000000000000000000000000000000000000;;		// maximum duration that a leader can be stopped before it is replaced
+0000000000000000000000000000000000000000;;		// by another candidate. This is only applicable if leader election is
+0000000000000000000000000000000000000000;;		// enabled.
+0000000000000000000000000000000000000000;;		LeaseDuration metav1.Duration
+0000000000000000000000000000000000000000;;		// renewDeadline is the interval between attempts by the acting master to
+0000000000000000000000000000000000000000;;		// renew a leadership slot before it stops leading. This must be less
+0000000000000000000000000000000000000000;;		// than or equal to the lease duration. This is only applicable if leader
+0000000000000000000000000000000000000000;;		// election is enabled.
+0000000000000000000000000000000000000000;;		RenewDeadline metav1.Duration
+0000000000000000000000000000000000000000;;		// retryPeriod is the duration the clients should wait between attempting
+0000000000000000000000000000000000000000;;		// acquisition and renewal of a leadership. This is only applicable if
+0000000000000000000000000000000000000000;;		// leader election is enabled.
+0000000000000000000000000000000000000000;;		RetryPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// resourceLock indicates the resource object type that will be used to lock
+0000000000000000000000000000000000000000;;		// during leader election cycles.
+0000000000000000000000000000000000000000;;		ResourceLock string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type GroupResource struct {
+0000000000000000000000000000000000000000;;		// group is the group portion of the GroupResource.
+0000000000000000000000000000000000000000;;		Group string
+0000000000000000000000000000000000000000;;		// resource is the resource portion of the GroupResource.
+0000000000000000000000000000000000000000;;		Resource string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type KubeControllerManagerConfiguration struct {
+0000000000000000000000000000000000000000;;		metav1.TypeMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Controllers is the list of controllers to enable or disable
+0000000000000000000000000000000000000000;;		// '*' means "all enabled by default controllers"
+0000000000000000000000000000000000000000;;		// 'foo' means "enable 'foo'"
+0000000000000000000000000000000000000000;;		// '-foo' means "disable 'foo'"
+0000000000000000000000000000000000000000;;		// first item for a particular name wins
+0000000000000000000000000000000000000000;;		Controllers []string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// port is the port that the controller-manager's http service runs on.
+0000000000000000000000000000000000000000;;		Port int32
+0000000000000000000000000000000000000000;;		// address is the IP address to serve on (set to 0.0.0.0 for all interfaces).
+0000000000000000000000000000000000000000;;		Address string
+0000000000000000000000000000000000000000;;		// useServiceAccountCredentials indicates whether controllers should be run with
+0000000000000000000000000000000000000000;;		// individual service account credentials.
+0000000000000000000000000000000000000000;;		UseServiceAccountCredentials bool
+0000000000000000000000000000000000000000;;		// cloudProvider is the provider for cloud services.
+0000000000000000000000000000000000000000;;		CloudProvider string
+0000000000000000000000000000000000000000;;		// cloudConfigFile is the path to the cloud provider configuration file.
+0000000000000000000000000000000000000000;;		CloudConfigFile string
+0000000000000000000000000000000000000000;;		// concurrentEndpointSyncs is the number of endpoint syncing operations
+0000000000000000000000000000000000000000;;		// that will be done concurrently. Larger number = faster endpoint updating,
+0000000000000000000000000000000000000000;;		// but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentEndpointSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentRSSyncs is the number of replica sets that are  allowed to sync
+0000000000000000000000000000000000000000;;		// concurrently. Larger number = more responsive replica  management, but more
+0000000000000000000000000000000000000000;;		// CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentRSSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentRCSyncs is the number of replication controllers that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive replica
+0000000000000000000000000000000000000000;;		// management, but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentRCSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentServiceSyncs is the number of services that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive service
+0000000000000000000000000000000000000000;;		// management, but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentServiceSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentResourceQuotaSyncs is the number of resource quotas that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive quota
+0000000000000000000000000000000000000000;;		// management, but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentResourceQuotaSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentDeploymentSyncs is the number of deployment objects that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive deployments,
+0000000000000000000000000000000000000000;;		// but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentDeploymentSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentDaemonSetSyncs is the number of daemonset objects that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive daemonset,
+0000000000000000000000000000000000000000;;		// but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentDaemonSetSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentJobSyncs is the number of job objects that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive jobs,
+0000000000000000000000000000000000000000;;		// but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentJobSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentNamespaceSyncs is the number of namespace objects that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently.
+0000000000000000000000000000000000000000;;		ConcurrentNamespaceSyncs int32
+0000000000000000000000000000000000000000;;		// concurrentSATokenSyncs is the number of service account token syncing operations
+0000000000000000000000000000000000000000;;		// that will be done concurrently.
+0000000000000000000000000000000000000000;;		ConcurrentSATokenSyncs int32
+0000000000000000000000000000000000000000;;		// lookupCacheSizeForRC is the size of lookup cache for replication controllers.
+0000000000000000000000000000000000000000;;		// Larger number = more responsive replica management, but more MEM load.
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		// DEPRECATED: This is no longer used.
+0000000000000000000000000000000000000000;;		LookupCacheSizeForRC int32
+0000000000000000000000000000000000000000;;		// lookupCacheSizeForRS is the size of lookup cache for replicatsets.
+0000000000000000000000000000000000000000;;		// Larger number = more responsive replica management, but more MEM load.
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		// DEPRECATED: This is no longer used.
+0000000000000000000000000000000000000000;;		LookupCacheSizeForRS int32
+0000000000000000000000000000000000000000;;		// lookupCacheSizeForDaemonSet is the size of lookup cache for daemonsets.
+0000000000000000000000000000000000000000;;		// Larger number = more responsive daemonset, but more MEM load.
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		// DEPRECATED: This is no longer used.
+0000000000000000000000000000000000000000;;		LookupCacheSizeForDaemonSet int32
+0000000000000000000000000000000000000000;;		// serviceSyncPeriod is the period for syncing services with their external
+0000000000000000000000000000000000000000;;		// load balancers.
+0000000000000000000000000000000000000000;;		ServiceSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// nodeSyncPeriod is the period for syncing nodes from cloudprovider. Longer
+0000000000000000000000000000000000000000;;		// periods will result in fewer calls to cloud provider, but may delay addition
+0000000000000000000000000000000000000000;;		// of new nodes to cluster.
+0000000000000000000000000000000000000000;;		NodeSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// routeReconciliationPeriod is the period for reconciling routes created for Nodes by cloud provider..
+0000000000000000000000000000000000000000;;		RouteReconciliationPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// resourceQuotaSyncPeriod is the period for syncing quota usage status
+0000000000000000000000000000000000000000;;		// in the system.
+0000000000000000000000000000000000000000;;		ResourceQuotaSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// namespaceSyncPeriod is the period for syncing namespace life-cycle
+0000000000000000000000000000000000000000;;		// updates.
+0000000000000000000000000000000000000000;;		NamespaceSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// pvClaimBinderSyncPeriod is the period for syncing persistent volumes
+0000000000000000000000000000000000000000;;		// and persistent volume claims.
+0000000000000000000000000000000000000000;;		PVClaimBinderSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// minResyncPeriod is the resync period in reflectors; will be random between
+0000000000000000000000000000000000000000;;		// minResyncPeriod and 2*minResyncPeriod.
+0000000000000000000000000000000000000000;;		MinResyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// terminatedPodGCThreshold is the number of terminated pods that can exist
+0000000000000000000000000000000000000000;;		// before the terminated pod garbage collector starts deleting terminated pods.
+0000000000000000000000000000000000000000;;		// If <= 0, the terminated pod garbage collector is disabled.
+0000000000000000000000000000000000000000;;		TerminatedPodGCThreshold int32
+0000000000000000000000000000000000000000;;		// horizontalPodAutoscalerSyncPeriod is the period for syncing the number of
+0000000000000000000000000000000000000000;;		// pods in horizontal pod autoscaler.
+0000000000000000000000000000000000000000;;		HorizontalPodAutoscalerSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// horizontalPodAutoscalerUpscaleForbiddenWindow is a period after which next upscale allowed.
+0000000000000000000000000000000000000000;;		HorizontalPodAutoscalerUpscaleForbiddenWindow metav1.Duration
+0000000000000000000000000000000000000000;;		// horizontalPodAutoscalerDownscaleForbiddenWindow is a period after which next downscale allowed.
+0000000000000000000000000000000000000000;;		HorizontalPodAutoscalerDownscaleForbiddenWindow metav1.Duration
+0000000000000000000000000000000000000000;;		// deploymentControllerSyncPeriod is the period for syncing the deployments.
+0000000000000000000000000000000000000000;;		DeploymentControllerSyncPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// podEvictionTimeout is the grace period for deleting pods on failed nodes.
+0000000000000000000000000000000000000000;;		PodEvictionTimeout metav1.Duration
+0000000000000000000000000000000000000000;;		// DEPRECATED: deletingPodsQps is the number of nodes per second on which pods are deleted in
+0000000000000000000000000000000000000000;;		// case of node failure.
+0000000000000000000000000000000000000000;;		DeletingPodsQps float32
+0000000000000000000000000000000000000000;;		// DEPRECATED: deletingPodsBurst is the number of nodes on which pods are bursty deleted in
+0000000000000000000000000000000000000000;;		// case of node failure. For more details look into RateLimiter.
+0000000000000000000000000000000000000000;;		DeletingPodsBurst int32
+0000000000000000000000000000000000000000;;		// nodeMontiorGracePeriod is the amount of time which we allow a running node to be
+0000000000000000000000000000000000000000;;		// unresponsive before marking it unhealthy. Must be N times more than kubelet's
+0000000000000000000000000000000000000000;;		// nodeStatusUpdateFrequency, where N means number of retries allowed for kubelet
+0000000000000000000000000000000000000000;;		// to post node status.
+0000000000000000000000000000000000000000;;		NodeMonitorGracePeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// registerRetryCount is the number of retries for initial node registration.
+0000000000000000000000000000000000000000;;		// Retry interval equals node-sync-period.
+0000000000000000000000000000000000000000;;		RegisterRetryCount int32
+0000000000000000000000000000000000000000;;		// nodeStartupGracePeriod is the amount of time which we allow starting a node to
+0000000000000000000000000000000000000000;;		// be unresponsive before marking it unhealthy.
+0000000000000000000000000000000000000000;;		NodeStartupGracePeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// nodeMonitorPeriod is the period for syncing NodeStatus in NodeController.
+0000000000000000000000000000000000000000;;		NodeMonitorPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// serviceAccountKeyFile is the filename containing a PEM-encoded private RSA key
+0000000000000000000000000000000000000000;;		// used to sign service account tokens.
+0000000000000000000000000000000000000000;;		ServiceAccountKeyFile string
+0000000000000000000000000000000000000000;;		// clusterSigningCertFile is the filename containing a PEM-encoded
+0000000000000000000000000000000000000000;;		// X509 CA certificate used to issue cluster-scoped certificates
+0000000000000000000000000000000000000000;;		ClusterSigningCertFile string
+0000000000000000000000000000000000000000;;		// clusterSigningCertFile is the filename containing a PEM-encoded
+0000000000000000000000000000000000000000;;		// RSA or ECDSA private key used to issue cluster-scoped certificates
+0000000000000000000000000000000000000000;;		ClusterSigningKeyFile string
+0000000000000000000000000000000000000000;;		// clusterSigningDuration is the length of duration signed certificates
+0000000000000000000000000000000000000000;;		// will be given.
+0000000000000000000000000000000000000000;;		ClusterSigningDuration metav1.Duration
+0000000000000000000000000000000000000000;;		// enableProfiling enables profiling via web interface host:port/debug/pprof/
+0000000000000000000000000000000000000000;;		EnableProfiling bool
+0000000000000000000000000000000000000000;;		// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
+0000000000000000000000000000000000000000;;		EnableContentionProfiling bool
+0000000000000000000000000000000000000000;;		// clusterName is the instance prefix for the cluster.
+0000000000000000000000000000000000000000;;		ClusterName string
+0000000000000000000000000000000000000000;;		// clusterCIDR is CIDR Range for Pods in cluster.
+0000000000000000000000000000000000000000;;		ClusterCIDR string
+0000000000000000000000000000000000000000;;		// serviceCIDR is CIDR Range for Services in cluster.
+0000000000000000000000000000000000000000;;		ServiceCIDR string
+0000000000000000000000000000000000000000;;		// NodeCIDRMaskSize is the mask size for node cidr in cluster.
+0000000000000000000000000000000000000000;;		NodeCIDRMaskSize int32
+0000000000000000000000000000000000000000;;		// AllocateNodeCIDRs enables CIDRs for Pods to be allocated and, if
+0000000000000000000000000000000000000000;;		// ConfigureCloudRoutes is true, to be set on the cloud provider.
+0000000000000000000000000000000000000000;;		AllocateNodeCIDRs bool
+0000000000000000000000000000000000000000;;		// CIDRAllocatorType determines what kind of pod CIDR allocator will be used.
+0000000000000000000000000000000000000000;;		CIDRAllocatorType string
+0000000000000000000000000000000000000000;;		// configureCloudRoutes enables CIDRs allocated with allocateNodeCIDRs
+0000000000000000000000000000000000000000;;		// to be configured on the cloud provider.
+0000000000000000000000000000000000000000;;		ConfigureCloudRoutes bool
+0000000000000000000000000000000000000000;;		// rootCAFile is the root certificate authority will be included in service
+0000000000000000000000000000000000000000;;		// account's token secret. This must be a valid PEM-encoded CA bundle.
+0000000000000000000000000000000000000000;;		RootCAFile string
+0000000000000000000000000000000000000000;;		// contentType is contentType of requests sent to apiserver.
+0000000000000000000000000000000000000000;;		ContentType string
+0000000000000000000000000000000000000000;;		// kubeAPIQPS is the QPS to use while talking with kubernetes apiserver.
+0000000000000000000000000000000000000000;;		KubeAPIQPS float32
+0000000000000000000000000000000000000000;;		// kubeAPIBurst is the burst to use while talking with kubernetes apiserver.
+0000000000000000000000000000000000000000;;		KubeAPIBurst int32
+0000000000000000000000000000000000000000;;		// leaderElection defines the configuration of leader election client.
+0000000000000000000000000000000000000000;;		LeaderElection LeaderElectionConfiguration
+0000000000000000000000000000000000000000;;		// volumeConfiguration holds configuration for volume related features.
+0000000000000000000000000000000000000000;;		VolumeConfiguration VolumeConfiguration
+0000000000000000000000000000000000000000;;		// How long to wait between starting controller managers
+0000000000000000000000000000000000000000;;		ControllerStartInterval metav1.Duration
+0000000000000000000000000000000000000000;;		// enables the generic garbage collector. MUST be synced with the
+0000000000000000000000000000000000000000;;		// corresponding flag of the kube-apiserver. WARNING: the generic garbage
+0000000000000000000000000000000000000000;;		// collector is an alpha feature.
+0000000000000000000000000000000000000000;;		EnableGarbageCollector bool
+0000000000000000000000000000000000000000;;		// concurrentGCSyncs is the number of garbage collector workers that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently.
+0000000000000000000000000000000000000000;;		ConcurrentGCSyncs int32
+0000000000000000000000000000000000000000;;		// gcIgnoredResources is the list of GroupResources that garbage collection should ignore.
+0000000000000000000000000000000000000000;;		GCIgnoredResources []GroupResource
+0000000000000000000000000000000000000000;;		// nodeEvictionRate is the number of nodes per second on which pods are deleted in case of node failure when a zone is healthy
+0000000000000000000000000000000000000000;;		NodeEvictionRate float32
+0000000000000000000000000000000000000000;;		// secondaryNodeEvictionRate is the number of nodes per second on which pods are deleted in case of node failure when a zone is unhealthy
+0000000000000000000000000000000000000000;;		SecondaryNodeEvictionRate float32
+0000000000000000000000000000000000000000;;		// secondaryNodeEvictionRate is implicitly overridden to 0 for clusters smaller than or equal to largeClusterSizeThreshold
+0000000000000000000000000000000000000000;;		LargeClusterSizeThreshold int32
+0000000000000000000000000000000000000000;;		// Zone is treated as unhealthy in nodeEvictionRate and secondaryNodeEvictionRate when at least
+0000000000000000000000000000000000000000;;		// unhealthyZoneThreshold (no less than 3) of Nodes in the zone are NotReady
+0000000000000000000000000000000000000000;;		UnhealthyZoneThreshold float32
+0000000000000000000000000000000000000000;;		// Reconciler runs a periodic loop to reconcile the desired state of the with
+0000000000000000000000000000000000000000;;		// the actual state of the world by triggering attach detach operations.
+0000000000000000000000000000000000000000;;		// This flag enables or disables reconcile.  Is false by default, and thus enabled.
+0000000000000000000000000000000000000000;;		DisableAttachDetachReconcilerSync bool
+0000000000000000000000000000000000000000;;		// ReconcilerSyncLoopPeriod is the amount of time the reconciler sync states loop
+0000000000000000000000000000000000000000;;		// wait between successive executions. Is set to 5 sec by default.
+0000000000000000000000000000000000000000;;		ReconcilerSyncLoopPeriod metav1.Duration
+0000000000000000000000000000000000000000;;		// If set to true enables NoExecute Taints and will evict all not-tolerating
+0000000000000000000000000000000000000000;;		// Pod running on Nodes tainted with this kind of Taints.
+0000000000000000000000000000000000000000;;		EnableTaintManager bool
+0000000000000000000000000000000000000000;;		// HorizontalPodAutoscalerUseRESTClients causes the HPA controller to use REST clients
+0000000000000000000000000000000000000000;;		// through the kube-aggregator when enabled, instead of using the legacy metrics client
+0000000000000000000000000000000000000000;;		// through the API server proxy.
+0000000000000000000000000000000000000000;;		HorizontalPodAutoscalerUseRESTClients bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeConfiguration contains *all* enumerated flags meant to configure all volume
+0000000000000000000000000000000000000000;;	// plugins. From this config, the controller-manager binary will create many instances of
+0000000000000000000000000000000000000000;;	// volume.VolumeConfig, each containing only the configuration needed for that plugin which
+0000000000000000000000000000000000000000;;	// are then passed to the appropriate plugin. The ControllerManager binary is the only part
+0000000000000000000000000000000000000000;;	// of the code which knows what plugins are supported and which flags correspond to each plugin.
+0000000000000000000000000000000000000000;;	type VolumeConfiguration struct {
+0000000000000000000000000000000000000000;;		// enableHostPathProvisioning enables HostPath PV provisioning when running without a
+0000000000000000000000000000000000000000;;		// cloud provider. This allows testing and development of provisioning features. HostPath
+0000000000000000000000000000000000000000;;		// provisioning is not supported in any way, won't work in a multi-node cluster, and
+0000000000000000000000000000000000000000;;		// should not be used for anything other than testing or development.
+0000000000000000000000000000000000000000;;		EnableHostPathProvisioning bool
+0000000000000000000000000000000000000000;;		// enableDynamicProvisioning enables the provisioning of volumes when running within an environment
+0000000000000000000000000000000000000000;;		// that supports dynamic provisioning. Defaults to true.
+0000000000000000000000000000000000000000;;		EnableDynamicProvisioning bool
+0000000000000000000000000000000000000000;;		// persistentVolumeRecyclerConfiguration holds configuration for persistent volume plugins.
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerConfiguration PersistentVolumeRecyclerConfiguration
+0000000000000000000000000000000000000000;;		// volumePluginDir is the full path of the directory in which the flex
+0000000000000000000000000000000000000000;;		// volume plugin should search for additional third party volume plugins
+0000000000000000000000000000000000000000;;		FlexVolumePluginDir string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type PersistentVolumeRecyclerConfiguration struct {
+0000000000000000000000000000000000000000;;		// maximumRetry is number of retries the PV recycler will execute on failure to recycle
+0000000000000000000000000000000000000000;;		// PV.
+0000000000000000000000000000000000000000;;		MaximumRetry int32
+0000000000000000000000000000000000000000;;		// minimumTimeoutNFS is the minimum ActiveDeadlineSeconds to use for an NFS Recycler
+0000000000000000000000000000000000000000;;		// pod.
+0000000000000000000000000000000000000000;;		MinimumTimeoutNFS int32
+0000000000000000000000000000000000000000;;		// podTemplateFilePathNFS is the file path to a pod definition used as a template for
+0000000000000000000000000000000000000000;;		// NFS persistent volume recycling
+0000000000000000000000000000000000000000;;		PodTemplateFilePathNFS string
+0000000000000000000000000000000000000000;;		// incrementTimeoutNFS is the increment of time added per Gi to ActiveDeadlineSeconds
+0000000000000000000000000000000000000000;;		// for an NFS scrubber pod.
+0000000000000000000000000000000000000000;;		IncrementTimeoutNFS int32
+0000000000000000000000000000000000000000;;		// podTemplateFilePathHostPath is the file path to a pod definition used as a template for
+0000000000000000000000000000000000000000;;		// HostPath persistent volume recycling. This is for development and testing only and
+0000000000000000000000000000000000000000;;		// will not work in a multi-node cluster.
+0000000000000000000000000000000000000000;;		PodTemplateFilePathHostPath string
+0000000000000000000000000000000000000000;;		// minimumTimeoutHostPath is the minimum ActiveDeadlineSeconds to use for a HostPath
+0000000000000000000000000000000000000000;;		// Recycler pod.  This is for development and testing only and will not work in a multi-node
+0000000000000000000000000000000000000000;;		// cluster.
+0000000000000000000000000000000000000000;;		MinimumTimeoutHostPath int32
+0000000000000000000000000000000000000000;;		// incrementTimeoutHostPath is the increment of time added per Gi to ActiveDeadlineSeconds
+0000000000000000000000000000000000000000;;		// for a HostPath scrubber pod.  This is for development and testing only and will not work
+0000000000000000000000000000000000000000;;		// in a multi-node cluster.
+0000000000000000000000000000000000000000;;		IncrementTimeoutHostPath int32
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ConfigurationMap map[string]string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (m *ConfigurationMap) String() string {
+0000000000000000000000000000000000000000;;		pairs := []string{}
+0000000000000000000000000000000000000000;;		for k, v := range *m {
+0000000000000000000000000000000000000000;;			pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		sort.Strings(pairs)
+0000000000000000000000000000000000000000;;		return strings.Join(pairs, ",")
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (m *ConfigurationMap) Set(value string) error {
+0000000000000000000000000000000000000000;;		for _, s := range strings.Split(value, ",") {
+0000000000000000000000000000000000000000;;			if len(s) == 0 {
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			arr := strings.SplitN(s, "=", 2)
+0000000000000000000000000000000000000000;;			if len(arr) == 2 {
+0000000000000000000000000000000000000000;;				(*m)[strings.TrimSpace(arr[0])] = strings.TrimSpace(arr[1])
+0000000000000000000000000000000000000000;;			} else {
+0000000000000000000000000000000000000000;;				(*m)[strings.TrimSpace(arr[0])] = ""
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (*ConfigurationMap) Type() string {
+0000000000000000000000000000000000000000;;		return "mapStringString"
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		// "kube-system" is the default scheduler lock object namespace
+0000000000000000000000000000000000000000;;		SchedulerDefaultLockObjectNamespace string = "kube-system"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// "kube-scheduler" is the default scheduler lock object name
+0000000000000000000000000000000000000000;;		SchedulerDefaultLockObjectName = "kube-scheduler"
+0000000000000000000000000000000000000000;;	)

@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000;;	// +build !linux,!windows
+99954112f88fa3ef5104dbddc2d5ae623bd781d9;Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces_syscall_unsupported.go[Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces_syscall_unsupported.go][vendor/github.com/opencontainers/runc/libcontainer/configs/namespaces_syscall_unsupported.go];	
+0000000000000000000000000000000000000000;;	package configs
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (n *Namespace) Syscall() int {
+0000000000000000000000000000000000000000;;		panic("No namespace syscall support")
+0000000000000000000000000000000000000000;;		return 0
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// CloneFlags parses the container's Namespaces options to set the correct
+0000000000000000000000000000000000000000;;	// flags on clone, unshare. This function returns flags only for new namespaces.
+0000000000000000000000000000000000000000;;	func (n *Namespaces) CloneFlags() uintptr {
+0000000000000000000000000000000000000000;;		panic("No namespace syscall support")
+0000000000000000000000000000000000000000;;		return uintptr(0)
+0000000000000000000000000000000000000000;;	}

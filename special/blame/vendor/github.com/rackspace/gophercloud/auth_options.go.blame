@@ -1,0 +1,55 @@
+0000000000000000000000000000000000000000;;	package gophercloud
+54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/auth_options.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/auth_options.go][vendor/github.com/rackspace/gophercloud/auth_options.go];	
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	AuthOptions stores information needed to authenticate to an OpenStack cluster.
+0000000000000000000000000000000000000000;;	You can populate one manually, or use a provider's AuthOptionsFromEnv() function
+0000000000000000000000000000000000000000;;	to read relevant information from the standard environment variables. Pass one
+0000000000000000000000000000000000000000;;	to a provider's AuthenticatedClient function to authenticate and obtain a
+0000000000000000000000000000000000000000;;	ProviderClient representing an active session on that provider.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Its fields are the union of those recognized by each identity implementation and
+0000000000000000000000000000000000000000;;	provider.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	type AuthOptions struct {
+0000000000000000000000000000000000000000;;		// IdentityEndpoint specifies the HTTP endpoint that is required to work with
+0000000000000000000000000000000000000000;;		// the Identity API of the appropriate version. While it's ultimately needed by
+0000000000000000000000000000000000000000;;		// all of the identity services, it will often be populated by a provider-level
+0000000000000000000000000000000000000000;;		// function.
+0000000000000000000000000000000000000000;;		IdentityEndpoint string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Username is required if using Identity V2 API. Consult with your provider's
+0000000000000000000000000000000000000000;;		// control panel to discover your account's username. In Identity V3, either
+0000000000000000000000000000000000000000;;		// UserID or a combination of Username and DomainID or DomainName are needed.
+0000000000000000000000000000000000000000;;		Username, UserID string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Exactly one of Password or APIKey is required for the Identity V2 and V3
+0000000000000000000000000000000000000000;;		// APIs. Consult with your provider's control panel to discover your account's
+0000000000000000000000000000000000000000;;		// preferred method of authentication.
+0000000000000000000000000000000000000000;;		Password, APIKey string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// At most one of DomainID and DomainName must be provided if using Username
+0000000000000000000000000000000000000000;;		// with Identity V3. Otherwise, either are optional.
+0000000000000000000000000000000000000000;;		DomainID, DomainName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// The TenantID and TenantName fields are optional for the Identity V2 API.
+0000000000000000000000000000000000000000;;		// Some providers allow you to specify a TenantName instead of the TenantId.
+0000000000000000000000000000000000000000;;		// Some require both. Your provider's authentication policies will determine
+0000000000000000000000000000000000000000;;		// how these fields influence authentication.
+0000000000000000000000000000000000000000;;		TenantID, TenantName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// AllowReauth should be set to true if you grant permission for Gophercloud to
+0000000000000000000000000000000000000000;;		// cache your credentials in memory, and to allow Gophercloud to attempt to
+0000000000000000000000000000000000000000;;		// re-authenticate automatically if/when your token expires.  If you set it to
+0000000000000000000000000000000000000000;;		// false, it will not cache these settings, but re-authentication will not be
+0000000000000000000000000000000000000000;;		// possible.  This setting defaults to false.
+0000000000000000000000000000000000000000;;		//
+0000000000000000000000000000000000000000;;		// NOTE: The reauth function will try to re-authenticate endlessly if left unchecked.
+0000000000000000000000000000000000000000;;		// The way to limit the number of attempts is to provide a custom HTTP client to the provider client 
+0000000000000000000000000000000000000000;;		// and provide a transport that implements the RoundTripper interface and stores the number of failed retries.
+0000000000000000000000000000000000000000;;		// For an example of this, see here: https://github.com/rackspace/rack/blob/1.0.0/auth/clients.go#L311
+0000000000000000000000000000000000000000;;		AllowReauth bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TokenID allows users to authenticate (possibly as another user) with an
+0000000000000000000000000000000000000000;;		// authentication token ID.
+0000000000000000000000000000000000000000;;		TokenID string
+0000000000000000000000000000000000000000;;	}

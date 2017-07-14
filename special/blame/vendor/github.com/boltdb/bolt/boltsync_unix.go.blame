@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000;;	// +build !windows,!plan9,!linux,!openbsd
+5da4772d7eee0df4a5bf872fd32f72643fc2e5c9;Godeps/_workspace/src/github.com/boltdb/bolt/boltsync_unix.go[Godeps/_workspace/src/github.com/boltdb/bolt/boltsync_unix.go][vendor/github.com/boltdb/bolt/boltsync_unix.go];	
+0000000000000000000000000000000000000000;;	package bolt
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// fdatasync flushes written data to a file descriptor.
+0000000000000000000000000000000000000000;;	func fdatasync(db *DB) error {
+0000000000000000000000000000000000000000;;		return db.file.Sync()
+0000000000000000000000000000000000000000;;	}

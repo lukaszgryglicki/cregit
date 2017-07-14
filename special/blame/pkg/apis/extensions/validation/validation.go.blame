@@ -1,0 +1,948 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2015 The Kubernetes Authors.
+13846cb3e451df769b70229223f1f7b0119b2321;pkg/expapi/validation/validation.go[pkg/expapi/validation/validation.go][pkg/apis/extensions/validation/validation.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package validation
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"net"
+0000000000000000000000000000000000000000;;		"reflect"
+0000000000000000000000000000000000000000;;		"regexp"
+0000000000000000000000000000000000000000;;		"strconv"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		apiequality "k8s.io/apimachinery/pkg/api/equality"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/labels"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/intstr"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/sets"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation/field"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		apivalidation "k8s.io/kubernetes/pkg/api/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/extensions"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/apparmor"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/seccomp"
+0000000000000000000000000000000000000000;;		psputil "k8s.io/kubernetes/pkg/security/podsecuritypolicy/util"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateDaemonSet tests if required fields in the DaemonSet are set.
+0000000000000000000000000000000000000000;;	func ValidateDaemonSet(ds *extensions.DaemonSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&ds.ObjectMeta, true, ValidateDaemonSetName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDaemonSetSpec(&ds.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateDaemonSetUpdate tests if required fields in the DaemonSet are set.
+0000000000000000000000000000000000000000;;	func ValidateDaemonSetUpdate(ds, oldDS *extensions.DaemonSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&ds.ObjectMeta, &oldDS.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDaemonSetSpecUpdate(&ds.Spec, &oldDS.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDaemonSetSpec(&ds.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDaemonSetSpecUpdate(newSpec, oldSpec *extensions.DaemonSetSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TemplateGeneration shouldn't be decremented
+0000000000000000000000000000000000000000;;		if newSpec.TemplateGeneration < oldSpec.TemplateGeneration {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("templateGeneration"), newSpec.TemplateGeneration, "must not be decremented"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TemplateGeneration should be increased when and only when template is changed
+0000000000000000000000000000000000000000;;		templateUpdated := !apiequality.Semantic.DeepEqual(newSpec.Template, oldSpec.Template)
+0000000000000000000000000000000000000000;;		if newSpec.TemplateGeneration == oldSpec.TemplateGeneration && templateUpdated {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("templateGeneration"), newSpec.TemplateGeneration, "must be incremented upon template update"))
+0000000000000000000000000000000000000000;;		} else if newSpec.TemplateGeneration > oldSpec.TemplateGeneration && !templateUpdated {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("templateGeneration"), newSpec.TemplateGeneration, "must not be incremented without template update"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validateDaemonSetStatus validates a DaemonSetStatus
+0000000000000000000000000000000000000000;;	func validateDaemonSetStatus(status *extensions.DaemonSetStatus, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.CurrentNumberScheduled), fldPath.Child("currentNumberScheduled"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.NumberMisscheduled), fldPath.Child("numberMisscheduled"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.DesiredNumberScheduled), fldPath.Child("desiredNumberScheduled"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.NumberReady), fldPath.Child("numberReady"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(status.ObservedGeneration, fldPath.Child("observedGeneration"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.UpdatedNumberScheduled), fldPath.Child("updatedNumberScheduled"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.NumberAvailable), fldPath.Child("numberAvailable"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.NumberUnavailable), fldPath.Child("numberUnavailable"))...)
+0000000000000000000000000000000000000000;;		if status.CollisionCount != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*status.CollisionCount), fldPath.Child("collisionCount"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateDaemonSetStatus validates tests if required fields in the DaemonSet Status section
+0000000000000000000000000000000000000000;;	func ValidateDaemonSetStatusUpdate(ds, oldDS *extensions.DaemonSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&ds.ObjectMeta, &oldDS.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validateDaemonSetStatus(&ds.Status, field.NewPath("status"))...)
+0000000000000000000000000000000000000000;;		if isDecremented(ds.Status.CollisionCount, oldDS.Status.CollisionCount) {
+0000000000000000000000000000000000000000;;			value := int64(0)
+0000000000000000000000000000000000000000;;			if ds.Status.CollisionCount != nil {
+0000000000000000000000000000000000000000;;				value = *ds.Status.CollisionCount
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("status").Child("collisionCount"), value, "cannot be decremented"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateDaemonSetSpec tests if required fields in the DaemonSetSpec are set.
+0000000000000000000000000000000000000000;;	func ValidateDaemonSetSpec(spec *extensions.DaemonSetSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(spec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		selector, err := metav1.LabelSelectorAsSelector(spec.Selector)
+0000000000000000000000000000000000000000;;		if err == nil && !selector.Matches(labels.Set(spec.Template.Labels)) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("template", "metadata", "labels"), spec.Template.Labels, "`selector` does not match template `labels`"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.Selector != nil && len(spec.Selector.MatchLabels)+len(spec.Selector.MatchExpressions) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("selector"), spec.Selector, "empty selector is not valid for daemonset."))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidatePodTemplateSpec(&spec.Template, fldPath.Child("template"))...)
+0000000000000000000000000000000000000000;;		// Daemons typically run on more than one node, so mark Read-Write persistent disks as invalid.
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateReadOnlyPersistentDisks(spec.Template.Spec.Volumes, fldPath.Child("template", "spec", "volumes"))...)
+0000000000000000000000000000000000000000;;		// RestartPolicy has already been first-order validated as per ValidatePodTemplateSpec().
+0000000000000000000000000000000000000000;;		if spec.Template.Spec.RestartPolicy != api.RestartPolicyAlways {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("template", "spec", "restartPolicy"), spec.Template.Spec.RestartPolicy, []string{string(api.RestartPolicyAlways)}))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.Template.Spec.ActiveDeadlineSeconds != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("template", "spec", "activeDeadlineSeconds"), spec.Template.Spec.ActiveDeadlineSeconds, "must not be specified"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.MinReadySeconds), fldPath.Child("minReadySeconds"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.TemplateGeneration), fldPath.Child("templateGeneration"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDaemonSetUpdateStrategy(&spec.UpdateStrategy, fldPath.Child("updateStrategy"))...)
+0000000000000000000000000000000000000000;;		if spec.RevisionHistoryLimit != nil {
+0000000000000000000000000000000000000000;;			// zero is a valid RevisionHistoryLimit
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.RevisionHistoryLimit), fldPath.Child("revisionHistoryLimit"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateRollingUpdateDaemonSet(rollingUpdate *extensions.RollingUpdateDaemonSet, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePositiveIntOrPercent(rollingUpdate.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
+0000000000000000000000000000000000000000;;		if getIntOrPercentValue(rollingUpdate.MaxUnavailable) == 0 {
+0000000000000000000000000000000000000000;;			// MaxUnavailable cannot be 0.
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("maxUnavailable"), rollingUpdate.MaxUnavailable, "cannot be 0"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// Validate that MaxUnavailable is not more than 100%.
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, IsNotMoreThan100Percent(rollingUpdate.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDaemonSetUpdateStrategy(strategy *extensions.DaemonSetUpdateStrategy, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		switch strategy.Type {
+0000000000000000000000000000000000000000;;		case extensions.OnDeleteDaemonSetStrategyType:
+0000000000000000000000000000000000000000;;		case extensions.RollingUpdateDaemonSetStrategyType:
+0000000000000000000000000000000000000000;;			// Make sure RollingUpdate field isn't nil.
+0000000000000000000000000000000000000000;;			if strategy.RollingUpdate == nil {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Required(fldPath.Child("rollingUpdate"), ""))
+0000000000000000000000000000000000000000;;				return allErrs
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, ValidateRollingUpdateDaemonSet(strategy.RollingUpdate, fldPath.Child("rollingUpdate"))...)
+0000000000000000000000000000000000000000;;		default:
+0000000000000000000000000000000000000000;;			validValues := []string{string(extensions.RollingUpdateDaemonSetStrategyType), string(extensions.OnDeleteDaemonSetStrategyType)}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath, strategy, validValues))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateDaemonSetName can be used to check whether the given daemon set name is valid.
+0000000000000000000000000000000000000000;;	// Prefix indicates this name will be used as part of generation, in which case
+0000000000000000000000000000000000000000;;	// trailing dashes are allowed.
+0000000000000000000000000000000000000000;;	var ValidateDaemonSetName = apivalidation.NameIsDNSSubdomain
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Validates that the given name can be used as a deployment name.
+0000000000000000000000000000000000000000;;	var ValidateDeploymentName = apivalidation.NameIsDNSSubdomain
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidatePositiveIntOrPercent(intOrPercent intstr.IntOrString, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		switch intOrPercent.Type {
+0000000000000000000000000000000000000000;;		case intstr.String:
+0000000000000000000000000000000000000000;;			for _, msg := range validation.IsValidPercent(intOrPercent.StrVal) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath, intOrPercent, msg))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		case intstr.Int:
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(intOrPercent.IntValue()), fldPath)...)
+0000000000000000000000000000000000000000;;		default:
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath, intOrPercent, "must be an integer or percentage (e.g '5%%')"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getPercentValue(intOrStringValue intstr.IntOrString) (int, bool) {
+0000000000000000000000000000000000000000;;		if intOrStringValue.Type != intstr.String {
+0000000000000000000000000000000000000000;;			return 0, false
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(validation.IsValidPercent(intOrStringValue.StrVal)) != 0 {
+0000000000000000000000000000000000000000;;			return 0, false
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		value, _ := strconv.Atoi(intOrStringValue.StrVal[:len(intOrStringValue.StrVal)-1])
+0000000000000000000000000000000000000000;;		return value, true
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getIntOrPercentValue(intOrStringValue intstr.IntOrString) int {
+0000000000000000000000000000000000000000;;		value, isPercent := getPercentValue(intOrStringValue)
+0000000000000000000000000000000000000000;;		if isPercent {
+0000000000000000000000000000000000000000;;			return value
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return intOrStringValue.IntValue()
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func IsNotMoreThan100Percent(intOrStringValue intstr.IntOrString, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		value, isPercent := getPercentValue(intOrStringValue)
+0000000000000000000000000000000000000000;;		if !isPercent || value <= 100 {
+0000000000000000000000000000000000000000;;			return nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, field.Invalid(fldPath, intOrStringValue, "must not be greater than 100%"))
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateRollingUpdateDeployment(rollingUpdate *extensions.RollingUpdateDeployment, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePositiveIntOrPercent(rollingUpdate.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePositiveIntOrPercent(rollingUpdate.MaxSurge, fldPath.Child("maxSurge"))...)
+0000000000000000000000000000000000000000;;		if getIntOrPercentValue(rollingUpdate.MaxUnavailable) == 0 && getIntOrPercentValue(rollingUpdate.MaxSurge) == 0 {
+0000000000000000000000000000000000000000;;			// Both MaxSurge and MaxUnavailable cannot be zero.
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("maxUnavailable"), rollingUpdate.MaxUnavailable, "may not be 0 when `maxSurge` is 0"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// Validate that MaxUnavailable is not more than 100%.
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, IsNotMoreThan100Percent(rollingUpdate.MaxUnavailable, fldPath.Child("maxUnavailable"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDeploymentStrategy(strategy *extensions.DeploymentStrategy, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		switch strategy.Type {
+0000000000000000000000000000000000000000;;		case extensions.RecreateDeploymentStrategyType:
+0000000000000000000000000000000000000000;;			if strategy.RollingUpdate != nil {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Forbidden(fldPath.Child("rollingUpdate"), "may not be specified when strategy `type` is '"+string(extensions.RecreateDeploymentStrategyType+"'")))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		case extensions.RollingUpdateDeploymentStrategyType:
+0000000000000000000000000000000000000000;;			// This should never happen since it's set and checked in defaults.go
+0000000000000000000000000000000000000000;;			if strategy.RollingUpdate == nil {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Required(fldPath.Child("rollingUpdate"), "this should be defaulted and never be nil"))
+0000000000000000000000000000000000000000;;			} else {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, ValidateRollingUpdateDeployment(strategy.RollingUpdate, fldPath.Child("rollingUpdate"))...)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		default:
+0000000000000000000000000000000000000000;;			validValues := []string{string(extensions.RecreateDeploymentStrategyType), string(extensions.RollingUpdateDeploymentStrategyType)}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath, strategy, validValues))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateRollback(rollback *extensions.RollbackConfig, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		v := rollback.Revision
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(v), fldPath.Child("version"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Validates given deployment spec.
+0000000000000000000000000000000000000000;;	func ValidateDeploymentSpec(spec *extensions.DeploymentSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.Replicas), fldPath.Child("replicas"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.Selector == nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("selector"), ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(spec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;			if len(spec.Selector.MatchLabels)+len(spec.Selector.MatchExpressions) == 0 {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("selector"), spec.Selector, "empty selector is not valid for deployment."))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		selector, err := metav1.LabelSelectorAsSelector(spec.Selector)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("selector"), spec.Selector, "invalid label selector."))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, ValidatePodTemplateSpecForReplicaSet(&spec.Template, selector, spec.Replicas, fldPath.Child("template"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDeploymentStrategy(&spec.Strategy, fldPath.Child("strategy"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.MinReadySeconds), fldPath.Child("minReadySeconds"))...)
+0000000000000000000000000000000000000000;;		if spec.RevisionHistoryLimit != nil {
+0000000000000000000000000000000000000000;;			// zero is a valid RevisionHistoryLimit
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.RevisionHistoryLimit), fldPath.Child("revisionHistoryLimit"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.RollbackTo != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, ValidateRollback(spec.RollbackTo, fldPath.Child("rollback"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.ProgressDeadlineSeconds != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.ProgressDeadlineSeconds), fldPath.Child("progressDeadlineSeconds"))...)
+0000000000000000000000000000000000000000;;			if *spec.ProgressDeadlineSeconds <= spec.MinReadySeconds {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("progressDeadlineSeconds"), spec.ProgressDeadlineSeconds, "must be greater than minReadySeconds."))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Validates given deployment status.
+0000000000000000000000000000000000000000;;	func ValidateDeploymentStatus(status *extensions.DeploymentStatus, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(status.ObservedGeneration, fldPath.Child("observedGeneration"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.Replicas), fldPath.Child("replicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.UpdatedReplicas), fldPath.Child("updatedReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.ReadyReplicas), fldPath.Child("readyReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.AvailableReplicas), fldPath.Child("availableReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.UnavailableReplicas), fldPath.Child("unavailableReplicas"))...)
+0000000000000000000000000000000000000000;;		if status.CollisionCount != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(*status.CollisionCount, fldPath.Child("collisionCount"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		msg := "cannot be greater than status.replicas"
+0000000000000000000000000000000000000000;;		if status.UpdatedReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("updatedReplicas"), status.UpdatedReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if status.ReadyReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("readyReplicas"), status.ReadyReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if status.AvailableReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("availableReplicas"), status.AvailableReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// TODO: ReadyReplicas is introduced in 1.6 and this check breaks the Deployment controller when pre-1.6 clusters get upgraded.
+0000000000000000000000000000000000000000;;		// 		 Remove the comparison to zero once we stop supporting upgrades from 1.5.
+0000000000000000000000000000000000000000;;		if status.ReadyReplicas > 0 && status.AvailableReplicas > status.ReadyReplicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("availableReplicas"), status.AvailableReplicas, "cannot be greater than readyReplicas"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDeploymentUpdate(update, old *extensions.Deployment) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&update.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDeploymentSpec(&update.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDeploymentStatusUpdate(update, old *extensions.Deployment) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&update.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		fldPath := field.NewPath("status")
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDeploymentStatus(&update.Status, fldPath)...)
+0000000000000000000000000000000000000000;;		if isDecremented(update.Status.CollisionCount, old.Status.CollisionCount) {
+0000000000000000000000000000000000000000;;			value := int64(0)
+0000000000000000000000000000000000000000;;			if update.Status.CollisionCount != nil {
+0000000000000000000000000000000000000000;;				value = *update.Status.CollisionCount
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("collisionCount"), value, "cannot be decremented"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TODO: Move in "k8s.io/kubernetes/pkg/api/validation"
+0000000000000000000000000000000000000000;;	func isDecremented(update, old *int64) bool {
+0000000000000000000000000000000000000000;;		if update == nil && old != nil {
+0000000000000000000000000000000000000000;;			return true
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if update == nil || old == nil {
+0000000000000000000000000000000000000000;;			return false
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return *update < *old
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDeployment(obj *extensions.Deployment) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&obj.ObjectMeta, true, ValidateDeploymentName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateDeploymentSpec(&obj.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateDeploymentRollback(obj *extensions.DeploymentRollback) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateAnnotations(obj.UpdatedAnnotations, field.NewPath("updatedAnnotations"))
+0000000000000000000000000000000000000000;;		if len(obj.Name) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(field.NewPath("name"), "name is required"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateRollback(&obj.RollbackTo, field.NewPath("rollback"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateIngress tests if required fields in the Ingress are set.
+0000000000000000000000000000000000000000;;	func ValidateIngress(ingress *extensions.Ingress) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&ingress.ObjectMeta, true, ValidateIngressName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateIngressSpec(&ingress.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateIngressName validates that the given name can be used as an Ingress name.
+0000000000000000000000000000000000000000;;	var ValidateIngressName = apivalidation.NameIsDNSSubdomain
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateIngressTLS(spec *extensions.IngressSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		// TODO: Perform a more thorough validation of spec.TLS.Hosts that takes
+0000000000000000000000000000000000000000;;		// the wildcard spec from RFC 6125 into account.
+0000000000000000000000000000000000000000;;		for _, itls := range spec.TLS {
+0000000000000000000000000000000000000000;;			for i, host := range itls.Hosts {
+0000000000000000000000000000000000000000;;				if strings.Contains(host, "*") {
+0000000000000000000000000000000000000000;;					for _, msg := range validation.IsWildcardDNS1123Subdomain(host) {
+0000000000000000000000000000000000000000;;						allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("hosts"), host, msg))
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				for _, msg := range validation.IsDNS1123Subdomain(host) {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("hosts"), host, msg))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateIngressSpec tests if required fields in the IngressSpec are set.
+0000000000000000000000000000000000000000;;	func ValidateIngressSpec(spec *extensions.IngressSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		// TODO: Is a default backend mandatory?
+0000000000000000000000000000000000000000;;		if spec.Backend != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateIngressBackend(spec.Backend, fldPath.Child("backend"))...)
+0000000000000000000000000000000000000000;;		} else if len(spec.Rules) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath, spec.Rules, "either `backend` or `rules` must be specified"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(spec.Rules) > 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateIngressRules(spec.Rules, fldPath.Child("rules"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(spec.TLS) > 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateIngressTLS(spec, fldPath.Child("tls"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateIngressUpdate tests if required fields in the Ingress are set.
+0000000000000000000000000000000000000000;;	func ValidateIngressUpdate(ingress, oldIngress *extensions.Ingress) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&ingress.ObjectMeta, &oldIngress.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateIngressSpec(&ingress.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateIngressStatusUpdate tests if required fields in the Ingress are set when updating status.
+0000000000000000000000000000000000000000;;	func ValidateIngressStatusUpdate(ingress, oldIngress *extensions.Ingress) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&ingress.ObjectMeta, &oldIngress.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateLoadBalancerStatus(&ingress.Status.LoadBalancer, field.NewPath("status", "loadBalancer"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateIngressRules(ingressRules []extensions.IngressRule, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if len(ingressRules) == 0 {
+0000000000000000000000000000000000000000;;			return append(allErrs, field.Required(fldPath, ""))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i, ih := range ingressRules {
+0000000000000000000000000000000000000000;;			if len(ih.Host) > 0 {
+0000000000000000000000000000000000000000;;				if isIP := (net.ParseIP(ih.Host) != nil); isIP {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("host"), ih.Host, "must be a DNS name, not an IP address"))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				// TODO: Ports and ips are allowed in the host part of a url
+0000000000000000000000000000000000000000;;				// according to RFC 3986, consider allowing them.
+0000000000000000000000000000000000000000;;				if strings.Contains(ih.Host, "*") {
+0000000000000000000000000000000000000000;;					for _, msg := range validation.IsWildcardDNS1123Subdomain(ih.Host) {
+0000000000000000000000000000000000000000;;						allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("host"), ih.Host, msg))
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				for _, msg := range validation.IsDNS1123Subdomain(ih.Host) {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("host"), ih.Host, msg))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateIngressRuleValue(&ih.IngressRuleValue, fldPath.Index(0))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateIngressRuleValue(ingressRule *extensions.IngressRuleValue, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if ingressRule.HTTP != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateHTTPIngressRuleValue(ingressRule.HTTP, fldPath.Child("http"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateHTTPIngressRuleValue(httpIngressRuleValue *extensions.HTTPIngressRuleValue, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if len(httpIngressRuleValue.Paths) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("paths"), ""))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i, rule := range httpIngressRuleValue.Paths {
+0000000000000000000000000000000000000000;;			if len(rule.Path) > 0 {
+0000000000000000000000000000000000000000;;				if !strings.HasPrefix(rule.Path, "/") {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Child("paths").Index(i).Child("path"), rule.Path, "must be an absolute path"))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				// TODO: More draconian path regex validation.
+0000000000000000000000000000000000000000;;				// Path must be a valid regex. This is the basic requirement.
+0000000000000000000000000000000000000000;;				// In addition to this any characters not allowed in a path per
+0000000000000000000000000000000000000000;;				// RFC 3986 section-3.3 cannot appear as a literal in the regex.
+0000000000000000000000000000000000000000;;				// Consider the example: http://host/valid?#bar, everything after
+0000000000000000000000000000000000000000;;				// the last '/' is a valid regex that matches valid#bar, which
+0000000000000000000000000000000000000000;;				// isn't a valid path, because the path terminates at the first ?
+0000000000000000000000000000000000000000;;				// or #. A more sophisticated form of validation would detect that
+0000000000000000000000000000000000000000;;				// the user is confusing url regexes with path regexes.
+0000000000000000000000000000000000000000;;				_, err := regexp.CompilePOSIX(rule.Path)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Child("paths").Index(i).Child("path"), rule.Path, "must be a valid regex"))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateIngressBackend(&rule.Backend, fldPath.Child("backend"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validateIngressBackend tests if a given backend is valid.
+0000000000000000000000000000000000000000;;	func validateIngressBackend(backend *extensions.IngressBackend, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// All backends must reference a single local service by name, and a single service port by name or number.
+0000000000000000000000000000000000000000;;		if len(backend.ServiceName) == 0 {
+0000000000000000000000000000000000000000;;			return append(allErrs, field.Required(fldPath.Child("serviceName"), ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			for _, msg := range apivalidation.ValidateServiceName(backend.ServiceName, false) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceName"), backend.ServiceName, msg))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidatePortNumOrName(backend.ServicePort, fldPath.Child("servicePort"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateScale(scale *extensions.Scale) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMeta(&scale.ObjectMeta, true, apivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if scale.Spec.Replicas < 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "replicas"), scale.Spec.Replicas, "must be greater than or equal to 0"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateReplicaSetName can be used to check whether the given ReplicaSet
+0000000000000000000000000000000000000000;;	// name is valid.
+0000000000000000000000000000000000000000;;	// Prefix indicates this name will be used as part of generation, in which case
+0000000000000000000000000000000000000000;;	// trailing dashes are allowed.
+0000000000000000000000000000000000000000;;	var ValidateReplicaSetName = apivalidation.NameIsDNSSubdomain
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateReplicaSet tests if required fields in the ReplicaSet are set.
+0000000000000000000000000000000000000000;;	func ValidateReplicaSet(rs *extensions.ReplicaSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&rs.ObjectMeta, true, ValidateReplicaSetName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateReplicaSetSpec(&rs.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateReplicaSetUpdate tests if required fields in the ReplicaSet are set.
+0000000000000000000000000000000000000000;;	func ValidateReplicaSetUpdate(rs, oldRs *extensions.ReplicaSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&rs.ObjectMeta, &oldRs.ObjectMeta, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateReplicaSetSpec(&rs.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateReplicaSetStatusUpdate tests if required fields in the ReplicaSet are set.
+0000000000000000000000000000000000000000;;	func ValidateReplicaSetStatusUpdate(rs, oldRs *extensions.ReplicaSet) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&rs.ObjectMeta, &oldRs.ObjectMeta, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateReplicaSetStatus(rs.Status, field.NewPath("status"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateReplicaSetStatus(status extensions.ReplicaSetStatus, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.Replicas), fldPath.Child("replicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.FullyLabeledReplicas), fldPath.Child("fullyLabeledReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.ReadyReplicas), fldPath.Child("readyReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.AvailableReplicas), fldPath.Child("availableReplicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.ObservedGeneration), fldPath.Child("observedGeneration"))...)
+0000000000000000000000000000000000000000;;		msg := "cannot be greater than status.replicas"
+0000000000000000000000000000000000000000;;		if status.FullyLabeledReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("fullyLabeledReplicas"), status.FullyLabeledReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if status.ReadyReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("readyReplicas"), status.ReadyReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if status.AvailableReplicas > status.Replicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("availableReplicas"), status.AvailableReplicas, msg))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if status.AvailableReplicas > status.ReadyReplicas {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("availableReplicas"), status.AvailableReplicas, "cannot be greater than readyReplicas"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateReplicaSetSpec tests if required fields in the ReplicaSet spec are set.
+0000000000000000000000000000000000000000;;	func ValidateReplicaSetSpec(spec *extensions.ReplicaSetSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.Replicas), fldPath.Child("replicas"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(spec.MinReadySeconds), fldPath.Child("minReadySeconds"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.Selector == nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("selector"), ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(spec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;			if len(spec.Selector.MatchLabels)+len(spec.Selector.MatchExpressions) == 0 {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("selector"), spec.Selector, "empty selector is not valid for deployment."))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		selector, err := metav1.LabelSelectorAsSelector(spec.Selector)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("selector"), spec.Selector, "invalid label selector."))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, ValidatePodTemplateSpecForReplicaSet(&spec.Template, selector, spec.Replicas, fldPath.Child("template"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Validates the given template and ensures that it is in accordance with the desired selector and replicas.
+0000000000000000000000000000000000000000;;	func ValidatePodTemplateSpecForReplicaSet(template *api.PodTemplateSpec, selector labels.Selector, replicas int32, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if template == nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath, ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			if !selector.Empty() {
+0000000000000000000000000000000000000000;;				// Verify that the ReplicaSet selector matches the labels in template.
+0000000000000000000000000000000000000000;;				labels := labels.Set(template.Labels)
+0000000000000000000000000000000000000000;;				if !selector.Matches(labels) {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Child("metadata", "labels"), template.Labels, "`selector` does not match template `labels`"))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidatePodTemplateSpec(template, fldPath)...)
+0000000000000000000000000000000000000000;;			if replicas > 1 {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, apivalidation.ValidateReadOnlyPersistentDisks(template.Spec.Volumes, fldPath.Child("spec", "volumes"))...)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			// RestartPolicy has already been first-order validated as per ValidatePodTemplateSpec().
+0000000000000000000000000000000000000000;;			if template.Spec.RestartPolicy != api.RestartPolicyAlways {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.NotSupported(fldPath.Child("spec", "restartPolicy"), template.Spec.RestartPolicy, []string{string(api.RestartPolicyAlways)}))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if template.Spec.ActiveDeadlineSeconds != nil {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("spec", "activeDeadlineSeconds"), template.Spec.ActiveDeadlineSeconds, "must not be specified"))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodSecurityPolicyName can be used to check whether the given
+0000000000000000000000000000000000000000;;	// pod security policy name is valid.
+0000000000000000000000000000000000000000;;	// Prefix indicates this name will be used as part of generation, in which case
+0000000000000000000000000000000000000000;;	// trailing dashes are allowed.
+0000000000000000000000000000000000000000;;	var ValidatePodSecurityPolicyName = apivalidation.NameIsDNSSubdomain
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidatePodSecurityPolicy(psp *extensions.PodSecurityPolicy) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMeta(&psp.ObjectMeta, false, ValidatePodSecurityPolicyName, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodSecurityPolicySpecificAnnotations(psp.Annotations, field.NewPath("metadata").Child("annotations"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodSecurityPolicySpec(&psp.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidatePodSecurityPolicySpec(spec *extensions.PodSecurityPolicySpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPRunAsUser(fldPath.Child("runAsUser"), &spec.RunAsUser)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPSELinux(fldPath.Child("seLinux"), &spec.SELinux)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPSupplementalGroup(fldPath.Child("supplementalGroups"), &spec.SupplementalGroups)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPFSGroup(fldPath.Child("fsGroup"), &spec.FSGroup)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePodSecurityPolicyVolumes(fldPath, spec.Volumes)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPCapsAgainstDrops(spec.RequiredDropCapabilities, spec.DefaultAddCapabilities, field.NewPath("defaultAddCapabilities"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validatePSPCapsAgainstDrops(spec.RequiredDropCapabilities, spec.AllowedCapabilities, field.NewPath("allowedCapabilities"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidatePodSecurityPolicySpecificAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if p := annotations[apparmor.DefaultProfileAnnotationKey]; p != "" {
+0000000000000000000000000000000000000000;;			if err := apparmor.ValidateProfileFormat(p); err != nil {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Key(apparmor.DefaultProfileAnnotationKey), p, err.Error()))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if allowed := annotations[apparmor.AllowedProfilesAnnotationKey]; allowed != "" {
+0000000000000000000000000000000000000000;;			for _, p := range strings.Split(allowed, ",") {
+0000000000000000000000000000000000000000;;				if err := apparmor.ValidateProfileFormat(p); err != nil {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Invalid(fldPath.Key(apparmor.AllowedProfilesAnnotationKey), allowed, err.Error()))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		sysctlAnnotation := annotations[extensions.SysctlsPodSecurityPolicyAnnotationKey]
+0000000000000000000000000000000000000000;;		sysctlFldPath := fldPath.Key(extensions.SysctlsPodSecurityPolicyAnnotationKey)
+0000000000000000000000000000000000000000;;		sysctls, err := extensions.SysctlsFromPodSecurityPolicyAnnotation(sysctlAnnotation)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(sysctlFldPath, sysctlAnnotation, err.Error()))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validatePodSecurityPolicySysctls(sysctlFldPath, sysctls)...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if p := annotations[seccomp.DefaultProfileAnnotationKey]; p != "" {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateSeccompProfile(p, fldPath.Key(seccomp.DefaultProfileAnnotationKey))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if allowed := annotations[seccomp.AllowedProfilesAnnotationKey]; allowed != "" {
+0000000000000000000000000000000000000000;;			for _, p := range strings.Split(allowed, ",") {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, apivalidation.ValidateSeccompProfile(p, fldPath.Key(seccomp.AllowedProfilesAnnotationKey))...)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePSPSELinux validates the SELinux fields of PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePSPSELinux(fldPath *field.Path, seLinux *extensions.SELinuxStrategyOptions) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ensure the selinux strategy has a valid rule
+0000000000000000000000000000000000000000;;		supportedSELinuxRules := sets.NewString(string(extensions.SELinuxStrategyMustRunAs),
+0000000000000000000000000000000000000000;;			string(extensions.SELinuxStrategyRunAsAny))
+0000000000000000000000000000000000000000;;		if !supportedSELinuxRules.Has(string(seLinux.Rule)) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("rule"), seLinux.Rule, supportedSELinuxRules.List()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePSPRunAsUser validates the RunAsUser fields of PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePSPRunAsUser(fldPath *field.Path, runAsUser *extensions.RunAsUserStrategyOptions) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ensure the user strategy has a valid rule
+0000000000000000000000000000000000000000;;		supportedRunAsUserRules := sets.NewString(string(extensions.RunAsUserStrategyMustRunAs),
+0000000000000000000000000000000000000000;;			string(extensions.RunAsUserStrategyMustRunAsNonRoot),
+0000000000000000000000000000000000000000;;			string(extensions.RunAsUserStrategyRunAsAny))
+0000000000000000000000000000000000000000;;		if !supportedRunAsUserRules.Has(string(runAsUser.Rule)) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("rule"), runAsUser.Rule, supportedRunAsUserRules.List()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// validate range settings
+0000000000000000000000000000000000000000;;		for idx, rng := range runAsUser.Ranges {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateUserIDRange(fldPath.Child("ranges").Index(idx), rng)...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePSPFSGroup validates the FSGroupStrategyOptions fields of the PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePSPFSGroup(fldPath *field.Path, groupOptions *extensions.FSGroupStrategyOptions) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		supportedRules := sets.NewString(
+0000000000000000000000000000000000000000;;			string(extensions.FSGroupStrategyMustRunAs),
+0000000000000000000000000000000000000000;;			string(extensions.FSGroupStrategyRunAsAny),
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;		if !supportedRules.Has(string(groupOptions.Rule)) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("rule"), groupOptions.Rule, supportedRules.List()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for idx, rng := range groupOptions.Ranges {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateGroupIDRange(fldPath.Child("ranges").Index(idx), rng)...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePSPSupplementalGroup validates the SupplementalGroupsStrategyOptions fields of the PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePSPSupplementalGroup(fldPath *field.Path, groupOptions *extensions.SupplementalGroupsStrategyOptions) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		supportedRules := sets.NewString(
+0000000000000000000000000000000000000000;;			string(extensions.SupplementalGroupsStrategyRunAsAny),
+0000000000000000000000000000000000000000;;			string(extensions.SupplementalGroupsStrategyMustRunAs),
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;		if !supportedRules.Has(string(groupOptions.Rule)) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("rule"), groupOptions.Rule, supportedRules.List()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for idx, rng := range groupOptions.Ranges {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateGroupIDRange(fldPath.Child("ranges").Index(idx), rng)...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePodSecurityPolicyVolumes validates the volume fields of PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePodSecurityPolicyVolumes(fldPath *field.Path, volumes []extensions.FSType) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allowed := psputil.GetAllFSTypesAsSet()
+0000000000000000000000000000000000000000;;		// add in the * value since that is a pseudo type that is not included by default
+0000000000000000000000000000000000000000;;		allowed.Insert(string(extensions.All))
+0000000000000000000000000000000000000000;;		for _, v := range volumes {
+0000000000000000000000000000000000000000;;			if !allowed.Has(string(v)) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.NotSupported(fldPath.Child("volumes"), v, allowed.List()))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const sysctlPatternSegmentFmt string = "([a-z0-9][-_a-z0-9]*)?[a-z0-9*]"
+0000000000000000000000000000000000000000;;	const SysctlPatternFmt string = "(" + apivalidation.SysctlSegmentFmt + "\\.)*" + sysctlPatternSegmentFmt
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var sysctlPatternRegexp = regexp.MustCompile("^" + SysctlPatternFmt + "$")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func IsValidSysctlPattern(name string) bool {
+0000000000000000000000000000000000000000;;		if len(name) > apivalidation.SysctlMaxLength {
+0000000000000000000000000000000000000000;;			return false
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return sysctlPatternRegexp.MatchString(name)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePodSecurityPolicySysctls validates the sysctls fields of PodSecurityPolicy.
+0000000000000000000000000000000000000000;;	func validatePodSecurityPolicySysctls(fldPath *field.Path, sysctls []string) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		for i, s := range sysctls {
+0000000000000000000000000000000000000000;;			if !IsValidSysctlPattern(string(s)) {
+0000000000000000000000000000000000000000;;				allErrs = append(
+0000000000000000000000000000000000000000;;					allErrs,
+0000000000000000000000000000000000000000;;					field.Invalid(fldPath.Index(i), sysctls[i], fmt.Sprintf("must have at most %d characters and match regex %s",
+0000000000000000000000000000000000000000;;						apivalidation.SysctlMaxLength,
+0000000000000000000000000000000000000000;;						SysctlPatternFmt,
+0000000000000000000000000000000000000000;;					)),
+0000000000000000000000000000000000000000;;				)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateUserIDRange(fldPath *field.Path, rng extensions.UserIDRange) field.ErrorList {
+0000000000000000000000000000000000000000;;		return validateIDRanges(fldPath, int64(rng.Min), int64(rng.Max))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateGroupIDRange(fldPath *field.Path, rng extensions.GroupIDRange) field.ErrorList {
+0000000000000000000000000000000000000000;;		return validateIDRanges(fldPath, int64(rng.Min), int64(rng.Max))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validateIDRanges ensures the range is valid.
+0000000000000000000000000000000000000000;;	func validateIDRanges(fldPath *field.Path, min, max int64) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// if 0 <= Min <= Max then we do not need to validate max.  It is always greater than or
+0000000000000000000000000000000000000000;;		// equal to 0 and Min.
+0000000000000000000000000000000000000000;;		if min < 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("min"), min, "min cannot be negative"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if max < 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("max"), max, "max cannot be negative"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if min > max {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("min"), min, "min cannot be greater than max"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// validatePSPCapsAgainstDrops ensures an allowed cap is not listed in the required drops.
+0000000000000000000000000000000000000000;;	func validatePSPCapsAgainstDrops(requiredDrops []api.Capability, capsToCheck []api.Capability, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if requiredDrops == nil {
+0000000000000000000000000000000000000000;;			return allErrs
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for _, cap := range capsToCheck {
+0000000000000000000000000000000000000000;;			if hasCap(cap, requiredDrops) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath, cap,
+0000000000000000000000000000000000000000;;					fmt.Sprintf("capability is listed in %s and requiredDropCapabilities", fldPath.String())))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// hasCap checks for needle in haystack.
+0000000000000000000000000000000000000000;;	func hasCap(needle api.Capability, haystack []api.Capability) bool {
+0000000000000000000000000000000000000000;;		for _, c := range haystack {
+0000000000000000000000000000000000000000;;			if needle == c {
+0000000000000000000000000000000000000000;;				return true
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return false
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodSecurityPolicyUpdate validates a PSP for updates.
+0000000000000000000000000000000000000000;;	func ValidatePodSecurityPolicyUpdate(old *extensions.PodSecurityPolicy, new *extensions.PodSecurityPolicy) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&new.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodSecurityPolicySpecificAnnotations(new.Annotations, field.NewPath("metadata").Child("annotations"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodSecurityPolicySpec(&new.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateNetworkPolicyName can be used to check whether the given networkpolicy
+0000000000000000000000000000000000000000;;	// name is valid.
+0000000000000000000000000000000000000000;;	func ValidateNetworkPolicyName(name string, prefix bool) []string {
+0000000000000000000000000000000000000000;;		return apivalidation.NameIsDNSSubdomain(name, prefix)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateNetworkPolicySpec tests if required fields in the networkpolicy spec are set.
+0000000000000000000000000000000000000000;;	func ValidateNetworkPolicySpec(spec *extensions.NetworkPolicySpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(&spec.PodSelector, fldPath.Child("podSelector"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Validate ingress rules.
+0000000000000000000000000000000000000000;;		for i, ingress := range spec.Ingress {
+0000000000000000000000000000000000000000;;			ingressPath := fldPath.Child("ingress").Index(i)
+0000000000000000000000000000000000000000;;			for i, port := range ingress.Ports {
+0000000000000000000000000000000000000000;;				portPath := ingressPath.Child("ports").Index(i)
+0000000000000000000000000000000000000000;;				if port.Protocol != nil && *port.Protocol != api.ProtocolTCP && *port.Protocol != api.ProtocolUDP {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.NotSupported(portPath.Child("protocol"), *port.Protocol, []string{string(api.ProtocolTCP), string(api.ProtocolUDP)}))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				if port.Port != nil {
+0000000000000000000000000000000000000000;;					if port.Port.Type == intstr.Int {
+0000000000000000000000000000000000000000;;						for _, msg := range validation.IsValidPortNum(int(port.Port.IntVal)) {
+0000000000000000000000000000000000000000;;							allErrs = append(allErrs, field.Invalid(portPath.Child("port"), port.Port.IntVal, msg))
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;					} else {
+0000000000000000000000000000000000000000;;						for _, msg := range validation.IsValidPortName(port.Port.StrVal) {
+0000000000000000000000000000000000000000;;							allErrs = append(allErrs, field.Invalid(portPath.Child("port"), port.Port.StrVal, msg))
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			for i, from := range ingress.From {
+0000000000000000000000000000000000000000;;				fromPath := ingressPath.Child("from").Index(i)
+0000000000000000000000000000000000000000;;				numFroms := 0
+0000000000000000000000000000000000000000;;				if from.PodSelector != nil {
+0000000000000000000000000000000000000000;;					numFroms++
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(from.PodSelector, fromPath.Child("podSelector"))...)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				if from.NamespaceSelector != nil {
+0000000000000000000000000000000000000000;;					numFroms++
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(from.NamespaceSelector, fromPath.Child("namespaceSelector"))...)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if numFroms == 0 {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Required(fromPath, "must specify a from type"))
+0000000000000000000000000000000000000000;;				} else if numFroms > 1 {
+0000000000000000000000000000000000000000;;					allErrs = append(allErrs, field.Forbidden(fromPath, "may not specify more than 1 from type"))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateNetworkPolicy validates a networkpolicy.
+0000000000000000000000000000000000000000;;	func ValidateNetworkPolicy(np *extensions.NetworkPolicy) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&np.ObjectMeta, true, ValidateNetworkPolicyName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateNetworkPolicySpec(&np.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateNetworkPolicyUpdate tests if an update to a NetworkPolicy is valid.
+0000000000000000000000000000000000000000;;	func ValidateNetworkPolicyUpdate(update, old *extensions.NetworkPolicy) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&update.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))...)
+0000000000000000000000000000000000000000;;		if !reflect.DeepEqual(update.Spec, old.Spec) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Forbidden(field.NewPath("spec"), "updates to networkpolicy spec are forbidden."))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}

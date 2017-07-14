@@ -1,0 +1,35 @@
+0000000000000000000000000000000000000000;;	package query
+15505fe0b7961d9c807ac0af0b1f8961fbc154fb;Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/internal/protocol/query/unmarshal.go[Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/internal/protocol/query/unmarshal.go][vendor/github.com/aws/aws-sdk-go/private/protocol/query/unmarshal.go];	
+0000000000000000000000000000000000000000;;	//go:generate go run -tags codegen ../../../models/protocol_tests/generate.go ../../../models/protocol_tests/output/query.json unmarshal_test.go
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"encoding/xml"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/aws/aws-sdk-go/aws/awserr"
+0000000000000000000000000000000000000000;;		"github.com/aws/aws-sdk-go/aws/request"
+0000000000000000000000000000000000000000;;		"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// UnmarshalHandler is a named request handler for unmarshaling query protocol requests
+0000000000000000000000000000000000000000;;	var UnmarshalHandler = request.NamedHandler{Name: "awssdk.query.Unmarshal", Fn: Unmarshal}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// UnmarshalMetaHandler is a named request handler for unmarshaling query protocol request metadata
+0000000000000000000000000000000000000000;;	var UnmarshalMetaHandler = request.NamedHandler{Name: "awssdk.query.UnmarshalMeta", Fn: UnmarshalMeta}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Unmarshal unmarshals a response for an AWS Query service.
+0000000000000000000000000000000000000000;;	func Unmarshal(r *request.Request) {
+0000000000000000000000000000000000000000;;		defer r.HTTPResponse.Body.Close()
+0000000000000000000000000000000000000000;;		if r.DataFilled() {
+0000000000000000000000000000000000000000;;			decoder := xml.NewDecoder(r.HTTPResponse.Body)
+0000000000000000000000000000000000000000;;			err := xmlutil.UnmarshalXML(r.Data, decoder, r.Operation.Name+"Result")
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				r.Error = awserr.New("SerializationError", "failed decoding Query response", err)
+0000000000000000000000000000000000000000;;				return
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// UnmarshalMeta unmarshals header response values for an AWS Query service.
+0000000000000000000000000000000000000000;;	func UnmarshalMeta(r *request.Request) {
+0000000000000000000000000000000000000000;;		r.RequestID = r.HTTPResponse.Header.Get("X-Amzn-Requestid")
+0000000000000000000000000000000000000000;;	}

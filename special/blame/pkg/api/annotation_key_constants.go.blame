@@ -1,0 +1,108 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+bd9bce3b6d58fead977a1a49bc23d1fad64f6124;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// This file should be consistent with pkg/api/v1/annotation_key_constants.go.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package api
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		// ImagePolicyFailedOpenKey is added to pods created by failing open when the image policy
+0000000000000000000000000000000000000000;;		// webhook backend fails.
+0000000000000000000000000000000000000000;;		ImagePolicyFailedOpenKey string = "alpha.image-policy.k8s.io/failed-open"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PodPresetOptOutAnnotationKey represents the annotation key for a pod to exempt itself from pod preset manipulation
+0000000000000000000000000000000000000000;;		PodPresetOptOutAnnotationKey string = "podpreset.admission.kubernetes.io/exclude"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// MirrorAnnotationKey represents the annotation key set by kubelets when creating mirror pods
+0000000000000000000000000000000000000000;;		MirrorPodAnnotationKey string = "kubernetes.io/config.mirror"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TolerationsAnnotationKey represents the key of tolerations data (json serialized)
+0000000000000000000000000000000000000000;;		// in the Annotations of a Pod.
+0000000000000000000000000000000000000000;;		TolerationsAnnotationKey string = "scheduler.alpha.kubernetes.io/tolerations"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TaintsAnnotationKey represents the key of taints data (json serialized)
+0000000000000000000000000000000000000000;;		// in the Annotations of a Node.
+0000000000000000000000000000000000000000;;		TaintsAnnotationKey string = "scheduler.alpha.kubernetes.io/taints"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SeccompPodAnnotationKey represents the key of a seccomp profile applied
+0000000000000000000000000000000000000000;;		// to all containers of a pod.
+0000000000000000000000000000000000000000;;		SeccompPodAnnotationKey string = "seccomp.security.alpha.kubernetes.io/pod"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SeccompContainerAnnotationKeyPrefix represents the key of a seccomp profile applied
+0000000000000000000000000000000000000000;;		// to one container of a pod.
+0000000000000000000000000000000000000000;;		SeccompContainerAnnotationKeyPrefix string = "container.seccomp.security.alpha.kubernetes.io/"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// CreatedByAnnotation represents the key used to store the spec(json)
+0000000000000000000000000000000000000000;;		// used to create the resource.
+0000000000000000000000000000000000000000;;		CreatedByAnnotation = "kubernetes.io/created-by"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PreferAvoidPodsAnnotationKey represents the key of preferAvoidPods data (json serialized)
+0000000000000000000000000000000000000000;;		// in the Annotations of a Node.
+0000000000000000000000000000000000000000;;		PreferAvoidPodsAnnotationKey string = "scheduler.alpha.kubernetes.io/preferAvoidPods"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SysctlsPodAnnotationKey represents the key of sysctls which are set for the infrastructure
+0000000000000000000000000000000000000000;;		// container of a pod. The annotation value is a comma separated list of sysctl_name=value
+0000000000000000000000000000000000000000;;		// key-value pairs. Only a limited set of whitelisted and isolated sysctls is supported by
+0000000000000000000000000000000000000000;;		// the kubelet. Pods with other sysctls will fail to launch.
+0000000000000000000000000000000000000000;;		SysctlsPodAnnotationKey string = "security.alpha.kubernetes.io/sysctls"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// UnsafeSysctlsPodAnnotationKey represents the key of sysctls which are set for the infrastructure
+0000000000000000000000000000000000000000;;		// container of a pod. The annotation value is a comma separated list of sysctl_name=value
+0000000000000000000000000000000000000000;;		// key-value pairs. Unsafe sysctls must be explicitly enabled for a kubelet. They are properly
+0000000000000000000000000000000000000000;;		// namespaced to a pod or a container, but their isolation is usually unclear or weak. Their use
+0000000000000000000000000000000000000000;;		// is at-your-own-risk. Pods that attempt to set an unsafe sysctl that is not enabled for a kubelet
+0000000000000000000000000000000000000000;;		// will fail to launch.
+0000000000000000000000000000000000000000;;		UnsafeSysctlsPodAnnotationKey string = "security.alpha.kubernetes.io/unsafe-sysctls"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ObjectTTLAnnotations represents a suggestion for kubelet for how long it can cache
+0000000000000000000000000000000000000000;;		// an object (e.g. secret, config map) before fetching it again from apiserver.
+0000000000000000000000000000000000000000;;		// This annotation can be attached to node.
+0000000000000000000000000000000000000000;;		ObjectTTLAnnotationKey string = "node.alpha.kubernetes.io/ttl"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// annotation key prefix used to identify non-convertible json paths.
+0000000000000000000000000000000000000000;;		NonConvertibleAnnotationPrefix = "non-convertible.kubernetes.io"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kubectlPrefix = "kubectl.kubernetes.io/"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// LastAppliedConfigAnnotation is the annotation used to store the previous
+0000000000000000000000000000000000000000;;		// configuration of a resource for use in a three way diff by UpdateApplyAnnotation.
+0000000000000000000000000000000000000000;;		LastAppliedConfigAnnotation = kubectlPrefix + "last-applied-configuration"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// AnnotationLoadBalancerSourceRangesKey is the key of the annotation on a service to set allowed ingress ranges on their LoadBalancers
+0000000000000000000000000000000000000000;;		//
+0000000000000000000000000000000000000000;;		// It should be a comma-separated list of CIDRs, e.g. `0.0.0.0/0` to
+0000000000000000000000000000000000000000;;		// allow full access (the default) or `18.0.0.0/8,56.0.0.0/8` to allow
+0000000000000000000000000000000000000000;;		// access only from the CIDRs currently allocated to MIT & the USPS.
+0000000000000000000000000000000000000000;;		//
+0000000000000000000000000000000000000000;;		// Not all cloud providers support this annotation, though AWS & GCE do.
+0000000000000000000000000000000000000000;;		AnnotationLoadBalancerSourceRangesKey = "service.beta.kubernetes.io/load-balancer-source-ranges"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// AnnotationValueExternalTrafficLocal Value of annotation to specify local endpoints behavior.
+0000000000000000000000000000000000000000;;		AnnotationValueExternalTrafficLocal = "OnlyLocal"
+0000000000000000000000000000000000000000;;		// AnnotationValueExternalTrafficGlobal Value of annotation to specify global (legacy) behavior.
+0000000000000000000000000000000000000000;;		AnnotationValueExternalTrafficGlobal = "Global"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TODO: The beta annotations have been deprecated, remove them when we release k8s 1.8.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// BetaAnnotationHealthCheckNodePort Annotation specifying the healthcheck nodePort for the service.
+0000000000000000000000000000000000000000;;		// If not specified, annotation is created by the service api backend with the allocated nodePort.
+0000000000000000000000000000000000000000;;		// Will use user-specified nodePort value if specified by the client.
+0000000000000000000000000000000000000000;;		BetaAnnotationHealthCheckNodePort = "service.beta.kubernetes.io/healthcheck-nodeport"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// BetaAnnotationExternalTraffic An annotation that denotes if this Service desires to route
+0000000000000000000000000000000000000000;;		// external traffic to local endpoints only. This preserves Source IP and avoids a second hop.
+0000000000000000000000000000000000000000;;		BetaAnnotationExternalTraffic = "service.beta.kubernetes.io/external-traffic"
+0000000000000000000000000000000000000000;;	)

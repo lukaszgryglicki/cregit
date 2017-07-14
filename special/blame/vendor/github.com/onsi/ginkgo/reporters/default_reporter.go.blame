@@ -1,0 +1,84 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Ginkgo's Default Reporter
+b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/ginkgo/reporters/default_reporter.go[Godeps/_workspace/src/github.com/onsi/ginkgo/reporters/default_reporter.go][vendor/github.com/onsi/ginkgo/reporters/default_reporter.go];	
+0000000000000000000000000000000000000000;;	A number of command line flags are available to tweak Ginkgo's default output.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	These are documented [here](http://onsi.github.io/ginkgo/#running_tests)
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	package reporters
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"github.com/onsi/ginkgo/config"
+0000000000000000000000000000000000000000;;		"github.com/onsi/ginkgo/reporters/stenographer"
+0000000000000000000000000000000000000000;;		"github.com/onsi/ginkgo/types"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type DefaultReporter struct {
+0000000000000000000000000000000000000000;;		config        config.DefaultReporterConfigType
+0000000000000000000000000000000000000000;;		stenographer  stenographer.Stenographer
+0000000000000000000000000000000000000000;;		specSummaries []*types.SpecSummary
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func NewDefaultReporter(config config.DefaultReporterConfigType, stenographer stenographer.Stenographer) *DefaultReporter {
+0000000000000000000000000000000000000000;;		return &DefaultReporter{
+0000000000000000000000000000000000000000;;			config:       config,
+0000000000000000000000000000000000000000;;			stenographer: stenographer,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) SpecSuiteWillBegin(config config.GinkgoConfigType, summary *types.SuiteSummary) {
+0000000000000000000000000000000000000000;;		reporter.stenographer.AnnounceSuite(summary.SuiteDescription, config.RandomSeed, config.RandomizeAllSpecs, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;		if config.ParallelTotal > 1 {
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceParallelRun(config.ParallelNode, config.ParallelTotal, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceNumberOfSpecs(summary.NumberOfSpecsThatWillBeRun, summary.NumberOfTotalSpecs, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) BeforeSuiteDidRun(setupSummary *types.SetupSummary) {
+0000000000000000000000000000000000000000;;		if setupSummary.State != types.SpecStatePassed {
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceBeforeSuiteFailure(setupSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) AfterSuiteDidRun(setupSummary *types.SetupSummary) {
+0000000000000000000000000000000000000000;;		if setupSummary.State != types.SpecStatePassed {
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceAfterSuiteFailure(setupSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) SpecWillRun(specSummary *types.SpecSummary) {
+0000000000000000000000000000000000000000;;		if reporter.config.Verbose && !reporter.config.Succinct && specSummary.State != types.SpecStatePending && specSummary.State != types.SpecStateSkipped {
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceSpecWillRun(specSummary)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) SpecDidComplete(specSummary *types.SpecSummary) {
+0000000000000000000000000000000000000000;;		switch specSummary.State {
+0000000000000000000000000000000000000000;;		case types.SpecStatePassed:
+0000000000000000000000000000000000000000;;			if specSummary.IsMeasurement {
+0000000000000000000000000000000000000000;;				reporter.stenographer.AnnounceSuccesfulMeasurement(specSummary, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;			} else if specSummary.RunTime.Seconds() >= reporter.config.SlowSpecThreshold {
+0000000000000000000000000000000000000000;;				reporter.stenographer.AnnounceSuccesfulSlowSpec(specSummary, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;			} else {
+0000000000000000000000000000000000000000;;				reporter.stenographer.AnnounceSuccesfulSpec(specSummary)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		case types.SpecStatePending:
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnouncePendingSpec(specSummary, reporter.config.NoisyPendings && !reporter.config.Succinct)
+0000000000000000000000000000000000000000;;		case types.SpecStateSkipped:
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceSkippedSpec(specSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		case types.SpecStateTimedOut:
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceSpecTimedOut(specSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		case types.SpecStatePanicked:
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceSpecPanicked(specSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		case types.SpecStateFailed:
+0000000000000000000000000000000000000000;;			reporter.stenographer.AnnounceSpecFailed(specSummary, reporter.config.Succinct, reporter.config.FullTrace)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		reporter.specSummaries = append(reporter.specSummaries, specSummary)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (reporter *DefaultReporter) SpecSuiteDidEnd(summary *types.SuiteSummary) {
+0000000000000000000000000000000000000000;;		reporter.stenographer.SummarizeFailures(reporter.specSummaries)
+0000000000000000000000000000000000000000;;		reporter.stenographer.AnnounceSpecRunCompletion(summary, reporter.config.Succinct)
+0000000000000000000000000000000000000000;;	}

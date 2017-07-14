@@ -1,0 +1,28 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+37ea63060cdaf0543e84c49f6fec7fb2e699ca6e;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// LimitPodHardAntiAffinityTopology admission controller rejects any pod
+0000000000000000000000000000000000000000;;	// that specifies "hard" (RequiredDuringScheduling) anti-affinity
+0000000000000000000000000000000000000000;;	// with a TopologyKey other than kubeletapis.LabelHostname.
+0000000000000000000000000000000000000000;;	// Because anti-affinity is symmetric, without this admission controller,
+0000000000000000000000000000000000000000;;	// a user could maliciously or accidentally specify that their pod (once it has scheduled)
+0000000000000000000000000000000000000000;;	// should block other pods from scheduling into the same zone or some other large topology,
+0000000000000000000000000000000000000000;;	// essentially DoSing the cluster.
+0000000000000000000000000000000000000000;;	// In the future we will address this problem more fully by using quota and priority,
+0000000000000000000000000000000000000000;;	// but for now this admission controller provides a simple protection,
+0000000000000000000000000000000000000000;;	// on the assumption that the only legitimate use of hard pod anti-affinity
+0000000000000000000000000000000000000000;;	// is to exclude other pods from the same node.
+0000000000000000000000000000000000000000;;	package antiaffinity // import "k8s.io/kubernetes/plugin/pkg/admission/antiaffinity"

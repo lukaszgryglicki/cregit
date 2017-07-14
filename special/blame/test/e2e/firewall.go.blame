@@ -1,0 +1,184 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+519ea2fe07e0c48a9b594cf21f9ad923ca8050e3;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package e2e
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/api/core/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/sets"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/cloudprovider"
+0000000000000000000000000000000000000000;;		gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
+0000000000000000000000000000000000000000;;		kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/master/ports"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/test/e2e/framework"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		. "github.com/onsi/ginkgo"
+0000000000000000000000000000000000000000;;		. "github.com/onsi/gomega"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var _ = framework.KubeDescribe("Firewall rule", func() {
+0000000000000000000000000000000000000000;;		var firewall_test_name = "firewall-test"
+0000000000000000000000000000000000000000;;		f := framework.NewDefaultFramework(firewall_test_name)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		var cs clientset.Interface
+0000000000000000000000000000000000000000;;		var cloudConfig framework.CloudConfig
+0000000000000000000000000000000000000000;;		var gceCloud *gcecloud.GCECloud
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		BeforeEach(func() {
+0000000000000000000000000000000000000000;;			framework.SkipUnlessProviderIs("gce")
+0000000000000000000000000000000000000000;;			cs = f.ClientSet
+0000000000000000000000000000000000000000;;			cloudConfig = framework.TestContext.CloudConfig
+0000000000000000000000000000000000000000;;			gceCloud = cloudConfig.Provider.(*gcecloud.GCECloud)
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// This test takes around 6 minutes to run
+0000000000000000000000000000000000000000;;		It("[Slow] [Serial] should create valid firewall rules for LoadBalancer type service", func() {
+0000000000000000000000000000000000000000;;			ns := f.Namespace.Name
+0000000000000000000000000000000000000000;;			// This source ranges is just used to examine we have exact same things on LB firewall rules
+0000000000000000000000000000000000000000;;			firewallTestSourceRanges := []string{"0.0.0.0/1", "128.0.0.0/1"}
+0000000000000000000000000000000000000000;;			serviceName := "firewall-test-loadbalancer"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Getting cluster ID")
+0000000000000000000000000000000000000000;;			clusterID, err := framework.GetClusterID(cs)
+0000000000000000000000000000000000000000;;			Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			framework.Logf("Got cluster ID: %v", clusterID)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			jig := framework.NewServiceTestJig(cs, serviceName)
+0000000000000000000000000000000000000000;;			nodeList := jig.GetNodes(framework.MaxNodesForEndpointsTests)
+0000000000000000000000000000000000000000;;			Expect(nodeList).NotTo(BeNil())
+0000000000000000000000000000000000000000;;			nodesNames := jig.GetNodesNames(framework.MaxNodesForEndpointsTests)
+0000000000000000000000000000000000000000;;			if len(nodesNames) <= 0 {
+0000000000000000000000000000000000000000;;				framework.Failf("Expect at least 1 node, got: %v", nodesNames)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			nodesSet := sets.NewString(nodesNames...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Creating a LoadBalancer type service with ExternalTrafficPolicy=Global")
+0000000000000000000000000000000000000000;;			svc := jig.CreateLoadBalancerService(ns, serviceName, framework.LoadBalancerCreateTimeoutDefault, func(svc *v1.Service) {
+0000000000000000000000000000000000000000;;				svc.Spec.Ports = []v1.ServicePort{{Protocol: "TCP", Port: framework.FirewallTestHttpPort}}
+0000000000000000000000000000000000000000;;				svc.Spec.LoadBalancerSourceRanges = firewallTestSourceRanges
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;			defer func() {
+0000000000000000000000000000000000000000;;				jig.UpdateServiceOrFail(svc.Namespace, svc.Name, func(svc *v1.Service) {
+0000000000000000000000000000000000000000;;					svc.Spec.Type = v1.ServiceTypeNodePort
+0000000000000000000000000000000000000000;;					svc.Spec.LoadBalancerSourceRanges = nil
+0000000000000000000000000000000000000000;;				})
+0000000000000000000000000000000000000000;;				Expect(cs.Core().Services(svc.Namespace).Delete(svc.Name, nil)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;				By("Waiting for the local traffic health check firewall rule to be deleted")
+0000000000000000000000000000000000000000;;				localHCFwName := framework.MakeHealthCheckFirewallNameForLBService(clusterID, cloudprovider.GetLoadBalancerName(svc), false)
+0000000000000000000000000000000000000000;;				_, err := framework.WaitForFirewallRule(gceCloud, localHCFwName, false, framework.LoadBalancerCleanupTimeout)
+0000000000000000000000000000000000000000;;				Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			}()
+0000000000000000000000000000000000000000;;			svcExternalIP := svc.Status.LoadBalancer.Ingress[0].IP
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Checking if service's firewall rule is correct")
+0000000000000000000000000000000000000000;;			lbFw := framework.ConstructFirewallForLBService(svc, cloudConfig.NodeTag)
+0000000000000000000000000000000000000000;;			fw, err := gceCloud.GetFirewall(lbFw.Name)
+0000000000000000000000000000000000000000;;			Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			Expect(framework.VerifyFirewallRule(fw, lbFw, cloudConfig.Network, false)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Checking if service's nodes health check firewall rule is correct")
+0000000000000000000000000000000000000000;;			nodesHCFw := framework.ConstructHealthCheckFirewallForLBService(clusterID, svc, cloudConfig.NodeTag, true)
+0000000000000000000000000000000000000000;;			fw, err = gceCloud.GetFirewall(nodesHCFw.Name)
+0000000000000000000000000000000000000000;;			Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			Expect(framework.VerifyFirewallRule(fw, nodesHCFw, cloudConfig.Network, false)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// OnlyLocal service is needed to examine which exact nodes the requests are being forwarded to by the Load Balancer on GCE
+0000000000000000000000000000000000000000;;			By("Updating LoadBalancer service to ExternalTrafficPolicy=Local")
+0000000000000000000000000000000000000000;;			svc = jig.UpdateServiceOrFail(svc.Namespace, svc.Name, func(svc *v1.Service) {
+0000000000000000000000000000000000000000;;				svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeLocal
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Waiting for the nodes health check firewall rule to be deleted")
+0000000000000000000000000000000000000000;;			_, err = framework.WaitForFirewallRule(gceCloud, nodesHCFw.Name, false, framework.LoadBalancerCleanupTimeout)
+0000000000000000000000000000000000000000;;			Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Waiting for the correct local traffic health check firewall rule to be created")
+0000000000000000000000000000000000000000;;			localHCFw := framework.ConstructHealthCheckFirewallForLBService(clusterID, svc, cloudConfig.NodeTag, false)
+0000000000000000000000000000000000000000;;			fw, err = framework.WaitForFirewallRule(gceCloud, localHCFw.Name, true, framework.LoadBalancerCreateTimeoutDefault)
+0000000000000000000000000000000000000000;;			Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			Expect(framework.VerifyFirewallRule(fw, localHCFw, cloudConfig.Network, false)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By(fmt.Sprintf("Creating netexec pods on at most %v nodes", framework.MaxNodesForEndpointsTests))
+0000000000000000000000000000000000000000;;			for i, nodeName := range nodesNames {
+0000000000000000000000000000000000000000;;				podName := fmt.Sprintf("netexec%v", i)
+0000000000000000000000000000000000000000;;				jig.LaunchNetexecPodOnNode(f, nodeName, podName, framework.FirewallTestHttpPort, framework.FirewallTestUdpPort, true)
+0000000000000000000000000000000000000000;;				defer func() {
+0000000000000000000000000000000000000000;;					framework.Logf("Cleaning up the netexec pod: %v", podName)
+0000000000000000000000000000000000000000;;					Expect(cs.Core().Pods(ns).Delete(podName, nil)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;				}()
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// Send requests from outside of the cluster because internal traffic is whitelisted
+0000000000000000000000000000000000000000;;			By("Accessing the external service ip from outside, all non-master nodes should be reached")
+0000000000000000000000000000000000000000;;			Expect(framework.TestHitNodesFromOutside(svcExternalIP, framework.FirewallTestHttpPort, framework.FirewallTimeoutDefault, nodesSet)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// Check if there are overlapping tags on the firewall that extend beyond just the vms in our cluster
+0000000000000000000000000000000000000000;;			// by removing the tag on one vm and make sure it doesn't get any traffic. This is an imperfect
+0000000000000000000000000000000000000000;;			// simulation, we really want to check that traffic doesn't reach a vm outside the GKE cluster, but
+0000000000000000000000000000000000000000;;			// that's much harder to do in the current e2e framework.
+0000000000000000000000000000000000000000;;			By(fmt.Sprintf("Removing tags from one of the nodes: %v", nodesNames[0]))
+0000000000000000000000000000000000000000;;			nodesSet.Delete(nodesNames[0])
+0000000000000000000000000000000000000000;;			// Instance could run in a different zone in multi-zone test. Figure out which zone
+0000000000000000000000000000000000000000;;			// it is in before proceeding.
+0000000000000000000000000000000000000000;;			zone := cloudConfig.Zone
+0000000000000000000000000000000000000000;;			if zoneInLabel, ok := nodeList.Items[0].Labels[kubeletapis.LabelZoneFailureDomain]; ok {
+0000000000000000000000000000000000000000;;				zone = zoneInLabel
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			removedTags := framework.SetInstanceTags(cloudConfig, nodesNames[0], zone, []string{})
+0000000000000000000000000000000000000000;;			defer func() {
+0000000000000000000000000000000000000000;;				By("Adding tags back to the node and wait till the traffic is recovered")
+0000000000000000000000000000000000000000;;				nodesSet.Insert(nodesNames[0])
+0000000000000000000000000000000000000000;;				framework.SetInstanceTags(cloudConfig, nodesNames[0], zone, removedTags)
+0000000000000000000000000000000000000000;;				// Make sure traffic is recovered before exit
+0000000000000000000000000000000000000000;;				Expect(framework.TestHitNodesFromOutside(svcExternalIP, framework.FirewallTestHttpPort, framework.FirewallTimeoutDefault, nodesSet)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			}()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Accessing serivce through the external ip and examine got no response from the node without tags")
+0000000000000000000000000000000000000000;;			Expect(framework.TestHitNodesFromOutsideWithCount(svcExternalIP, framework.FirewallTestHttpPort, framework.FirewallTimeoutDefault, nodesSet, 15)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		It("should have correct firewall rules for e2e cluster", func() {
+0000000000000000000000000000000000000000;;			nodes := framework.GetReadySchedulableNodesOrDie(cs)
+0000000000000000000000000000000000000000;;			if len(nodes.Items) <= 0 {
+0000000000000000000000000000000000000000;;				framework.Failf("Expect at least 1 node, got: %v", len(nodes.Items))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Checking if e2e firewall rules are correct")
+0000000000000000000000000000000000000000;;			for _, expFw := range framework.GetE2eFirewalls(cloudConfig.MasterName, cloudConfig.MasterTag, cloudConfig.NodeTag, cloudConfig.Network, cloudConfig.ClusterIPRange) {
+0000000000000000000000000000000000000000;;				fw, err := gceCloud.GetFirewall(expFw.Name)
+0000000000000000000000000000000000000000;;				Expect(err).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;				Expect(framework.VerifyFirewallRule(fw, expFw, cloudConfig.Network, false)).NotTo(HaveOccurred())
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			By("Checking well known ports on master and nodes are not exposed externally")
+0000000000000000000000000000000000000000;;			nodeAddrs := framework.NodeAddresses(nodes, v1.NodeExternalIP)
+0000000000000000000000000000000000000000;;			Expect(len(nodeAddrs)).NotTo(BeZero())
+0000000000000000000000000000000000000000;;			masterAddr := framework.GetMasterAddress(cs)
+0000000000000000000000000000000000000000;;			flag, _ := framework.TestNotReachableHTTPTimeout(masterAddr, ports.ControllerManagerPort, framework.FirewallTestTcpTimeout)
+0000000000000000000000000000000000000000;;			Expect(flag).To(BeTrue())
+0000000000000000000000000000000000000000;;			flag, _ = framework.TestNotReachableHTTPTimeout(masterAddr, ports.SchedulerPort, framework.FirewallTestTcpTimeout)
+0000000000000000000000000000000000000000;;			Expect(flag).To(BeTrue())
+0000000000000000000000000000000000000000;;			flag, _ = framework.TestNotReachableHTTPTimeout(nodeAddrs[0], ports.KubeletPort, framework.FirewallTestTcpTimeout)
+0000000000000000000000000000000000000000;;			Expect(flag).To(BeTrue())
+0000000000000000000000000000000000000000;;			flag, _ = framework.TestNotReachableHTTPTimeout(nodeAddrs[0], ports.KubeletReadOnlyPort, framework.FirewallTestTcpTimeout)
+0000000000000000000000000000000000000000;;			Expect(flag).To(BeTrue())
+0000000000000000000000000000000000000000;;			flag, _ = framework.TestNotReachableHTTPTimeout(nodeAddrs[0], ports.ProxyStatusPort, framework.FirewallTestTcpTimeout)
+0000000000000000000000000000000000000000;;			Expect(flag).To(BeTrue())
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;	})

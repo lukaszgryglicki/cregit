@@ -1,0 +1,133 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+87e7af804f6a2bf87552ef5940604a1e03de834d;federation/cmd/federated-controller-manager/app/options/options.go[federation/cmd/federated-controller-manager/app/options/options.go][federation/cmd/federation-controller-manager/app/options/options.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package options provides the flags used for the controller manager.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		utilflag "k8s.io/apiserver/pkg/util/flag"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/federation/pkg/dnsprovider"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/componentconfig"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/leaderelectionconfig"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ControllerManagerConfiguration struct {
+0000000000000000000000000000000000000000;;		// port is the port that the controller-manager's http service runs on.
+0000000000000000000000000000000000000000;;		Port int `json:"port"`
+0000000000000000000000000000000000000000;;		// address is the IP address to serve on (set to 0.0.0.0 for all interfaces).
+0000000000000000000000000000000000000000;;		Address string `json:"address"`
+0000000000000000000000000000000000000000;;		// federation name.
+0000000000000000000000000000000000000000;;		FederationName string `json:"federationName"`
+0000000000000000000000000000000000000000;;		// zone name, like example.com.
+0000000000000000000000000000000000000000;;		ZoneName string `json:"zoneName"`
+0000000000000000000000000000000000000000;;		// zone ID, for use when zoneName is ambiguous.
+0000000000000000000000000000000000000000;;		ZoneID string `json:"zoneID"`
+0000000000000000000000000000000000000000;;		// ServiceDnsSuffix is the dns suffix to use when publishing federated services.
+0000000000000000000000000000000000000000;;		ServiceDnsSuffix string `json:"serviceDnsSuffix"`
+0000000000000000000000000000000000000000;;		// dnsProvider is the provider for dns services.
+0000000000000000000000000000000000000000;;		DnsProvider string `json:"dnsProvider"`
+0000000000000000000000000000000000000000;;		// dnsConfigFile is the path to the dns provider configuration file.
+0000000000000000000000000000000000000000;;		DnsConfigFile string `json:"dnsConfigFile"`
+0000000000000000000000000000000000000000;;		// concurrentServiceSyncs is the number of services that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive service
+0000000000000000000000000000000000000000;;		// management, but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentServiceSyncs int `json:"concurrentServiceSyncs"`
+0000000000000000000000000000000000000000;;		// concurrentReplicaSetSyncs is the number of ReplicaSets that are
+0000000000000000000000000000000000000000;;		// allowed to sync concurrently. Larger number = more responsive service
+0000000000000000000000000000000000000000;;		// management, but more CPU (and network) load.
+0000000000000000000000000000000000000000;;		ConcurrentReplicaSetSyncs int `json:"concurrentReplicaSetSyncs"`
+0000000000000000000000000000000000000000;;		// clusterMonitorPeriod is the period for syncing ClusterStatus in cluster controller.
+0000000000000000000000000000000000000000;;		ClusterMonitorPeriod metav1.Duration `json:"clusterMonitorPeriod"`
+0000000000000000000000000000000000000000;;		// APIServerQPS is the QPS to use while talking with federation apiserver.
+0000000000000000000000000000000000000000;;		APIServerQPS float32 `json:"federatedAPIQPS"`
+0000000000000000000000000000000000000000;;		// APIServerBurst is the burst to use while talking with federation apiserver.
+0000000000000000000000000000000000000000;;		APIServerBurst int `json:"federatedAPIBurst"`
+0000000000000000000000000000000000000000;;		// enableProfiling enables profiling via web interface host:port/debug/pprof/
+0000000000000000000000000000000000000000;;		EnableProfiling bool `json:"enableProfiling"`
+0000000000000000000000000000000000000000;;		// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
+0000000000000000000000000000000000000000;;		EnableContentionProfiling bool `json:"enableContentionProfiling"`
+0000000000000000000000000000000000000000;;		// leaderElection defines the configuration of leader election client.
+0000000000000000000000000000000000000000;;		LeaderElection componentconfig.LeaderElectionConfiguration `json:"leaderElection"`
+0000000000000000000000000000000000000000;;		// contentType is contentType of requests sent to apiserver.
+0000000000000000000000000000000000000000;;		ContentType string `json:"contentType"`
+0000000000000000000000000000000000000000;;		// ConfigurationMap determining which controllers should be enabled or disabled
+0000000000000000000000000000000000000000;;		Controllers utilflag.ConfigurationMap `json:"controllers"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// CMServer is the main context object for the controller manager.
+0000000000000000000000000000000000000000;;	type CMServer struct {
+0000000000000000000000000000000000000000;;		ControllerManagerConfiguration
+0000000000000000000000000000000000000000;;		Master     string
+0000000000000000000000000000000000000000;;		Kubeconfig string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		// FederatedControllerManagerPort is the default port for the federation controller manager status server.
+0000000000000000000000000000000000000000;;		// May be overridden by a flag at startup.
+0000000000000000000000000000000000000000;;		FederatedControllerManagerPort = 10253
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NewCMServer creates a new CMServer with a default config.
+0000000000000000000000000000000000000000;;	func NewCMServer() *CMServer {
+0000000000000000000000000000000000000000;;		s := CMServer{
+0000000000000000000000000000000000000000;;			ControllerManagerConfiguration: ControllerManagerConfiguration{
+0000000000000000000000000000000000000000;;				Port:                      FederatedControllerManagerPort,
+0000000000000000000000000000000000000000;;				Address:                   "0.0.0.0",
+0000000000000000000000000000000000000000;;				ConcurrentServiceSyncs:    10,
+0000000000000000000000000000000000000000;;				ConcurrentReplicaSetSyncs: 10,
+0000000000000000000000000000000000000000;;				ClusterMonitorPeriod:      metav1.Duration{Duration: 40 * time.Second},
+0000000000000000000000000000000000000000;;				APIServerQPS:              20.0,
+0000000000000000000000000000000000000000;;				APIServerBurst:            30,
+0000000000000000000000000000000000000000;;				LeaderElection:            leaderelectionconfig.DefaultLeaderElectionConfiguration(),
+0000000000000000000000000000000000000000;;				Controllers:               make(utilflag.ConfigurationMap),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return &s
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddFlags adds flags for a specific CMServer to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (s *CMServer) AddFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		fs.IntVar(&s.Port, "port", s.Port, "The port that the controller-manager's http service runs on")
+0000000000000000000000000000000000000000;;		fs.Var(componentconfig.IPVar{Val: &s.Address}, "address", "The IP address to serve on (set to 0.0.0.0 for all interfaces)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.FederationName, "federation-name", s.FederationName, "Federation name.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ZoneName, "zone-name", s.ZoneName, "Zone name, like example.com.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ZoneID, "zone-id", s.ZoneID, "Zone ID, needed if the zone name is not unique.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ServiceDnsSuffix, "service-dns-suffix", s.ServiceDnsSuffix, "DNS Suffix to use when publishing federated service names.  Defaults to zone-name")
+0000000000000000000000000000000000000000;;		fs.IntVar(&s.ConcurrentServiceSyncs, "concurrent-service-syncs", s.ConcurrentServiceSyncs, "The number of service syncing operations that will be done concurrently. Larger number = faster endpoint updating, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.IntVar(&s.ConcurrentReplicaSetSyncs, "concurrent-replicaset-syncs", s.ConcurrentReplicaSetSyncs, "The number of ReplicaSets syncing operations that will be done concurrently. Larger number = faster endpoint updating, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ClusterMonitorPeriod.Duration, "cluster-monitor-period", s.ClusterMonitorPeriod.Duration, "The period for syncing ClusterStatus in ClusterController.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableProfiling, "profiling", true, "Enable profiling via web interface host:port/debug/pprof/")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", false, "Enable lock contention profiling, if profiling is enabled")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Master, "master", s.Master, "The address of the federation API server (overrides any value in kubeconfig)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ContentType, "kube-api-content-type", s.ContentType, "ContentType of requests sent to apiserver. Passing application/vnd.kubernetes.protobuf is an experimental feature now.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.APIServerQPS, "federated-api-qps", s.APIServerQPS, "QPS to use while talking with federation apiserver")
+0000000000000000000000000000000000000000;;		fs.IntVar(&s.APIServerBurst, "federated-api-burst", s.APIServerBurst, "Burst to use while talking with federation apiserver")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.DnsProvider, "dns-provider", s.DnsProvider, "DNS provider. Valid values are: "+fmt.Sprintf("%q", dnsprovider.RegisteredDnsProviders()))
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.DnsConfigFile, "dns-provider-config", s.DnsConfigFile, "Path to config file for configuring DNS provider.")
+0000000000000000000000000000000000000000;;		fs.Var(&s.Controllers, "controllers", ""+
+0000000000000000000000000000000000000000;;			"A set of key=value pairs that describe controller configuration "+
+0000000000000000000000000000000000000000;;			"to enable/disable specific controllers. Key should be the resource name (like services) and value should be true or false. "+
+0000000000000000000000000000000000000000;;			"For example: services=false,ingresses=false")
+0000000000000000000000000000000000000000;;		leaderelectionconfig.BindFlags(&s.LeaderElection, fs)
+0000000000000000000000000000000000000000;;	}

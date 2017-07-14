@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000;;	# Container-VM Image
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[Container-VM Image](https://cloud.google.com/compute/docs/containers/vm-image/)
+0000000000000000000000000000000000000000;;	is a container-optimized OS image for the Google Cloud Platform (GCP). It is
+0000000000000000000000000000000000000000;;	primarily for running Google services on GCP. Unlike the open preview version
+0000000000000000000000000000000000000000;;	of container-vm, the new Container-VM Image is based on the open source
+0000000000000000000000000000000000000000;;	ChromiumOS project, allowing us greater control over the build management,
+0000000000000000000000000000000000000000;;	security compliance, and customizations for GCP.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/gce/gci/README.md?pixel)]()

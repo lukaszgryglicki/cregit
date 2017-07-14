@@ -1,0 +1,177 @@
+0000000000000000000000000000000000000000;;	// Copyright 2015 The etcd Authors
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	// you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	// You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	//     http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	// distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	// See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	// limitations under the License.
+a405384ce9c7fbbffc6a5a8bb2203d32e3b85976;Godeps/_workspace/src/github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes/error.go[Godeps/_workspace/src/github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes/error.go][vendor/github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes/error.go];	
+0000000000000000000000000000000000000000;;	package rpctypes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"google.golang.org/grpc"
+0000000000000000000000000000000000000000;;		"google.golang.org/grpc/codes"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		// server-side error
+0000000000000000000000000000000000000000;;		ErrGRPCEmptyKey     = grpc.Errorf(codes.InvalidArgument, "etcdserver: key is not provided")
+0000000000000000000000000000000000000000;;		ErrGRPCTooManyOps   = grpc.Errorf(codes.InvalidArgument, "etcdserver: too many operations in txn request")
+0000000000000000000000000000000000000000;;		ErrGRPCDuplicateKey = grpc.Errorf(codes.InvalidArgument, "etcdserver: duplicate key given in txn request")
+0000000000000000000000000000000000000000;;		ErrGRPCCompacted    = grpc.Errorf(codes.OutOfRange, "etcdserver: mvcc: required revision has been compacted")
+0000000000000000000000000000000000000000;;		ErrGRPCFutureRev    = grpc.Errorf(codes.OutOfRange, "etcdserver: mvcc: required revision is a future revision")
+0000000000000000000000000000000000000000;;		ErrGRPCNoSpace      = grpc.Errorf(codes.ResourceExhausted, "etcdserver: mvcc: database space exceeded")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrGRPCLeaseNotFound = grpc.Errorf(codes.NotFound, "etcdserver: requested lease not found")
+0000000000000000000000000000000000000000;;		ErrGRPCLeaseExist    = grpc.Errorf(codes.FailedPrecondition, "etcdserver: lease already exists")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrGRPCMemberExist            = grpc.Errorf(codes.FailedPrecondition, "etcdserver: member ID already exist")
+0000000000000000000000000000000000000000;;		ErrGRPCPeerURLExist           = grpc.Errorf(codes.FailedPrecondition, "etcdserver: Peer URLs already exists")
+0000000000000000000000000000000000000000;;		ErrGRPCMemberNotEnoughStarted = grpc.Errorf(codes.FailedPrecondition, "etcdserver: re-configuration failed due to not enough started members")
+0000000000000000000000000000000000000000;;		ErrGRPCMemberBadURLs          = grpc.Errorf(codes.InvalidArgument, "etcdserver: given member URLs are invalid")
+0000000000000000000000000000000000000000;;		ErrGRPCMemberNotFound         = grpc.Errorf(codes.NotFound, "etcdserver: member not found")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrGRPCRequestTooLarge        = grpc.Errorf(codes.InvalidArgument, "etcdserver: request is too large")
+0000000000000000000000000000000000000000;;		ErrGRPCRequestTooManyRequests = grpc.Errorf(codes.ResourceExhausted, "etcdserver: too many requests")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrGRPCRootUserNotExist     = grpc.Errorf(codes.FailedPrecondition, "etcdserver: root user does not exist")
+0000000000000000000000000000000000000000;;		ErrGRPCRootRoleNotExist     = grpc.Errorf(codes.FailedPrecondition, "etcdserver: root user does not have root role")
+0000000000000000000000000000000000000000;;		ErrGRPCUserAlreadyExist     = grpc.Errorf(codes.FailedPrecondition, "etcdserver: user name already exists")
+0000000000000000000000000000000000000000;;		ErrGRPCUserEmpty            = grpc.Errorf(codes.InvalidArgument, "etcdserver: user name is empty")
+0000000000000000000000000000000000000000;;		ErrGRPCUserNotFound         = grpc.Errorf(codes.FailedPrecondition, "etcdserver: user name not found")
+0000000000000000000000000000000000000000;;		ErrGRPCRoleAlreadyExist     = grpc.Errorf(codes.FailedPrecondition, "etcdserver: role name already exists")
+0000000000000000000000000000000000000000;;		ErrGRPCRoleNotFound         = grpc.Errorf(codes.FailedPrecondition, "etcdserver: role name not found")
+0000000000000000000000000000000000000000;;		ErrGRPCAuthFailed           = grpc.Errorf(codes.InvalidArgument, "etcdserver: authentication failed, invalid user ID or password")
+0000000000000000000000000000000000000000;;		ErrGRPCPermissionDenied     = grpc.Errorf(codes.PermissionDenied, "etcdserver: permission denied")
+0000000000000000000000000000000000000000;;		ErrGRPCRoleNotGranted       = grpc.Errorf(codes.FailedPrecondition, "etcdserver: role is not granted to the user")
+0000000000000000000000000000000000000000;;		ErrGRPCPermissionNotGranted = grpc.Errorf(codes.FailedPrecondition, "etcdserver: permission is not granted to the role")
+0000000000000000000000000000000000000000;;		ErrGRPCAuthNotEnabled       = grpc.Errorf(codes.FailedPrecondition, "etcdserver: authentication is not enabled")
+0000000000000000000000000000000000000000;;		ErrGRPCInvalidAuthToken     = grpc.Errorf(codes.Unauthenticated, "etcdserver: invalid auth token")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrGRPCNoLeader                   = grpc.Errorf(codes.Unavailable, "etcdserver: no leader")
+0000000000000000000000000000000000000000;;		ErrGRPCNotCapable                 = grpc.Errorf(codes.Unavailable, "etcdserver: not capable")
+0000000000000000000000000000000000000000;;		ErrGRPCStopped                    = grpc.Errorf(codes.Unavailable, "etcdserver: server stopped")
+0000000000000000000000000000000000000000;;		ErrGRPCTimeout                    = grpc.Errorf(codes.Unavailable, "etcdserver: request timed out")
+0000000000000000000000000000000000000000;;		ErrGRPCTimeoutDueToLeaderFail     = grpc.Errorf(codes.Unavailable, "etcdserver: request timed out, possibly due to previous leader failure")
+0000000000000000000000000000000000000000;;		ErrGRPCTimeoutDueToConnectionLost = grpc.Errorf(codes.Unavailable, "etcdserver: request timed out, possibly due to connection lost")
+0000000000000000000000000000000000000000;;		ErrGRPCUnhealthy                  = grpc.Errorf(codes.Unavailable, "etcdserver: unhealthy cluster")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		errStringToError = map[string]error{
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCEmptyKey):     ErrGRPCEmptyKey,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCTooManyOps):   ErrGRPCTooManyOps,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCDuplicateKey): ErrGRPCDuplicateKey,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCCompacted):    ErrGRPCCompacted,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCFutureRev):    ErrGRPCFutureRev,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCNoSpace):      ErrGRPCNoSpace,
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCLeaseNotFound): ErrGRPCLeaseNotFound,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCLeaseExist):    ErrGRPCLeaseExist,
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCMemberExist):            ErrGRPCMemberExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCPeerURLExist):           ErrGRPCPeerURLExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCMemberNotEnoughStarted): ErrGRPCMemberNotEnoughStarted,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCMemberBadURLs):          ErrGRPCMemberBadURLs,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCMemberNotFound):         ErrGRPCMemberNotFound,
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRequestTooLarge):        ErrGRPCRequestTooLarge,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRequestTooManyRequests): ErrGRPCRequestTooManyRequests,
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRootUserNotExist):     ErrGRPCRootUserNotExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRootRoleNotExist):     ErrGRPCRootRoleNotExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCUserAlreadyExist):     ErrGRPCUserAlreadyExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCUserEmpty):            ErrGRPCUserEmpty,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCUserNotFound):         ErrGRPCUserNotFound,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRoleAlreadyExist):     ErrGRPCRoleAlreadyExist,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRoleNotFound):         ErrGRPCRoleNotFound,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCAuthFailed):           ErrGRPCAuthFailed,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCPermissionDenied):     ErrGRPCPermissionDenied,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCRoleNotGranted):       ErrGRPCRoleNotGranted,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCPermissionNotGranted): ErrGRPCPermissionNotGranted,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCAuthNotEnabled):       ErrGRPCAuthNotEnabled,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCInvalidAuthToken):     ErrGRPCInvalidAuthToken,
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCNoLeader):                   ErrGRPCNoLeader,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCNotCapable):                 ErrGRPCNotCapable,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCStopped):                    ErrGRPCStopped,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCTimeout):                    ErrGRPCTimeout,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCTimeoutDueToLeaderFail):     ErrGRPCTimeoutDueToLeaderFail,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCTimeoutDueToConnectionLost): ErrGRPCTimeoutDueToConnectionLost,
+0000000000000000000000000000000000000000;;			grpc.ErrorDesc(ErrGRPCUnhealthy):                  ErrGRPCUnhealthy,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// client-side error
+0000000000000000000000000000000000000000;;		ErrEmptyKey     = Error(ErrGRPCEmptyKey)
+0000000000000000000000000000000000000000;;		ErrTooManyOps   = Error(ErrGRPCTooManyOps)
+0000000000000000000000000000000000000000;;		ErrDuplicateKey = Error(ErrGRPCDuplicateKey)
+0000000000000000000000000000000000000000;;		ErrCompacted    = Error(ErrGRPCCompacted)
+0000000000000000000000000000000000000000;;		ErrFutureRev    = Error(ErrGRPCFutureRev)
+0000000000000000000000000000000000000000;;		ErrNoSpace      = Error(ErrGRPCNoSpace)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrLeaseNotFound = Error(ErrGRPCLeaseNotFound)
+0000000000000000000000000000000000000000;;		ErrLeaseExist    = Error(ErrGRPCLeaseExist)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrMemberExist            = Error(ErrGRPCMemberExist)
+0000000000000000000000000000000000000000;;		ErrPeerURLExist           = Error(ErrGRPCPeerURLExist)
+0000000000000000000000000000000000000000;;		ErrMemberNotEnoughStarted = Error(ErrGRPCMemberNotEnoughStarted)
+0000000000000000000000000000000000000000;;		ErrMemberBadURLs          = Error(ErrGRPCMemberBadURLs)
+0000000000000000000000000000000000000000;;		ErrMemberNotFound         = Error(ErrGRPCMemberNotFound)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrRequestTooLarge = Error(ErrGRPCRequestTooLarge)
+0000000000000000000000000000000000000000;;		ErrTooManyRequests = Error(ErrGRPCRequestTooManyRequests)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrRootUserNotExist     = Error(ErrGRPCRootUserNotExist)
+0000000000000000000000000000000000000000;;		ErrRootRoleNotExist     = Error(ErrGRPCRootRoleNotExist)
+0000000000000000000000000000000000000000;;		ErrUserAlreadyExist     = Error(ErrGRPCUserAlreadyExist)
+0000000000000000000000000000000000000000;;		ErrUserEmpty            = Error(ErrGRPCUserEmpty)
+0000000000000000000000000000000000000000;;		ErrUserNotFound         = Error(ErrGRPCUserNotFound)
+0000000000000000000000000000000000000000;;		ErrRoleAlreadyExist     = Error(ErrGRPCRoleAlreadyExist)
+0000000000000000000000000000000000000000;;		ErrRoleNotFound         = Error(ErrGRPCRoleNotFound)
+0000000000000000000000000000000000000000;;		ErrAuthFailed           = Error(ErrGRPCAuthFailed)
+0000000000000000000000000000000000000000;;		ErrPermissionDenied     = Error(ErrGRPCPermissionDenied)
+0000000000000000000000000000000000000000;;		ErrRoleNotGranted       = Error(ErrGRPCRoleNotGranted)
+0000000000000000000000000000000000000000;;		ErrPermissionNotGranted = Error(ErrGRPCPermissionNotGranted)
+0000000000000000000000000000000000000000;;		ErrAuthNotEnabled       = Error(ErrGRPCAuthNotEnabled)
+0000000000000000000000000000000000000000;;		ErrInvalidAuthToken     = Error(ErrGRPCInvalidAuthToken)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ErrNoLeader                   = Error(ErrGRPCNoLeader)
+0000000000000000000000000000000000000000;;		ErrNotCapable                 = Error(ErrGRPCNotCapable)
+0000000000000000000000000000000000000000;;		ErrStopped                    = Error(ErrGRPCStopped)
+0000000000000000000000000000000000000000;;		ErrTimeout                    = Error(ErrGRPCTimeout)
+0000000000000000000000000000000000000000;;		ErrTimeoutDueToLeaderFail     = Error(ErrGRPCTimeoutDueToLeaderFail)
+0000000000000000000000000000000000000000;;		ErrTimeoutDueToConnectionLost = Error(ErrGRPCTimeoutDueToConnectionLost)
+0000000000000000000000000000000000000000;;		ErrUnhealthy                  = Error(ErrGRPCUnhealthy)
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// EtcdError defines gRPC server errors.
+0000000000000000000000000000000000000000;;	// (https://github.com/grpc/grpc-go/blob/master/rpc_util.go#L319-L323)
+0000000000000000000000000000000000000000;;	type EtcdError struct {
+0000000000000000000000000000000000000000;;		code codes.Code
+0000000000000000000000000000000000000000;;		desc string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Code returns grpc/codes.Code.
+0000000000000000000000000000000000000000;;	// TODO: define clientv3/codes.Code.
+0000000000000000000000000000000000000000;;	func (e EtcdError) Code() codes.Code {
+0000000000000000000000000000000000000000;;		return e.code
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (e EtcdError) Error() string {
+0000000000000000000000000000000000000000;;		return e.desc
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func Error(err error) error {
+0000000000000000000000000000000000000000;;		if err == nil {
+0000000000000000000000000000000000000000;;			return nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		verr, ok := errStringToError[grpc.ErrorDesc(err)]
+0000000000000000000000000000000000000000;;		if !ok { // not gRPC error
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return EtcdError{code: grpc.Code(verr), desc: grpc.ErrorDesc(verr)}
+0000000000000000000000000000000000000000;;	}

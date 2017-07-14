@@ -1,0 +1,48 @@
+0000000000000000000000000000000000000000;;	# Azure Active Directory plugin for client authentication
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This plugin provides an integration with Azure Active Directory device flow. If no tokens are present in the kubectl configuration, it will prompt a device code which can be used to login in a browser. After login it will automatically fetch the tokens and stored them in the kubectl configuration. In addition it will refresh and update the tokens in configuration when expired.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## Usage
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	1. Create an Azure Active Directory *Web App / API* application for `apiserver` following these [instructions](https://docs.microsoft.com/en-us/azure/active-directory/active-directory-app-registration)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	2. Create a second Azure Active Directory native application for `kubectl` 
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	3. On `kubectl` application's configuration page in Azure portal grant permissions to `apiserver` application by clicking on *Required Permissions*, click the *Add* button and search for the apiserver application created in step 1. Select "Access apiserver" under the *DELEGATED PERMISSIONS*. Once added click the *Grant Permissions* button to apply the changes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	4. Configure the `apiserver` to use the Azure Active Directory as an OIDC provider with following options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	   --oidc-client-id="spn:APISERVER_APPLICATION_ID" \
+0000000000000000000000000000000000000000;;	   --oidc-issuer-url="https://sts.windows.net/TENANT_ID/"
+0000000000000000000000000000000000000000;;	   --oidc-username-claim="sub"
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   * Replace the `APISERVER_APPLICATION_ID` with the application ID of `apiserver` application
+0000000000000000000000000000000000000000;;	   * Replace `TENANT_ID` with your tenant ID.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	5. Configure the `kubectl` to use the `azure` authentication provider 
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	   kubectl config set-credentials "USER_NAME" --auth-provider=azure \
+0000000000000000000000000000000000000000;;	     --auth-provider-arg=environment=AzurePublicCloud \
+0000000000000000000000000000000000000000;;	     --auth-provider-arg=client-id=APPLICATION_ID \
+0000000000000000000000000000000000000000;;	     --auth-provider-arg=tenant-id=TENANT_ID \
+0000000000000000000000000000000000000000;;	     --auth-provider-arg=apiserver-id=APISERVER_APPLICATION_ID
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   * Supported environments: `AzurePublicCloud`, `AzureUSGovernmentCloud`, `AzureChinaCloud`, `AzureGermanCloud`
+0000000000000000000000000000000000000000;;	   * Replace `USER_NAME` and `TENANT_ID` with your user name and tenant ID
+0000000000000000000000000000000000000000;;	   * Replace `APPLICATION_ID` with the application ID of your`kubectl` application ID
+0000000000000000000000000000000000000000;;	   * Replace `APISERVER_APPLICATION_ID` with the application ID of your `apiserver` application ID 
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	 6. The access token is acquired when first `kubectl` command is executed
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	   kubectl get pods
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   To sign in, use a web browser to open the page https://aka.ms/devicelogin and enter the code DEC7D48GA to authenticate.
+0000000000000000000000000000000000000000;;	   ```
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	   * After signing in a web browser, the token is stored in the configuration, and it will be reused when executing next commands.

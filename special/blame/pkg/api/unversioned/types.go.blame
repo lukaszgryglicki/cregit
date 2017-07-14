@@ -1,0 +1,60 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+4fc06c01d86f2e1e0a3775a25ddc1442ecf92e2d;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package unversioned is deprecated and has been replaced with pkg/apis/meta/v1
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// DEPRECATED - Do not reference or add types to this package, it will be removed
+0000000000000000000000000000000000000000;;	// once Heapster is updated to use pkg/apis/meta/v1.
+0000000000000000000000000000000000000000;;	package unversioned
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TypeMeta describes an individual object in an API response or request
+0000000000000000000000000000000000000000;;	// with strings representing the type of the object and its API schema version.
+0000000000000000000000000000000000000000;;	// Structures that are versioned or persisted should inline TypeMeta.
+0000000000000000000000000000000000000000;;	type TypeMeta struct {
+0000000000000000000000000000000000000000;;		// Kind is a string value representing the REST resource this object represents.
+0000000000000000000000000000000000000000;;		// Servers may infer this from the endpoint the client submits requests to.
+0000000000000000000000000000000000000000;;		// Cannot be updated.
+0000000000000000000000000000000000000000;;		// In CamelCase.
+0000000000000000000000000000000000000000;;		// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		Kind string `json:"kind,omitempty" protobuf:"bytes,1,opt,name=kind"`
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// APIVersion defines the versioned schema of this representation of an object.
+0000000000000000000000000000000000000000;;		// Servers should convert recognized schemas to the latest internal value, and
+0000000000000000000000000000000000000000;;		// may reject unrecognized values.
+0000000000000000000000000000000000000000;;		// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		APIVersion string `json:"apiVersion,omitempty" protobuf:"bytes,2,opt,name=apiVersion"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ListMeta describes metadata that synthetic resources must have, including lists and
+0000000000000000000000000000000000000000;;	// various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+0000000000000000000000000000000000000000;;	type ListMeta struct {
+0000000000000000000000000000000000000000;;		// SelfLink is a URL representing this object.
+0000000000000000000000000000000000000000;;		// Populated by the system.
+0000000000000000000000000000000000000000;;		// Read-only.
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		SelfLink string `json:"selfLink,omitempty" protobuf:"bytes,1,opt,name=selfLink"`
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// String that identifies the server's internal version of this object that
+0000000000000000000000000000000000000000;;		// can be used by clients to determine when objects have changed.
+0000000000000000000000000000000000000000;;		// Value must be treated as opaque by clients and passed unmodified back to the server.
+0000000000000000000000000000000000000000;;		// Populated by the system.
+0000000000000000000000000000000000000000;;		// Read-only.
+0000000000000000000000000000000000000000;;		// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+0000000000000000000000000000000000000000;;		// +optional
+0000000000000000000000000000000000000000;;		ResourceVersion string `json:"resourceVersion,omitempty" protobuf:"bytes,2,opt,name=resourceVersion"`
+0000000000000000000000000000000000000000;;	}

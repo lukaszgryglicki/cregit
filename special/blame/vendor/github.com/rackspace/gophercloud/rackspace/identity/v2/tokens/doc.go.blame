@@ -1,0 +1,3 @@
+0000000000000000000000000000000000000000;;	// Package tokens provides information and interaction with the token
+0000000000000000000000000000000000000000;;	// API resource for the Rackspace Identity service.
+0000000000000000000000000000000000000000;;	package tokens

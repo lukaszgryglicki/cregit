@@ -1,0 +1,303 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2015 The Kubernetes Authors.
+d44065d99f4378a0a434c873c8b5c8fe34f0cf6f;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package options contains all of the primary arguments for a kubelet.
+0000000000000000000000000000000000000000;;	package options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		_ "net/http/pprof"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		utilfeature "k8s.io/apiserver/pkg/util/feature"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/util/flag"
+0000000000000000000000000000000000000000;;		utilflag "k8s.io/apiserver/pkg/util/flag"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/componentconfig"
+0000000000000000000000000000000000000000;;		// Need to make sure the componentconfig api is installed so defaulting funcs work
+0000000000000000000000000000000000000000;;		_ "k8s.io/kubernetes/pkg/apis/componentconfig/install"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/componentconfig/v1alpha1"
+0000000000000000000000000000000000000000;;		utiltaints "k8s.io/kubernetes/pkg/util/taints"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		DefaultKubeletPodsDirName       = "pods"
+0000000000000000000000000000000000000000;;		DefaultKubeletVolumesDirName    = "volumes"
+0000000000000000000000000000000000000000;;		DefaultKubeletPluginsDirName    = "plugins"
+0000000000000000000000000000000000000000;;		DefaultKubeletContainersDirName = "containers"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A configuration field should go in KubeletFlags instead of KubeletConfiguration if any of these are true:
+0000000000000000000000000000000000000000;;	// - its value will never, or cannot safely be changed during the lifetime of a node
+0000000000000000000000000000000000000000;;	// - its value cannot be safely shared between nodes at the same time (e.g. a hostname)
+0000000000000000000000000000000000000000;;	//   KubeletConfiguration is intended to be shared between nodes
+0000000000000000000000000000000000000000;;	// In general, please try to avoid adding flags or configuration fields,
+0000000000000000000000000000000000000000;;	// we already have a confusingly large amount of them.
+0000000000000000000000000000000000000000;;	type KubeletFlags struct {
+0000000000000000000000000000000000000000;;		KubeConfig          flag.StringFlag
+0000000000000000000000000000000000000000;;		BootstrapKubeconfig string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// If true, an invalid KubeConfig will result in the Kubelet exiting with an error.
+0000000000000000000000000000000000000000;;		RequireKubeConfig bool
+0000000000000000000000000000000000000000;;		APIServerList     []string // Deprecated -- use KubeConfig instead
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Insert a probability of random errors during calls to the master.
+0000000000000000000000000000000000000000;;		ChaosChance float64
+0000000000000000000000000000000000000000;;		// Crash immediately, rather than eating panics.
+0000000000000000000000000000000000000000;;		ReallyCrashForTesting bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// TODO(mtaufen): It is increasingly looking like nobody actually uses the
+0000000000000000000000000000000000000000;;		//                Kubelet's runonce mode anymore, so it may be a candidate
+0000000000000000000000000000000000000000;;		//                for deprecation and removal.
+0000000000000000000000000000000000000000;;		// If runOnce is true, the Kubelet will check the API server once for pods,
+0000000000000000000000000000000000000000;;		// run those in addition to the pods specified by the local manifest, and exit.
+0000000000000000000000000000000000000000;;		RunOnce bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// HostnameOverride is the hostname used to identify the kubelet instead
+0000000000000000000000000000000000000000;;		// of the actual hostname.
+0000000000000000000000000000000000000000;;		HostnameOverride string
+0000000000000000000000000000000000000000;;		// NodeIP is IP address of the node.
+0000000000000000000000000000000000000000;;		// If set, kubelet will use this IP address for the node.
+0000000000000000000000000000000000000000;;		NodeIP string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// This flag, if set, sets the unique id of the instance that an external provider (i.e. cloudprovider)
+0000000000000000000000000000000000000000;;		// can use to identify a specific node
+0000000000000000000000000000000000000000;;		ProviderID string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Container-runtime-specific options.
+0000000000000000000000000000000000000000;;		ContainerRuntimeOptions
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// KubeletServer encapsulates all of the parameters necessary for starting up
+0000000000000000000000000000000000000000;;	// a kubelet. These can either be set via command line or directly.
+0000000000000000000000000000000000000000;;	type KubeletServer struct {
+0000000000000000000000000000000000000000;;		KubeletFlags
+0000000000000000000000000000000000000000;;		componentconfig.KubeletConfiguration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NewKubeletServer will create a new KubeletServer with default values.
+0000000000000000000000000000000000000000;;	func NewKubeletServer() *KubeletServer {
+0000000000000000000000000000000000000000;;		versioned := &v1alpha1.KubeletConfiguration{}
+0000000000000000000000000000000000000000;;		api.Scheme.Default(versioned)
+0000000000000000000000000000000000000000;;		config := componentconfig.KubeletConfiguration{}
+0000000000000000000000000000000000000000;;		api.Scheme.Convert(versioned, &config, nil)
+0000000000000000000000000000000000000000;;		return &KubeletServer{
+0000000000000000000000000000000000000000;;			KubeletFlags: KubeletFlags{
+0000000000000000000000000000000000000000;;				KubeConfig:              flag.NewStringFlag("/var/lib/kubelet/kubeconfig"),
+0000000000000000000000000000000000000000;;				RequireKubeConfig:       false,
+0000000000000000000000000000000000000000;;				ContainerRuntimeOptions: *NewContainerRuntimeOptions(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			KubeletConfiguration: config,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type kubeletConfiguration componentconfig.KubeletConfiguration
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddFlags adds flags for a specific KubeletServer to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (s *KubeletServer) AddFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		var kc *kubeletConfiguration = (*kubeletConfiguration)(&s.KubeletConfiguration)
+0000000000000000000000000000000000000000;;		s.KubeletFlags.AddFlags(fs)
+0000000000000000000000000000000000000000;;		kc.addFlags(fs)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddFlags adds flags for a specific KubeletFlags to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (f *KubeletFlags) AddFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		f.ContainerRuntimeOptions.AddFlags(fs)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.Var(&f.KubeConfig, "kubeconfig", "Path to a kubeconfig file, specifying how to connect to the API server. --api-servers will be used for the location unless --require-kubeconfig is set.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&f.RequireKubeConfig, "require-kubeconfig", f.RequireKubeConfig, "If true the Kubelet will exit if there are configuration errors, and will ignore the value of --api-servers in favor of the server defined in the kubeconfig file.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("experimental-bootstrap-kubeconfig", "Use --bootstrap-kubeconfig")
+0000000000000000000000000000000000000000;;		fs.StringVar(&f.BootstrapKubeconfig, "experimental-bootstrap-kubeconfig", f.BootstrapKubeconfig, "deprecated: use --bootstrap-kubeconfig")
+0000000000000000000000000000000000000000;;		fs.StringVar(&f.BootstrapKubeconfig, "bootstrap-kubeconfig", f.BootstrapKubeconfig, "Path to a kubeconfig file that will be used to get client certificate for kubelet. "+
+0000000000000000000000000000000000000000;;			"If the file specified by --kubeconfig does not exist, the bootstrap kubeconfig is used to request a client certificate from the API server. "+
+0000000000000000000000000000000000000000;;			"On success, a kubeconfig file referencing the generated client certificate and key is written to the path specified by --kubeconfig. "+
+0000000000000000000000000000000000000000;;			"The client certificate and key file will be stored in the directory pointed by --cert-dir.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// DEPRECATED: Remove these flags at the beginning of 1.5.
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&f.APIServerList, "api-servers", []string{}, "List of Kubernetes API servers for publishing events, and reading pods and services. (ip:port), comma separated.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("api-servers", "Use --kubeconfig instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&f.ReallyCrashForTesting, "really-crash-for-testing", f.ReallyCrashForTesting, "If true, when panics occur crash. Intended for testing.")
+0000000000000000000000000000000000000000;;		fs.Float64Var(&f.ChaosChance, "chaos-chance", f.ChaosChance, "If > 0.0, introduce random client errors and latency. Intended for testing.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&f.RunOnce, "runonce", f.RunOnce, "If true, exit after spawning pods from local manifests or remote urls. Exclusive with --api-servers, and --enable-server")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&f.HostnameOverride, "hostname-override", f.HostnameOverride, "If non-empty, will use this string as identification instead of the actual hostname.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&f.NodeIP, "node-ip", f.NodeIP, "IP address of the node. If set, kubelet will use this IP address for the node")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&f.ProviderID, "provider-id", f.ProviderID, "Unique identifier for identifying the node in a machine database, i.e cloudprovider")
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// addFlags adds flags for a specific componentconfig.KubeletConfiguration to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (c *kubeletConfiguration) addFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		// TODO(#34726:1.8.0): Remove the opt-in for failing when swap is enabled.
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ExperimentalFailSwapOn, "experimental-fail-swap-on", c.ExperimentalFailSwapOn, "Makes the Kubelet fail to start if swap is enabled on the node. This is a temporary opton to maintain legacy behavior, failing due to swap enabled will happen by default in v1.6.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.PodManifestPath, "pod-manifest-path", c.PodManifestPath, "Path to to the directory containing pod manifest files to run, or the path to a single pod manifest file. Files starting with dots will be ignored.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.SyncFrequency.Duration, "sync-frequency", c.SyncFrequency.Duration, "Max period between synchronizing running containers and config")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.FileCheckFrequency.Duration, "file-check-frequency", c.FileCheckFrequency.Duration, "Duration between checking config files for new data")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.HTTPCheckFrequency.Duration, "http-check-frequency", c.HTTPCheckFrequency.Duration, "Duration between checking http for new data")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ManifestURL, "manifest-url", c.ManifestURL, "URL for accessing the container manifest")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ManifestURLHeader, "manifest-url-header", c.ManifestURLHeader, "HTTP header to use when accessing the manifest URL, with the key separated from the value with a ':', as in 'key:value'")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.EnableServer, "enable-server", c.EnableServer, "Enable the Kubelet's server")
+0000000000000000000000000000000000000000;;		fs.Var(componentconfig.IPVar{Val: &c.Address}, "address", "The IP address for the Kubelet to serve on (set to 0.0.0.0 for all interfaces)")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.Port, "port", c.Port, "The port for the Kubelet to serve on.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.ReadOnlyPort, "read-only-port", c.ReadOnlyPort, "The read-only port for the Kubelet to serve on with no authentication/authorization (set to 0 to disable)")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Authentication
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.Authentication.Anonymous.Enabled, "anonymous-auth", c.Authentication.Anonymous.Enabled, ""+
+0000000000000000000000000000000000000000;;			"Enables anonymous requests to the Kubelet server. Requests that are not rejected by another "+
+0000000000000000000000000000000000000000;;			"authentication method are treated as anonymous requests. Anonymous requests have a username "+
+0000000000000000000000000000000000000000;;			"of system:anonymous, and a group name of system:unauthenticated.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.Authentication.Webhook.Enabled, "authentication-token-webhook", c.Authentication.Webhook.Enabled, ""+
+0000000000000000000000000000000000000000;;			"Use the TokenReview API to determine authentication for bearer tokens.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.Authentication.Webhook.CacheTTL.Duration, "authentication-token-webhook-cache-ttl", c.Authentication.Webhook.CacheTTL.Duration, ""+
+0000000000000000000000000000000000000000;;			"The duration to cache responses from the webhook token authenticator.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.Authentication.X509.ClientCAFile, "client-ca-file", c.Authentication.X509.ClientCAFile, ""+
+0000000000000000000000000000000000000000;;			"If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file "+
+0000000000000000000000000000000000000000;;			"is authenticated with an identity corresponding to the CommonName of the client certificate.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Authorization
+0000000000000000000000000000000000000000;;		fs.StringVar((*string)(&c.Authorization.Mode), "authorization-mode", string(c.Authorization.Mode), ""+
+0000000000000000000000000000000000000000;;			"Authorization mode for Kubelet server. Valid options are AlwaysAllow or Webhook. "+
+0000000000000000000000000000000000000000;;			"Webhook mode uses the SubjectAccessReview API to determine authorization.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.Authorization.Webhook.CacheAuthorizedTTL.Duration, "authorization-webhook-cache-authorized-ttl", c.Authorization.Webhook.CacheAuthorizedTTL.Duration, ""+
+0000000000000000000000000000000000000000;;			"The duration to cache 'authorized' responses from the webhook authorizer.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.Authorization.Webhook.CacheUnauthorizedTTL.Duration, "authorization-webhook-cache-unauthorized-ttl", c.Authorization.Webhook.CacheUnauthorizedTTL.Duration, ""+
+0000000000000000000000000000000000000000;;			"The duration to cache 'unauthorized' responses from the webhook authorizer.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.TLSCertFile, "tls-cert-file", c.TLSCertFile, ""+
+0000000000000000000000000000000000000000;;			"File containing x509 Certificate used for serving HTTPS (with intermediate certs, if any, concatenated after server cert). "+
+0000000000000000000000000000000000000000;;			"If --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key "+
+0000000000000000000000000000000000000000;;			"are generated for the public address and saved to the directory passed to --cert-dir.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.TLSPrivateKeyFile, "tls-private-key-file", c.TLSPrivateKeyFile, "File containing x509 private key matching --tls-cert-file.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.CertDirectory, "cert-dir", c.CertDirectory, "The directory where the TLS certs are located. "+
+0000000000000000000000000000000000000000;;			"If --tls-cert-file and --tls-private-key-file are provided, this flag will be ignored.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.RootDirectory, "root-dir", c.RootDirectory, "Directory path for managing kubelet files (volume mounts,etc).")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.SeccompProfileRoot, "seccomp-profile-root", c.SeccompProfileRoot, "Directory path for seccomp profiles.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.AllowPrivileged, "allow-privileged", c.AllowPrivileged, "If true, allow containers to request privileged mode.")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.HostNetworkSources, "host-network-sources", c.HostNetworkSources, "Comma-separated list of sources from which the Kubelet allows pods to use of host network.")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.HostPIDSources, "host-pid-sources", c.HostPIDSources, "Comma-separated list of sources from which the Kubelet allows pods to use the host pid namespace.")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.HostIPCSources, "host-ipc-sources", c.HostIPCSources, "Comma-separated list of sources from which the Kubelet allows pods to use the host ipc namespace.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.RegistryPullQPS, "registry-qps", c.RegistryPullQPS, "If > 0, limit registry pull QPS to this value.  If 0, unlimited.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.RegistryBurst, "registry-burst", c.RegistryBurst, "Maximum size of a bursty pulls, temporarily allows pulls to burst to this number, while still not exceeding registry-qps. Only used if --registry-qps > 0")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.EventRecordQPS, "event-qps", c.EventRecordQPS, "If > 0, limit event creations per second to this value. If 0, unlimited.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.EventBurst, "event-burst", c.EventBurst, "Maximum size of a bursty event records, temporarily allows event records to burst to this number, while still not exceeding event-qps. Only used if --event-qps > 0")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.EnableDebuggingHandlers, "enable-debugging-handlers", c.EnableDebuggingHandlers, "Enables server endpoints for log collection and local running of containers and commands")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.EnableContentionProfiling, "contention-profiling", false, "Enable lock contention profiling, if profiling is enabled")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.MinimumGCAge.Duration, "minimum-container-ttl-duration", c.MinimumGCAge.Duration, "Minimum age for a finished container before it is garbage collected.  Examples: '300ms', '10s' or '2h45m'")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("minimum-container-ttl-duration", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.MaxPerPodContainerCount, "maximum-dead-containers-per-container", c.MaxPerPodContainerCount, "Maximum number of old instances to retain per container.  Each container takes up some disk space.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("maximum-dead-containers-per-container", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.MaxContainerCount, "maximum-dead-containers", c.MaxContainerCount, "Maximum number of old instances of containers to retain globally.  Each container takes up some disk space. To disable, set to a negative number.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("maximum-dead-containers", "Use --eviction-hard or --eviction-soft instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.CAdvisorPort, "cadvisor-port", c.CAdvisorPort, "The port of the localhost cAdvisor endpoint")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.HealthzPort, "healthz-port", c.HealthzPort, "The port of the localhost healthz endpoint")
+0000000000000000000000000000000000000000;;		fs.Var(componentconfig.IPVar{Val: &c.HealthzBindAddress}, "healthz-bind-address", "The IP address for the healthz server to serve on. (set to 0.0.0.0 for all interfaces)")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.OOMScoreAdj, "oom-score-adj", c.OOMScoreAdj, "The oom-score-adj value for kubelet process. Values must be within the range [-1000, 1000]")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.RegisterNode, "register-node", c.RegisterNode, "Register the node with the apiserver (defaults to true if --api-servers is set)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ClusterDomain, "cluster-domain", c.ClusterDomain, "Domain for this cluster.  If set, kubelet will configure all containers to search this domain in addition to the host's search domains")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.MasterServiceNamespace, "master-service-namespace", c.MasterServiceNamespace, "The namespace from which the kubernetes master services should be injected into pods")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("master-service-namespace", "This flag will be removed in a future version.")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.ClusterDNS, "cluster-dns", c.ClusterDNS, "Comma-separated list of DNS server IP address.  This value is used for containers DNS server in case of Pods with \"dnsPolicy=ClusterFirst\". Note: all DNS servers appearing in the list MUST serve the same set of records otherwise name resolution within the cluster may not work correctly. There is no guarantee as to which DNS server may be contacted for name resolution.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.StreamingConnectionIdleTimeout.Duration, "streaming-connection-idle-timeout", c.StreamingConnectionIdleTimeout.Duration, "Maximum time a streaming connection can be idle before the connection is automatically closed. 0 indicates no timeout. Example: '5m'")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.NodeStatusUpdateFrequency.Duration, "node-status-update-frequency", c.NodeStatusUpdateFrequency.Duration, "Specifies how often kubelet posts node status to master. Note: be cautious when changing the constant, it must work with nodeMonitorGracePeriod in nodecontroller.")
+0000000000000000000000000000000000000000;;		c.NodeLabels = make(map[string]string)
+0000000000000000000000000000000000000000;;		bindableNodeLabels := utilflag.ConfigurationMap(c.NodeLabels)
+0000000000000000000000000000000000000000;;		fs.Var(&bindableNodeLabels, "node-labels", "<Warning: Alpha feature> Labels to add when registering the node in the cluster.  Labels must be key=value pairs separated by ','.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.ImageMinimumGCAge.Duration, "minimum-image-ttl-duration", c.ImageMinimumGCAge.Duration, "Minimum age for an unused image before it is garbage collected.  Examples: '300ms', '10s' or '2h45m'.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.ImageGCHighThresholdPercent, "image-gc-high-threshold", c.ImageGCHighThresholdPercent, "The percent of disk usage after which image garbage collection is always run.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.ImageGCLowThresholdPercent, "image-gc-low-threshold", c.ImageGCLowThresholdPercent, "The percent of disk usage before which image garbage collection is never run. Lowest disk usage to garbage collect to.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.LowDiskSpaceThresholdMB, "low-diskspace-threshold-mb", c.LowDiskSpaceThresholdMB, "The absolute free disk space, in MB, to maintain. When disk space falls below this threshold, new pods would be rejected.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("low-diskspace-threshold-mb", "Use --eviction-hard instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.VolumeStatsAggPeriod.Duration, "volume-stats-agg-period", c.VolumeStatsAggPeriod.Duration, "Specifies interval for kubelet to calculate and cache the volume disk usage for all pods and volumes.  To disable volume calculations, set to 0.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.VolumePluginDir, "volume-plugin-dir", c.VolumePluginDir, "<Warning: Alpha feature> The full path of the directory in which to search for additional third party volume plugins")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.CloudProvider, "cloud-provider", c.CloudProvider, "The provider for cloud services. By default, kubelet will attempt to auto-detect the cloud provider. Specify empty string for running with no cloud provider.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.CloudConfigFile, "cloud-config", c.CloudConfigFile, "The path to the cloud provider configuration file.  Empty string for no configuration file.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.FeatureGates, "feature-gates", c.FeatureGates, "A set of key=value pairs that describe feature gates for alpha/experimental features. "+
+0000000000000000000000000000000000000000;;			"Options are:\n"+strings.Join(utilfeature.DefaultFeatureGate.KnownFeatures(), "\n"))
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.KubeletCgroups, "kubelet-cgroups", c.KubeletCgroups, "Optional absolute name of cgroups to create and run the Kubelet in.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.SystemCgroups, "system-cgroups", c.SystemCgroups, "Optional absolute name of cgroups in which to place all non-kernel processes that are not already inside a cgroup under `/`. Empty for no container. Rolling back the flag requires a reboot.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.CgroupsPerQOS, "cgroups-per-qos", c.CgroupsPerQOS, "Enable creation of QoS cgroup hierarchy, if true top level QoS and pod cgroups are created.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.CgroupDriver, "cgroup-driver", c.CgroupDriver, "Driver that the kubelet uses to manipulate cgroups on the host.  Possible values: 'cgroupfs', 'systemd'")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.CgroupRoot, "cgroup-root", c.CgroupRoot, "Optional root cgroup to use for pods. This is handled by the container runtime on a best effort basis. Default: '', which means use the container runtime default.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ContainerRuntime, "container-runtime", c.ContainerRuntime, "The container runtime to use. Possible values: 'docker', 'rkt'.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.RuntimeRequestTimeout.Duration, "runtime-request-timeout", c.RuntimeRequestTimeout.Duration, "Timeout of all runtime requests except long running request - pull, logs, exec and attach. When timeout exceeded, kubelet will cancel the request, throw out an error and retry later.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.LockFilePath, "lock-file", c.LockFilePath, "<Warning: Alpha feature> The path to file for kubelet to use as a lock file.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ExitOnLockContention, "exit-on-lock-contention", c.ExitOnLockContention, "Whether kubelet should exit upon lock-file contention.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ExperimentalMounterPath, "experimental-mounter-path", c.ExperimentalMounterPath, "[Experimental] Path of mounter binary. Leave empty to use the default mount.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.HairpinMode, "hairpin-mode", c.HairpinMode, "How should the kubelet setup hairpin NAT. This allows endpoints of a Service to loadbalance back to themselves if they should try to access their own Service. Valid values are \"promiscuous-bridge\", \"hairpin-veth\" and \"none\".")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.MaxPods, "max-pods", c.MaxPods, "Number of Pods that can run on this Kubelet.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.NonMasqueradeCIDR, "non-masquerade-cidr", c.NonMasqueradeCIDR, "Traffic to IPs outside this range will use IP masquerade. Set to '0.0.0.0/0' to never masquerade.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("non-masquerade-cidr", "will be removed in a future version")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.PodCIDR, "pod-cidr", "", "The CIDR to use for pod IP addresses, only used in standalone mode.  In cluster mode, this is obtained from the master.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ResolverConfig, "resolv-conf", c.ResolverConfig, "Resolver configuration file used as the basis for the container DNS resolution configuration.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.CPUCFSQuota, "cpu-cfs-quota", c.CPUCFSQuota, "Enable CPU CFS quota enforcement for containers that specify CPU limits")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.EnableControllerAttachDetach, "enable-controller-attach-detach", c.EnableControllerAttachDetach, "Enables the Attach/Detach controller to manage attachment/detachment of volumes scheduled to this node, and disables kubelet from executing any attach/detach operations")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.MakeIPTablesUtilChains, "make-iptables-util-chains", c.MakeIPTablesUtilChains, "If true, kubelet will ensure iptables utility rules are present on host.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.IPTablesMasqueradeBit, "iptables-masquerade-bit", c.IPTablesMasqueradeBit, "The bit of the fwmark space to mark packets for SNAT. Must be within the range [0, 31]. Please match this parameter with corresponding parameter in kube-proxy.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.IPTablesDropBit, "iptables-drop-bit", c.IPTablesDropBit, "The bit of the fwmark space to mark packets for dropping. Must be within the range [0, 31].")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.AllowedUnsafeSysctls, "experimental-allowed-unsafe-sysctls", c.AllowedUnsafeSysctls, "Comma-separated whitelist of unsafe sysctls or unsafe sysctl patterns (ending in *). Use these at your own risk.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Flags intended for testing, not recommended used in production environments.
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.Containerized, "containerized", c.Containerized, "Experimental support for running kubelet in a container.  Intended for testing.")
+0000000000000000000000000000000000000000;;		fs.Int64Var(&c.MaxOpenFiles, "max-open-files", c.MaxOpenFiles, "Number of files that can be opened by Kubelet process.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.RegisterSchedulable, "register-schedulable", c.RegisterSchedulable, "Register the node as schedulable. Won't have any effect if register-node is false.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("register-schedulable", "will be removed in a future version")
+0000000000000000000000000000000000000000;;		fs.Var(utiltaints.NewTaintsVar(&c.RegisterWithTaints), "register-with-taints", "Register the node with the given list of taints (comma separated \"<key>=<value>:<effect>\"). No-op if register-node is false.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.ContentType, "kube-api-content-type", c.ContentType, "Content type of requests sent to apiserver.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.KubeAPIQPS, "kube-api-qps", c.KubeAPIQPS, "QPS to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.KubeAPIBurst, "kube-api-burst", c.KubeAPIBurst, "Burst to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.SerializeImagePulls, "serialize-image-pulls", c.SerializeImagePulls, "Pull images one at a time. We recommend *not* changing the default value on nodes that run docker daemon with version < 1.9 or an Aufs storage backend. Issue #10959 has more details.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.OutOfDiskTransitionFrequency.Duration, "outofdisk-transition-frequency", c.OutOfDiskTransitionFrequency.Duration, "Duration for which the kubelet has to wait before transitioning out of out-of-disk node condition status.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("outofdisk-transition-frequency", "Use --eviction-pressure-transition-period instead. Will be removed in a future version.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.EnableCustomMetrics, "enable-custom-metrics", c.EnableCustomMetrics, "Support for gathering custom metrics.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.RuntimeCgroups, "runtime-cgroups", c.RuntimeCgroups, "Optional absolute name of cgroups to create and run the runtime in.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.EvictionHard, "eviction-hard", c.EvictionHard, "A set of eviction thresholds (e.g. memory.available<1Gi) that if met would trigger a pod eviction.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.EvictionSoft, "eviction-soft", c.EvictionSoft, "A set of eviction thresholds (e.g. memory.available<1.5Gi) that if met over a corresponding grace period would trigger a pod eviction.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.EvictionSoftGracePeriod, "eviction-soft-grace-period", c.EvictionSoftGracePeriod, "A set of eviction grace periods (e.g. memory.available=1m30s) that correspond to how long a soft eviction threshold must hold before triggering a pod eviction.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&c.EvictionPressureTransitionPeriod.Duration, "eviction-pressure-transition-period", c.EvictionPressureTransitionPeriod.Duration, "Duration for which the kubelet has to wait before transitioning out of an eviction pressure condition.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.EvictionMaxPodGracePeriod, "eviction-max-pod-grace-period", c.EvictionMaxPodGracePeriod, "Maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.  If negative, defer to pod specified value.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.EvictionMinimumReclaim, "eviction-minimum-reclaim", c.EvictionMinimumReclaim, "A set of minimum reclaims (e.g. imagefs.available=2Gi) that describes the minimum amount of resource the kubelet will reclaim when performing a pod eviction if that resource is under pressure.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ExperimentalKernelMemcgNotification, "experimental-kernel-memcg-notification", c.ExperimentalKernelMemcgNotification, "If enabled, the kubelet will integrate with the kernel memcg notification to determine if memory eviction thresholds are crossed rather than polling.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&c.PodsPerCore, "pods-per-core", c.PodsPerCore, "Number of Pods per core that can run on this Kubelet. The total number of Pods on this Kubelet cannot exceed max-pods, so max-pods will be used if this calculation results in a larger number of Pods allowed on the Kubelet. A value of 0 disables this limit.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ProtectKernelDefaults, "protect-kernel-defaults", c.ProtectKernelDefaults, "Default kubelet behaviour for kernel tuning. If set, kubelet errors if any of kernel tunables is different than kubelet defaults.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.KeepTerminatedPodVolumes, "keep-terminated-pod-volumes", c.KeepTerminatedPodVolumes, "Keep terminated pod volumes mounted to the node after the pod terminates.  Can be useful for debugging volume related issues.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// CRI flags.
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.RemoteRuntimeEndpoint, "container-runtime-endpoint", c.RemoteRuntimeEndpoint, "[Experimental] The endpoint of remote runtime service. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.RemoteImageEndpoint, "image-service-endpoint", c.RemoteImageEndpoint, "[Experimental] The endpoint of remote image service. If not specified, it will be the same with container-runtime-endpoint by default. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ExperimentalCheckNodeCapabilitiesBeforeMount, "experimental-check-node-capabilities-before-mount", c.ExperimentalCheckNodeCapabilitiesBeforeMount, "[Experimental] if set true, the kubelet will check the underlying node for required componenets (binaries, etc.) before performing the mount")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Node Allocatable Flags
+0000000000000000000000000000000000000000;;		fs.Var(&c.SystemReserved, "system-reserved", "A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=500Mi) pairs that describe resources reserved for non-kubernetes components. Currently only cpu and memory are supported. See http://kubernetes.io/docs/user-guide/compute-resources for more detail. [default=none]")
+0000000000000000000000000000000000000000;;		fs.Var(&c.KubeReserved, "kube-reserved", "A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=500Mi, storage=1Gi) pairs that describe resources reserved for kubernetes system components. Currently cpu, memory and local storage for root file system are supported. See http://kubernetes.io/docs/user-guide/compute-resources for more detail. [default=none]")
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&c.EnforceNodeAllocatable, "enforce-node-allocatable", c.EnforceNodeAllocatable, "A comma separated list of levels of node allocatable enforcement to be enforced by kubelet. Acceptible options are 'pods', 'system-reserved' & 'kube-reserved'. If the latter two options are specified, '--system-reserved-cgroup' & '--kube-reserved-cgroup' must also be set respectively. See https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md for more details.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.SystemReservedCgroup, "system-reserved-cgroup", c.SystemReservedCgroup, "Absolute name of the top level cgroup that is used to manage non-kubernetes components for which compute resources were reserved via '--system-reserved' flag. Ex. '/system-reserved'. [default='']")
+0000000000000000000000000000000000000000;;		fs.StringVar(&c.KubeReservedCgroup, "kube-reserved-cgroup", c.KubeReservedCgroup, "Absolute name of the top level cgroup that is used to manage kubernetes components for which compute resources were reserved via '--kube-reserved' flag. Ex. '/kube-reserved'. [default='']")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&c.ExperimentalNodeAllocatableIgnoreEvictionThreshold, "experimental-allocatable-ignore-eviction", c.ExperimentalNodeAllocatableIgnoreEvictionThreshold, "When set to 'true', Hard Eviction Thresholds will be ignored while calculating Node Allocatable. See https://git.k8s.io/community/contributors/design-proposals/node-allocatable.md for more details. [default=false]")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		fs.Var(&c.ExperimentalQOSReserved, "experimental-qos-reserved", "A set of ResourceName=Percentage (e.g. memory=50%) pairs that describe how pod resource requests are reserved at the QoS level. Currently only memory is supported. [default=none]")
+0000000000000000000000000000000000000000;;	}

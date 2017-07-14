@@ -1,0 +1,226 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+7ae9f03395c6627a081201b94a92727a999ac034;staging/src/k8s.io/client-go/1.4/tools/clientcmd/overrides.go[staging/src/k8s.io/client-go/1.4/tools/clientcmd/overrides.go][staging/src/k8s.io/client-go/tools/clientcmd/overrides.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package clientcmd
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"strconv"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ConfigOverrides holds values that should override whatever information is pulled from the actual Config object.  You can't
+0000000000000000000000000000000000000000;;	// simply use an actual Config object, because Configs hold maps, but overrides are restricted to "at most one"
+0000000000000000000000000000000000000000;;	type ConfigOverrides struct {
+0000000000000000000000000000000000000000;;		AuthInfo clientcmdapi.AuthInfo
+0000000000000000000000000000000000000000;;		// ClusterDefaults are applied before the configured cluster info is loaded.
+0000000000000000000000000000000000000000;;		ClusterDefaults clientcmdapi.Cluster
+0000000000000000000000000000000000000000;;		ClusterInfo     clientcmdapi.Cluster
+0000000000000000000000000000000000000000;;		Context         clientcmdapi.Context
+0000000000000000000000000000000000000000;;		CurrentContext  string
+0000000000000000000000000000000000000000;;		Timeout         string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ConfigOverrideFlags holds the flag names to be used for binding command line flags.  Notice that this structure tightly
+0000000000000000000000000000000000000000;;	// corresponds to ConfigOverrides
+0000000000000000000000000000000000000000;;	type ConfigOverrideFlags struct {
+0000000000000000000000000000000000000000;;		AuthOverrideFlags    AuthOverrideFlags
+0000000000000000000000000000000000000000;;		ClusterOverrideFlags ClusterOverrideFlags
+0000000000000000000000000000000000000000;;		ContextOverrideFlags ContextOverrideFlags
+0000000000000000000000000000000000000000;;		CurrentContext       FlagInfo
+0000000000000000000000000000000000000000;;		Timeout              FlagInfo
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AuthOverrideFlags holds the flag names to be used for binding command line flags for AuthInfo objects
+0000000000000000000000000000000000000000;;	type AuthOverrideFlags struct {
+0000000000000000000000000000000000000000;;		ClientCertificate FlagInfo
+0000000000000000000000000000000000000000;;		ClientKey         FlagInfo
+0000000000000000000000000000000000000000;;		Token             FlagInfo
+0000000000000000000000000000000000000000;;		Impersonate       FlagInfo
+0000000000000000000000000000000000000000;;		ImpersonateGroups FlagInfo
+0000000000000000000000000000000000000000;;		Username          FlagInfo
+0000000000000000000000000000000000000000;;		Password          FlagInfo
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ContextOverrideFlags holds the flag names to be used for binding command line flags for Cluster objects
+0000000000000000000000000000000000000000;;	type ContextOverrideFlags struct {
+0000000000000000000000000000000000000000;;		ClusterName  FlagInfo
+0000000000000000000000000000000000000000;;		AuthInfoName FlagInfo
+0000000000000000000000000000000000000000;;		Namespace    FlagInfo
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ClusterOverride holds the flag names to be used for binding command line flags for Cluster objects
+0000000000000000000000000000000000000000;;	type ClusterOverrideFlags struct {
+0000000000000000000000000000000000000000;;		APIServer             FlagInfo
+0000000000000000000000000000000000000000;;		APIVersion            FlagInfo
+0000000000000000000000000000000000000000;;		CertificateAuthority  FlagInfo
+0000000000000000000000000000000000000000;;		InsecureSkipTLSVerify FlagInfo
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// FlagInfo contains information about how to register a flag.  This struct is useful if you want to provide a way for an extender to
+0000000000000000000000000000000000000000;;	// get back a set of recommended flag names, descriptions, and defaults, but allow for customization by an extender.  This makes for
+0000000000000000000000000000000000000000;;	// coherent extension, without full prescription
+0000000000000000000000000000000000000000;;	type FlagInfo struct {
+0000000000000000000000000000000000000000;;		// LongName is the long string for a flag.  If this is empty, then the flag will not be bound
+0000000000000000000000000000000000000000;;		LongName string
+0000000000000000000000000000000000000000;;		// ShortName is the single character for a flag.  If this is empty, then there will be no short flag
+0000000000000000000000000000000000000000;;		ShortName string
+0000000000000000000000000000000000000000;;		// Default is the default value for the flag
+0000000000000000000000000000000000000000;;		Default string
+0000000000000000000000000000000000000000;;		// Description is the description for the flag
+0000000000000000000000000000000000000000;;		Description string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddSecretAnnotation add secret flag to Annotation.
+0000000000000000000000000000000000000000;;	func (f FlagInfo) AddSecretAnnotation(flags *pflag.FlagSet) FlagInfo {
+0000000000000000000000000000000000000000;;		flags.SetAnnotation(f.LongName, "classified", []string{"true"})
+0000000000000000000000000000000000000000;;		return f
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindStringFlag binds the flag based on the provided info.  If LongName == "", nothing is registered
+0000000000000000000000000000000000000000;;	func (f FlagInfo) BindStringFlag(flags *pflag.FlagSet, target *string) FlagInfo {
+0000000000000000000000000000000000000000;;		// you can't register a flag without a long name
+0000000000000000000000000000000000000000;;		if len(f.LongName) > 0 {
+0000000000000000000000000000000000000000;;			flags.StringVarP(target, f.LongName, f.ShortName, f.Default, f.Description)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return f
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindStringSliceFlag binds the flag based on the provided info.  If LongName == "", nothing is registered
+0000000000000000000000000000000000000000;;	func (f FlagInfo) BindStringArrayFlag(flags *pflag.FlagSet, target *[]string) FlagInfo {
+0000000000000000000000000000000000000000;;		// you can't register a flag without a long name
+0000000000000000000000000000000000000000;;		if len(f.LongName) > 0 {
+0000000000000000000000000000000000000000;;			sliceVal := []string{}
+0000000000000000000000000000000000000000;;			if len(f.Default) > 0 {
+0000000000000000000000000000000000000000;;				sliceVal = []string{f.Default}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			flags.StringArrayVarP(target, f.LongName, f.ShortName, sliceVal, f.Description)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return f
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindBoolFlag binds the flag based on the provided info.  If LongName == "", nothing is registered
+0000000000000000000000000000000000000000;;	func (f FlagInfo) BindBoolFlag(flags *pflag.FlagSet, target *bool) FlagInfo {
+0000000000000000000000000000000000000000;;		// you can't register a flag without a long name
+0000000000000000000000000000000000000000;;		if len(f.LongName) > 0 {
+0000000000000000000000000000000000000000;;			// try to parse Default as a bool.  If it fails, assume false
+0000000000000000000000000000000000000000;;			boolVal, err := strconv.ParseBool(f.Default)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				boolVal = false
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			flags.BoolVarP(target, f.LongName, f.ShortName, boolVal, f.Description)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return f
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		FlagClusterName      = "cluster"
+0000000000000000000000000000000000000000;;		FlagAuthInfoName     = "user"
+0000000000000000000000000000000000000000;;		FlagContext          = "context"
+0000000000000000000000000000000000000000;;		FlagNamespace        = "namespace"
+0000000000000000000000000000000000000000;;		FlagAPIServer        = "server"
+0000000000000000000000000000000000000000;;		FlagInsecure         = "insecure-skip-tls-verify"
+0000000000000000000000000000000000000000;;		FlagCertFile         = "client-certificate"
+0000000000000000000000000000000000000000;;		FlagKeyFile          = "client-key"
+0000000000000000000000000000000000000000;;		FlagCAFile           = "certificate-authority"
+0000000000000000000000000000000000000000;;		FlagEmbedCerts       = "embed-certs"
+0000000000000000000000000000000000000000;;		FlagBearerToken      = "token"
+0000000000000000000000000000000000000000;;		FlagImpersonate      = "as"
+0000000000000000000000000000000000000000;;		FlagImpersonateGroup = "as-group"
+0000000000000000000000000000000000000000;;		FlagUsername         = "username"
+0000000000000000000000000000000000000000;;		FlagPassword         = "password"
+0000000000000000000000000000000000000000;;		FlagTimeout          = "request-timeout"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RecommendedConfigOverrideFlags is a convenience method to return recommended flag names prefixed with a string of your choosing
+0000000000000000000000000000000000000000;;	func RecommendedConfigOverrideFlags(prefix string) ConfigOverrideFlags {
+0000000000000000000000000000000000000000;;		return ConfigOverrideFlags{
+0000000000000000000000000000000000000000;;			AuthOverrideFlags:    RecommendedAuthOverrideFlags(prefix),
+0000000000000000000000000000000000000000;;			ClusterOverrideFlags: RecommendedClusterOverrideFlags(prefix),
+0000000000000000000000000000000000000000;;			ContextOverrideFlags: RecommendedContextOverrideFlags(prefix),
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			CurrentContext: FlagInfo{prefix + FlagContext, "", "", "The name of the kubeconfig context to use"},
+0000000000000000000000000000000000000000;;			Timeout:        FlagInfo{prefix + FlagTimeout, "", "0", "The length of time to wait before giving up on a single server request. Non-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests."},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RecommendedAuthOverrideFlags is a convenience method to return recommended flag names prefixed with a string of your choosing
+0000000000000000000000000000000000000000;;	func RecommendedAuthOverrideFlags(prefix string) AuthOverrideFlags {
+0000000000000000000000000000000000000000;;		return AuthOverrideFlags{
+0000000000000000000000000000000000000000;;			ClientCertificate: FlagInfo{prefix + FlagCertFile, "", "", "Path to a client certificate file for TLS"},
+0000000000000000000000000000000000000000;;			ClientKey:         FlagInfo{prefix + FlagKeyFile, "", "", "Path to a client key file for TLS"},
+0000000000000000000000000000000000000000;;			Token:             FlagInfo{prefix + FlagBearerToken, "", "", "Bearer token for authentication to the API server"},
+0000000000000000000000000000000000000000;;			Impersonate:       FlagInfo{prefix + FlagImpersonate, "", "", "Username to impersonate for the operation"},
+0000000000000000000000000000000000000000;;			ImpersonateGroups: FlagInfo{prefix + FlagImpersonateGroup, "", "", "Group to impersonate for the operation, this flag can be repeated to specify multiple groups."},
+0000000000000000000000000000000000000000;;			Username:          FlagInfo{prefix + FlagUsername, "", "", "Username for basic authentication to the API server"},
+0000000000000000000000000000000000000000;;			Password:          FlagInfo{prefix + FlagPassword, "", "", "Password for basic authentication to the API server"},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RecommendedClusterOverrideFlags is a convenience method to return recommended flag names prefixed with a string of your choosing
+0000000000000000000000000000000000000000;;	func RecommendedClusterOverrideFlags(prefix string) ClusterOverrideFlags {
+0000000000000000000000000000000000000000;;		return ClusterOverrideFlags{
+0000000000000000000000000000000000000000;;			APIServer:             FlagInfo{prefix + FlagAPIServer, "", "", "The address and port of the Kubernetes API server"},
+0000000000000000000000000000000000000000;;			CertificateAuthority:  FlagInfo{prefix + FlagCAFile, "", "", "Path to a cert file for the certificate authority"},
+0000000000000000000000000000000000000000;;			InsecureSkipTLSVerify: FlagInfo{prefix + FlagInsecure, "", "false", "If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure"},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RecommendedContextOverrideFlags is a convenience method to return recommended flag names prefixed with a string of your choosing
+0000000000000000000000000000000000000000;;	func RecommendedContextOverrideFlags(prefix string) ContextOverrideFlags {
+0000000000000000000000000000000000000000;;		return ContextOverrideFlags{
+0000000000000000000000000000000000000000;;			ClusterName:  FlagInfo{prefix + FlagClusterName, "", "", "The name of the kubeconfig cluster to use"},
+0000000000000000000000000000000000000000;;			AuthInfoName: FlagInfo{prefix + FlagAuthInfoName, "", "", "The name of the kubeconfig user to use"},
+0000000000000000000000000000000000000000;;			Namespace:    FlagInfo{prefix + FlagNamespace, "n", "", "If present, the namespace scope for this CLI request"},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindOverrideFlags is a convenience method to bind the specified flags to their associated variables
+0000000000000000000000000000000000000000;;	func BindOverrideFlags(overrides *ConfigOverrides, flags *pflag.FlagSet, flagNames ConfigOverrideFlags) {
+0000000000000000000000000000000000000000;;		BindAuthInfoFlags(&overrides.AuthInfo, flags, flagNames.AuthOverrideFlags)
+0000000000000000000000000000000000000000;;		BindClusterFlags(&overrides.ClusterInfo, flags, flagNames.ClusterOverrideFlags)
+0000000000000000000000000000000000000000;;		BindContextFlags(&overrides.Context, flags, flagNames.ContextOverrideFlags)
+0000000000000000000000000000000000000000;;		flagNames.CurrentContext.BindStringFlag(flags, &overrides.CurrentContext)
+0000000000000000000000000000000000000000;;		flagNames.Timeout.BindStringFlag(flags, &overrides.Timeout)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindAuthInfoFlags is a convenience method to bind the specified flags to their associated variables
+0000000000000000000000000000000000000000;;	func BindAuthInfoFlags(authInfo *clientcmdapi.AuthInfo, flags *pflag.FlagSet, flagNames AuthOverrideFlags) {
+0000000000000000000000000000000000000000;;		flagNames.ClientCertificate.BindStringFlag(flags, &authInfo.ClientCertificate).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.ClientKey.BindStringFlag(flags, &authInfo.ClientKey).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.Token.BindStringFlag(flags, &authInfo.Token).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.Impersonate.BindStringFlag(flags, &authInfo.Impersonate).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.ImpersonateGroups.BindStringArrayFlag(flags, &authInfo.ImpersonateGroups).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.Username.BindStringFlag(flags, &authInfo.Username).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;		flagNames.Password.BindStringFlag(flags, &authInfo.Password).AddSecretAnnotation(flags)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindClusterFlags is a convenience method to bind the specified flags to their associated variables
+0000000000000000000000000000000000000000;;	func BindClusterFlags(clusterInfo *clientcmdapi.Cluster, flags *pflag.FlagSet, flagNames ClusterOverrideFlags) {
+0000000000000000000000000000000000000000;;		flagNames.APIServer.BindStringFlag(flags, &clusterInfo.Server)
+0000000000000000000000000000000000000000;;		flagNames.CertificateAuthority.BindStringFlag(flags, &clusterInfo.CertificateAuthority)
+0000000000000000000000000000000000000000;;		flagNames.InsecureSkipTLSVerify.BindBoolFlag(flags, &clusterInfo.InsecureSkipTLSVerify)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BindFlags is a convenience method to bind the specified flags to their associated variables
+0000000000000000000000000000000000000000;;	func BindContextFlags(contextInfo *clientcmdapi.Context, flags *pflag.FlagSet, flagNames ContextOverrideFlags) {
+0000000000000000000000000000000000000000;;		flagNames.ClusterName.BindStringFlag(flags, &contextInfo.Cluster)
+0000000000000000000000000000000000000000;;		flagNames.AuthInfoName.BindStringFlag(flags, &contextInfo.AuthInfo)
+0000000000000000000000000000000000000000;;		flagNames.Namespace.BindStringFlag(flags, &contextInfo.Namespace)
+0000000000000000000000000000000000000000;;	}

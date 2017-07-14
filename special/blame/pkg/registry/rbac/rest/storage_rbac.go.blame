@@ -1,0 +1,292 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+d3caf1c70cae2a2b3c683a179a3ee90f4f0c21a6;pkg/master/storage_rbac.go[pkg/master/storage_rbac.go][pkg/registry/rbac/rest/storage_rbac.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package rest
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"sync"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/golang/glog"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		rbacapiv1alpha1 "k8s.io/api/rbac/v1alpha1"
+0000000000000000000000000000000000000000;;		rbacapiv1beta1 "k8s.io/api/rbac/v1beta1"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime/schema"
+0000000000000000000000000000000000000000;;		utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/wait"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/authorization/authorizer"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/generic"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/rest"
+0000000000000000000000000000000000000000;;		genericapiserver "k8s.io/apiserver/pkg/server"
+0000000000000000000000000000000000000000;;		serverstorage "k8s.io/apiserver/pkg/server/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/rbac"
+0000000000000000000000000000000000000000;;		coreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+0000000000000000000000000000000000000000;;		rbacclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/rbac/internalversion"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/retry"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/registry/rbac/clusterrole"
+0000000000000000000000000000000000000000;;		clusterrolepolicybased "k8s.io/kubernetes/pkg/registry/rbac/clusterrole/policybased"
+0000000000000000000000000000000000000000;;		clusterrolestore "k8s.io/kubernetes/pkg/registry/rbac/clusterrole/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding"
+0000000000000000000000000000000000000000;;		clusterrolebindingpolicybased "k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding/policybased"
+0000000000000000000000000000000000000000;;		clusterrolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/registry/rbac/reconciliation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/registry/rbac/role"
+0000000000000000000000000000000000000000;;		rolepolicybased "k8s.io/kubernetes/pkg/registry/rbac/role/policybased"
+0000000000000000000000000000000000000000;;		rolestore "k8s.io/kubernetes/pkg/registry/rbac/role/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/registry/rbac/rolebinding"
+0000000000000000000000000000000000000000;;		rolebindingpolicybased "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/policybased"
+0000000000000000000000000000000000000000;;		rolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/storage"
+0000000000000000000000000000000000000000;;		rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac/bootstrappolicy"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const PostStartHookName = "rbac/bootstrap-roles"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type RESTStorageProvider struct {
+0000000000000000000000000000000000000000;;		Authorizer authorizer.Authorizer
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var _ genericapiserver.PostStartHookProvider = RESTStorageProvider{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, bool) {
+0000000000000000000000000000000000000000;;		apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(rbac.GroupName, api.Registry, api.Scheme, api.ParameterCodec, api.Codecs)
+0000000000000000000000000000000000000000;;		// If you add a version here, be sure to add an entry in `k8s.io/kubernetes/cmd/kube-apiserver/app/aggregator.go with specific priorities.
+0000000000000000000000000000000000000000;;		// TODO refactor the plumbing to provide the information in the APIGroupInfo
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.AnyResourcesForVersionEnabled(rbacapiv1alpha1.SchemeGroupVersion) {
+0000000000000000000000000000000000000000;;			apiGroupInfo.VersionedResourcesStorageMap[rbacapiv1alpha1.SchemeGroupVersion.Version] = p.storage(rbacapiv1alpha1.SchemeGroupVersion, apiResourceConfigSource, restOptionsGetter)
+0000000000000000000000000000000000000000;;			apiGroupInfo.GroupMeta.GroupVersion = rbacapiv1alpha1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.AnyResourcesForVersionEnabled(rbacapiv1beta1.SchemeGroupVersion) {
+0000000000000000000000000000000000000000;;			apiGroupInfo.VersionedResourcesStorageMap[rbacapiv1beta1.SchemeGroupVersion.Version] = p.storage(rbacapiv1beta1.SchemeGroupVersion, apiResourceConfigSource, restOptionsGetter)
+0000000000000000000000000000000000000000;;			apiGroupInfo.GroupMeta.GroupVersion = rbacapiv1beta1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return apiGroupInfo, true
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) storage(version schema.GroupVersion, apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
+0000000000000000000000000000000000000000;;		once := new(sync.Once)
+0000000000000000000000000000000000000000;;		var (
+0000000000000000000000000000000000000000;;			authorizationRuleResolver  rbacregistryvalidation.AuthorizationRuleResolver
+0000000000000000000000000000000000000000;;			rolesStorage               rest.StandardStorage
+0000000000000000000000000000000000000000;;			roleBindingsStorage        rest.StandardStorage
+0000000000000000000000000000000000000000;;			clusterRolesStorage        rest.StandardStorage
+0000000000000000000000000000000000000000;;			clusterRoleBindingsStorage rest.StandardStorage
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		initializeStorage := func() {
+0000000000000000000000000000000000000000;;			once.Do(func() {
+0000000000000000000000000000000000000000;;				rolesStorage = rolestore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;				roleBindingsStorage = rolebindingstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;				clusterRolesStorage = clusterrolestore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;				clusterRoleBindingsStorage = clusterrolebindingstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				authorizationRuleResolver = rbacregistryvalidation.NewDefaultRuleResolver(
+0000000000000000000000000000000000000000;;					role.AuthorizerAdapter{Registry: role.NewRegistry(rolesStorage)},
+0000000000000000000000000000000000000000;;					rolebinding.AuthorizerAdapter{Registry: rolebinding.NewRegistry(roleBindingsStorage)},
+0000000000000000000000000000000000000000;;					clusterrole.AuthorizerAdapter{Registry: clusterrole.NewRegistry(clusterRolesStorage)},
+0000000000000000000000000000000000000000;;					clusterrolebinding.AuthorizerAdapter{Registry: clusterrolebinding.NewRegistry(clusterRoleBindingsStorage)},
+0000000000000000000000000000000000000000;;				)
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		storage := map[string]rest.Storage{}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("roles")) {
+0000000000000000000000000000000000000000;;			initializeStorage()
+0000000000000000000000000000000000000000;;			storage["roles"] = rolepolicybased.NewStorage(rolesStorage, authorizationRuleResolver)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("rolebindings")) {
+0000000000000000000000000000000000000000;;			initializeStorage()
+0000000000000000000000000000000000000000;;			storage["rolebindings"] = rolebindingpolicybased.NewStorage(roleBindingsStorage, p.Authorizer, authorizationRuleResolver)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("clusterroles")) {
+0000000000000000000000000000000000000000;;			initializeStorage()
+0000000000000000000000000000000000000000;;			storage["clusterroles"] = clusterrolepolicybased.NewStorage(clusterRolesStorage, authorizationRuleResolver)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("clusterrolebindings")) {
+0000000000000000000000000000000000000000;;			initializeStorage()
+0000000000000000000000000000000000000000;;			storage["clusterrolebindings"] = clusterrolebindingpolicybased.NewStorage(clusterRoleBindingsStorage, p.Authorizer, authorizationRuleResolver)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return storage
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) PostStartHook() (string, genericapiserver.PostStartHookFunc, error) {
+0000000000000000000000000000000000000000;;		return PostStartHookName, PostStartHook, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func PostStartHook(hookContext genericapiserver.PostStartHookContext) error {
+0000000000000000000000000000000000000000;;		// intializing roles is really important.  On some e2e runs, we've seen cases where etcd is down when the server
+0000000000000000000000000000000000000000;;		// starts, the roles don't initialize, and nothing works.
+0000000000000000000000000000000000000000;;		err := wait.Poll(1*time.Second, 30*time.Second, func() (done bool, err error) {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			coreclientset, err := coreclient.NewForConfig(hookContext.LoopbackClientConfig)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				utilruntime.HandleError(fmt.Errorf("unable to initialize client: %v", err))
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			clientset, err := rbacclient.NewForConfig(hookContext.LoopbackClientConfig)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				utilruntime.HandleError(fmt.Errorf("unable to initialize client: %v", err))
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			// Make sure etcd is responding before we start reconciling
+0000000000000000000000000000000000000000;;			if _, err := clientset.ClusterRoles().List(metav1.ListOptions{}); err != nil {
+0000000000000000000000000000000000000000;;				utilruntime.HandleError(fmt.Errorf("unable to initialize clusterroles: %v", err))
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if _, err := clientset.ClusterRoleBindings().List(metav1.ListOptions{}); err != nil {
+0000000000000000000000000000000000000000;;				utilruntime.HandleError(fmt.Errorf("unable to initialize clusterrolebindings: %v", err))
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// ensure bootstrap roles are created or reconciled
+0000000000000000000000000000000000000000;;			for _, clusterRole := range append(bootstrappolicy.ClusterRoles(), bootstrappolicy.ControllerRoles()...) {
+0000000000000000000000000000000000000000;;				opts := reconciliation.ReconcileRoleOptions{
+0000000000000000000000000000000000000000;;					Role:    reconciliation.ClusterRoleRuleOwner{ClusterRole: &clusterRole},
+0000000000000000000000000000000000000000;;					Client:  reconciliation.ClusterRoleModifier{Client: clientset.ClusterRoles()},
+0000000000000000000000000000000000000000;;					Confirm: true,
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+0000000000000000000000000000000000000000;;					result, err := opts.Run()
+0000000000000000000000000000000000000000;;					if err != nil {
+0000000000000000000000000000000000000000;;						return err
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					switch {
+0000000000000000000000000000000000000000;;					case result.Protected && result.Operation != reconciliation.ReconcileNone:
+0000000000000000000000000000000000000000;;						glog.Warningf("skipped reconcile-protected clusterrole.%s/%s with missing permissions: %v", rbac.GroupName, clusterRole.Name, result.MissingRules)
+0000000000000000000000000000000000000000;;					case result.Operation == reconciliation.ReconcileUpdate:
+0000000000000000000000000000000000000000;;						glog.Infof("updated clusterrole.%s/%s with additional permissions: %v", rbac.GroupName, clusterRole.Name, result.MissingRules)
+0000000000000000000000000000000000000000;;					case result.Operation == reconciliation.ReconcileCreate:
+0000000000000000000000000000000000000000;;						glog.Infof("created clusterrole.%s/%s", rbac.GroupName, clusterRole.Name)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					return nil
+0000000000000000000000000000000000000000;;				})
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					// don't fail on failures, try to create as many as you can
+0000000000000000000000000000000000000000;;					utilruntime.HandleError(fmt.Errorf("unable to reconcile clusterrole.%s/%s: %v", rbac.GroupName, clusterRole.Name, err))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// ensure bootstrap rolebindings are created or reconciled
+0000000000000000000000000000000000000000;;			for _, clusterRoleBinding := range append(bootstrappolicy.ClusterRoleBindings(), bootstrappolicy.ControllerRoleBindings()...) {
+0000000000000000000000000000000000000000;;				opts := reconciliation.ReconcileRoleBindingOptions{
+0000000000000000000000000000000000000000;;					RoleBinding: reconciliation.ClusterRoleBindingAdapter{ClusterRoleBinding: &clusterRoleBinding},
+0000000000000000000000000000000000000000;;					Client:      reconciliation.ClusterRoleBindingClientAdapter{Client: clientset.ClusterRoleBindings()},
+0000000000000000000000000000000000000000;;					Confirm:     true,
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+0000000000000000000000000000000000000000;;					result, err := opts.Run()
+0000000000000000000000000000000000000000;;					if err != nil {
+0000000000000000000000000000000000000000;;						return err
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					switch {
+0000000000000000000000000000000000000000;;					case result.Protected && result.Operation != reconciliation.ReconcileNone:
+0000000000000000000000000000000000000000;;						glog.Warningf("skipped reconcile-protected clusterrolebinding.%s/%s with missing subjects: %v", rbac.GroupName, clusterRoleBinding.Name, result.MissingSubjects)
+0000000000000000000000000000000000000000;;					case result.Operation == reconciliation.ReconcileUpdate:
+0000000000000000000000000000000000000000;;						glog.Infof("updated clusterrolebinding.%s/%s with additional subjects: %v", rbac.GroupName, clusterRoleBinding.Name, result.MissingSubjects)
+0000000000000000000000000000000000000000;;					case result.Operation == reconciliation.ReconcileCreate:
+0000000000000000000000000000000000000000;;						glog.Infof("created clusterrolebinding.%s/%s", rbac.GroupName, clusterRoleBinding.Name)
+0000000000000000000000000000000000000000;;					case result.Operation == reconciliation.ReconcileRecreate:
+0000000000000000000000000000000000000000;;						glog.Infof("recreated clusterrolebinding.%s/%s", rbac.GroupName, clusterRoleBinding.Name)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					return nil
+0000000000000000000000000000000000000000;;				})
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					// don't fail on failures, try to create as many as you can
+0000000000000000000000000000000000000000;;					utilruntime.HandleError(fmt.Errorf("unable to reconcile clusterrolebinding.%s/%s: %v", rbac.GroupName, clusterRoleBinding.Name, err))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// ensure bootstrap namespaced roles are created or reconciled
+0000000000000000000000000000000000000000;;			for namespace, roles := range bootstrappolicy.NamespaceRoles() {
+0000000000000000000000000000000000000000;;				for _, role := range roles {
+0000000000000000000000000000000000000000;;					opts := reconciliation.ReconcileRoleOptions{
+0000000000000000000000000000000000000000;;						Role:    reconciliation.RoleRuleOwner{Role: &role},
+0000000000000000000000000000000000000000;;						Client:  reconciliation.RoleModifier{Client: clientset, NamespaceClient: coreclientset.Namespaces()},
+0000000000000000000000000000000000000000;;						Confirm: true,
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+0000000000000000000000000000000000000000;;						result, err := opts.Run()
+0000000000000000000000000000000000000000;;						if err != nil {
+0000000000000000000000000000000000000000;;							return err
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						switch {
+0000000000000000000000000000000000000000;;						case result.Protected && result.Operation != reconciliation.ReconcileNone:
+0000000000000000000000000000000000000000;;							glog.Warningf("skipped reconcile-protected role.%s/%s in %v with missing permissions: %v", rbac.GroupName, role.Name, namespace, result.MissingRules)
+0000000000000000000000000000000000000000;;						case result.Operation == reconciliation.ReconcileUpdate:
+0000000000000000000000000000000000000000;;							glog.Infof("updated role.%s/%s in %v with additional permissions: %v", rbac.GroupName, role.Name, namespace, result.MissingRules)
+0000000000000000000000000000000000000000;;						case result.Operation == reconciliation.ReconcileCreate:
+0000000000000000000000000000000000000000;;							glog.Infof("created role.%s/%s in %v ", rbac.GroupName, role.Name, namespace)
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						return nil
+0000000000000000000000000000000000000000;;					})
+0000000000000000000000000000000000000000;;					if err != nil {
+0000000000000000000000000000000000000000;;						// don't fail on failures, try to create as many as you can
+0000000000000000000000000000000000000000;;						utilruntime.HandleError(fmt.Errorf("unable to reconcile role.%s/%s in %v: %v", rbac.GroupName, role.Name, namespace, err))
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			// ensure bootstrap namespaced rolebindings are created or reconciled
+0000000000000000000000000000000000000000;;			for namespace, roleBindings := range bootstrappolicy.NamespaceRoleBindings() {
+0000000000000000000000000000000000000000;;				for _, roleBinding := range roleBindings {
+0000000000000000000000000000000000000000;;					opts := reconciliation.ReconcileRoleBindingOptions{
+0000000000000000000000000000000000000000;;						RoleBinding: reconciliation.RoleBindingAdapter{RoleBinding: &roleBinding},
+0000000000000000000000000000000000000000;;						Client:      reconciliation.RoleBindingClientAdapter{Client: clientset, NamespaceClient: coreclientset.Namespaces()},
+0000000000000000000000000000000000000000;;						Confirm:     true,
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+0000000000000000000000000000000000000000;;						result, err := opts.Run()
+0000000000000000000000000000000000000000;;						if err != nil {
+0000000000000000000000000000000000000000;;							return err
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						switch {
+0000000000000000000000000000000000000000;;						case result.Protected && result.Operation != reconciliation.ReconcileNone:
+0000000000000000000000000000000000000000;;							glog.Warningf("skipped reconcile-protected rolebinding.%s/%s in %v with missing subjects: %v", rbac.GroupName, roleBinding.Name, namespace, result.MissingSubjects)
+0000000000000000000000000000000000000000;;						case result.Operation == reconciliation.ReconcileUpdate:
+0000000000000000000000000000000000000000;;							glog.Infof("updated rolebinding.%s/%s in %v with additional subjects: %v", rbac.GroupName, roleBinding.Name, namespace, result.MissingSubjects)
+0000000000000000000000000000000000000000;;						case result.Operation == reconciliation.ReconcileCreate:
+0000000000000000000000000000000000000000;;							glog.Infof("created rolebinding.%s/%s in %v", rbac.GroupName, roleBinding.Name, namespace)
+0000000000000000000000000000000000000000;;						case result.Operation == reconciliation.ReconcileRecreate:
+0000000000000000000000000000000000000000;;							glog.Infof("recreated rolebinding.%s/%s in %v", rbac.GroupName, roleBinding.Name, namespace)
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						return nil
+0000000000000000000000000000000000000000;;					})
+0000000000000000000000000000000000000000;;					if err != nil {
+0000000000000000000000000000000000000000;;						// don't fail on failures, try to create as many as you can
+0000000000000000000000000000000000000000;;						utilruntime.HandleError(fmt.Errorf("unable to reconcile rolebinding.%s/%s in %v: %v", rbac.GroupName, roleBinding.Name, namespace, err))
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			return true, nil
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		// if we're never able to make it through intialization, kill the API server
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("unable to initialize roles: %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) GroupName() string {
+0000000000000000000000000000000000000000;;		return rbac.GroupName
+0000000000000000000000000000000000000000;;	}

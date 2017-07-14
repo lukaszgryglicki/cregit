@@ -1,0 +1,13 @@
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	language: go
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	go:
+49410b27771d188e7c66388aab258f02e0fab0e8;Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml[Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - 1.4
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - 1.3
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - 1.2
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - tip
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	
+49410b27771d188e7c66388aab258f02e0fab0e8;Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml[Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	install:
+49410b27771d188e7c66388aab258f02e0fab0e8;Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml[Godeps/_workspace/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	script:
+11ce82f07aace6e268f7eda235779fc16a281c0a;third_party/src/github.com/google/gofuzz/.travis.yml[third_party/src/github.com/google/gofuzz/.travis.yml][vendor/github.com/google/gofuzz/.travis.yml];	  - go test -cover

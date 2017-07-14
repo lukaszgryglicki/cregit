@@ -1,0 +1,254 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+9d140d82576a1f32b5ab7d371d451ab3e1aa9285;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package options provides the flags used for the controller manager.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	package options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		utilerrors "k8s.io/apimachinery/pkg/util/errors"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/sets"
+0000000000000000000000000000000000000000;;		utilfeature "k8s.io/apiserver/pkg/util/feature"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/componentconfig"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/leaderelectionconfig"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/controller/garbagecollector"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/master/ports"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// add the kubernetes feature gates
+0000000000000000000000000000000000000000;;		_ "k8s.io/kubernetes/pkg/features"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/cloudflare/cfssl/helpers"
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// CMServer is the main context object for the controller manager.
+0000000000000000000000000000000000000000;;	type CMServer struct {
+0000000000000000000000000000000000000000;;		componentconfig.KubeControllerManagerConfiguration
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		Master     string
+0000000000000000000000000000000000000000;;		Kubeconfig string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NewCMServer creates a new CMServer with a default config.
+0000000000000000000000000000000000000000;;	func NewCMServer() *CMServer {
+0000000000000000000000000000000000000000;;		gcIgnoredResources := make([]componentconfig.GroupResource, 0, len(garbagecollector.DefaultIgnoredResources()))
+0000000000000000000000000000000000000000;;		for r := range garbagecollector.DefaultIgnoredResources() {
+0000000000000000000000000000000000000000;;			gcIgnoredResources = append(gcIgnoredResources, componentconfig.GroupResource{Group: r.Group, Resource: r.Resource})
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		s := CMServer{
+0000000000000000000000000000000000000000;;			KubeControllerManagerConfiguration: componentconfig.KubeControllerManagerConfiguration{
+0000000000000000000000000000000000000000;;				Controllers:                                     []string{"*"},
+0000000000000000000000000000000000000000;;				Port:                                            ports.ControllerManagerPort,
+0000000000000000000000000000000000000000;;				Address:                                         "0.0.0.0",
+0000000000000000000000000000000000000000;;				ConcurrentEndpointSyncs:                         5,
+0000000000000000000000000000000000000000;;				ConcurrentServiceSyncs:                          1,
+0000000000000000000000000000000000000000;;				ConcurrentRCSyncs:                               5,
+0000000000000000000000000000000000000000;;				ConcurrentRSSyncs:                               5,
+0000000000000000000000000000000000000000;;				ConcurrentDaemonSetSyncs:                        2,
+0000000000000000000000000000000000000000;;				ConcurrentJobSyncs:                              5,
+0000000000000000000000000000000000000000;;				ConcurrentResourceQuotaSyncs:                    5,
+0000000000000000000000000000000000000000;;				ConcurrentDeploymentSyncs:                       5,
+0000000000000000000000000000000000000000;;				ConcurrentNamespaceSyncs:                        10,
+0000000000000000000000000000000000000000;;				ConcurrentSATokenSyncs:                          5,
+0000000000000000000000000000000000000000;;				LookupCacheSizeForRC:                            4096,
+0000000000000000000000000000000000000000;;				LookupCacheSizeForRS:                            4096,
+0000000000000000000000000000000000000000;;				LookupCacheSizeForDaemonSet:                     1024,
+0000000000000000000000000000000000000000;;				ServiceSyncPeriod:                               metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;				RouteReconciliationPeriod:                       metav1.Duration{Duration: 10 * time.Second},
+0000000000000000000000000000000000000000;;				ResourceQuotaSyncPeriod:                         metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;				NamespaceSyncPeriod:                             metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;				PVClaimBinderSyncPeriod:                         metav1.Duration{Duration: 15 * time.Second},
+0000000000000000000000000000000000000000;;				HorizontalPodAutoscalerSyncPeriod:               metav1.Duration{Duration: 30 * time.Second},
+0000000000000000000000000000000000000000;;				HorizontalPodAutoscalerUpscaleForbiddenWindow:   metav1.Duration{Duration: 3 * time.Minute},
+0000000000000000000000000000000000000000;;				HorizontalPodAutoscalerDownscaleForbiddenWindow: metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;				DeploymentControllerSyncPeriod:                  metav1.Duration{Duration: 30 * time.Second},
+0000000000000000000000000000000000000000;;				MinResyncPeriod:                                 metav1.Duration{Duration: 12 * time.Hour},
+0000000000000000000000000000000000000000;;				RegisterRetryCount:                              10,
+0000000000000000000000000000000000000000;;				PodEvictionTimeout:                              metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;				NodeMonitorGracePeriod:                          metav1.Duration{Duration: 40 * time.Second},
+0000000000000000000000000000000000000000;;				NodeStartupGracePeriod:                          metav1.Duration{Duration: 60 * time.Second},
+0000000000000000000000000000000000000000;;				NodeMonitorPeriod:                               metav1.Duration{Duration: 5 * time.Second},
+0000000000000000000000000000000000000000;;				ClusterName:                                     "kubernetes",
+0000000000000000000000000000000000000000;;				NodeCIDRMaskSize:                                24,
+0000000000000000000000000000000000000000;;				ConfigureCloudRoutes:                            true,
+0000000000000000000000000000000000000000;;				TerminatedPodGCThreshold:                        12500,
+0000000000000000000000000000000000000000;;				VolumeConfiguration: componentconfig.VolumeConfiguration{
+0000000000000000000000000000000000000000;;					EnableHostPathProvisioning: false,
+0000000000000000000000000000000000000000;;					EnableDynamicProvisioning:  true,
+0000000000000000000000000000000000000000;;					PersistentVolumeRecyclerConfiguration: componentconfig.PersistentVolumeRecyclerConfiguration{
+0000000000000000000000000000000000000000;;						MaximumRetry:             3,
+0000000000000000000000000000000000000000;;						MinimumTimeoutNFS:        300,
+0000000000000000000000000000000000000000;;						IncrementTimeoutNFS:      30,
+0000000000000000000000000000000000000000;;						MinimumTimeoutHostPath:   60,
+0000000000000000000000000000000000000000;;						IncrementTimeoutHostPath: 30,
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;					FlexVolumePluginDir: "/usr/libexec/kubernetes/kubelet-plugins/volume/exec/",
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				ContentType:                           "application/vnd.kubernetes.protobuf",
+0000000000000000000000000000000000000000;;				KubeAPIQPS:                            20.0,
+0000000000000000000000000000000000000000;;				KubeAPIBurst:                          30,
+0000000000000000000000000000000000000000;;				LeaderElection:                        leaderelectionconfig.DefaultLeaderElectionConfiguration(),
+0000000000000000000000000000000000000000;;				ControllerStartInterval:               metav1.Duration{Duration: 0 * time.Second},
+0000000000000000000000000000000000000000;;				EnableGarbageCollector:                true,
+0000000000000000000000000000000000000000;;				ConcurrentGCSyncs:                     20,
+0000000000000000000000000000000000000000;;				GCIgnoredResources:                    gcIgnoredResources,
+0000000000000000000000000000000000000000;;				ClusterSigningCertFile:                "/etc/kubernetes/ca/ca.pem",
+0000000000000000000000000000000000000000;;				ClusterSigningKeyFile:                 "/etc/kubernetes/ca/ca.key",
+0000000000000000000000000000000000000000;;				ClusterSigningDuration:                metav1.Duration{Duration: helpers.OneYear},
+0000000000000000000000000000000000000000;;				ReconcilerSyncLoopPeriod:              metav1.Duration{Duration: 60 * time.Second},
+0000000000000000000000000000000000000000;;				EnableTaintManager:                    true,
+0000000000000000000000000000000000000000;;				HorizontalPodAutoscalerUseRESTClients: false,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		s.LeaderElection.LeaderElect = true
+0000000000000000000000000000000000000000;;		return &s
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddFlags adds flags for a specific CMServer to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (s *CMServer) AddFlags(fs *pflag.FlagSet, allControllers []string, disabledByDefaultControllers []string) {
+0000000000000000000000000000000000000000;;		fs.StringSliceVar(&s.Controllers, "controllers", s.Controllers, fmt.Sprintf(""+
+0000000000000000000000000000000000000000;;			"A list of controllers to enable.  '*' enables all on-by-default controllers, 'foo' enables the controller "+
+0000000000000000000000000000000000000000;;			"named 'foo', '-foo' disables the controller named 'foo'.\nAll controllers: %s\nDisabled-by-default controllers: %s",
+0000000000000000000000000000000000000000;;			strings.Join(allControllers, ", "), strings.Join(disabledByDefaultControllers, ", ")))
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.Port, "port", s.Port, "The port that the controller-manager's http service runs on")
+0000000000000000000000000000000000000000;;		fs.Var(componentconfig.IPVar{Val: &s.Address}, "address", "The IP address to serve on (set to 0.0.0.0 for all interfaces)")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.UseServiceAccountCredentials, "use-service-account-credentials", s.UseServiceAccountCredentials, "If true, use individual service account credentials for each controller.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.CloudProvider, "cloud-provider", s.CloudProvider, "The provider for cloud services.  Empty string for no provider.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.CloudConfigFile, "cloud-config", s.CloudConfigFile, "The path to the cloud provider configuration file.  Empty string for no configuration file.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentEndpointSyncs, "concurrent-endpoint-syncs", s.ConcurrentEndpointSyncs, "The number of endpoint syncing operations that will be done concurrently. Larger number = faster endpoint updating, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentServiceSyncs, "concurrent-service-syncs", s.ConcurrentServiceSyncs, "The number of services that are allowed to sync concurrently. Larger number = more responsive service management, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentRCSyncs, "concurrent_rc_syncs", s.ConcurrentRCSyncs, "The number of replication controllers that are allowed to sync concurrently. Larger number = more responsive replica management, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentRSSyncs, "concurrent-replicaset-syncs", s.ConcurrentRSSyncs, "The number of replica sets that are allowed to sync concurrently. Larger number = more responsive replica management, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentResourceQuotaSyncs, "concurrent-resource-quota-syncs", s.ConcurrentResourceQuotaSyncs, "The number of resource quotas that are allowed to sync concurrently. Larger number = more responsive quota management, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentDeploymentSyncs, "concurrent-deployment-syncs", s.ConcurrentDeploymentSyncs, "The number of deployment objects that are allowed to sync concurrently. Larger number = more responsive deployments, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentNamespaceSyncs, "concurrent-namespace-syncs", s.ConcurrentNamespaceSyncs, "The number of namespace objects that are allowed to sync concurrently. Larger number = more responsive namespace termination, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentSATokenSyncs, "concurrent-serviceaccount-token-syncs", s.ConcurrentSATokenSyncs, "The number of service account token objects that are allowed to sync concurrently. Larger number = more responsive token generation, but more CPU (and network) load")
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.LookupCacheSizeForRC, "replication-controller-lookup-cache-size", s.LookupCacheSizeForRC, "This flag is deprecated and will be removed in future releases. ReplicationController no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("replication-controller-lookup-cache-size", "This flag is deprecated and will be removed in future releases. ReplicationController no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.LookupCacheSizeForRS, "replicaset-lookup-cache-size", s.LookupCacheSizeForRS, "This flag is deprecated and will be removed in future releases. ReplicaSet no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("replicaset-lookup-cache-size", "This flag is deprecated and will be removed in future releases. ReplicaSet no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		// TODO(#43388): Remove the following flag 6 months after v1.6.0 is released.
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.LookupCacheSizeForDaemonSet, "daemonset-lookup-cache-size", s.LookupCacheSizeForDaemonSet, "This flag is deprecated and will be removed in future releases. DaemonSet no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("daemonset-lookup-cache-size", "This flag is deprecated and will be removed in future releases. DaemonSet no longer requires a lookup cache.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ServiceSyncPeriod.Duration, "service-sync-period", s.ServiceSyncPeriod.Duration, "The period for syncing services with their external load balancers")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeSyncPeriod.Duration, "node-sync-period", 0, ""+
+0000000000000000000000000000000000000000;;			"This flag is deprecated and will be removed in future releases. See node-monitor-period for Node health checking or "+
+0000000000000000000000000000000000000000;;			"route-reconciliation-period for cloud provider's route configuration settings.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("node-sync-period", "This flag is currently no-op and will be deleted.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.RouteReconciliationPeriod.Duration, "route-reconciliation-period", s.RouteReconciliationPeriod.Duration, "The period for reconciling routes created for Nodes by cloud provider.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ResourceQuotaSyncPeriod.Duration, "resource-quota-sync-period", s.ResourceQuotaSyncPeriod.Duration, "The period for syncing quota usage status in the system")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NamespaceSyncPeriod.Duration, "namespace-sync-period", s.NamespaceSyncPeriod.Duration, "The period for syncing namespace life-cycle updates")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.PVClaimBinderSyncPeriod.Duration, "pvclaimbinder-sync-period", s.PVClaimBinderSyncPeriod.Duration, "The period for syncing persistent volumes and persistent volume claims")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.MinResyncPeriod.Duration, "min-resync-period", s.MinResyncPeriod.Duration, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathNFS, "pv-recycler-pod-template-filepath-nfs", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathNFS, "The file path to a pod definition used as a template for NFS persistent volume recycling")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.MinimumTimeoutNFS, "pv-recycler-minimum-timeout-nfs", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.MinimumTimeoutNFS, "The minimum ActiveDeadlineSeconds to use for an NFS Recycler pod")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.IncrementTimeoutNFS, "pv-recycler-increment-timeout-nfs", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.IncrementTimeoutNFS, "the increment of time added per Gi to ActiveDeadlineSeconds for an NFS scrubber pod")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathHostPath, "pv-recycler-pod-template-filepath-hostpath", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathHostPath, "The file path to a pod definition used as a template for HostPath persistent volume recycling. This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.MinimumTimeoutHostPath, "pv-recycler-minimum-timeout-hostpath", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.MinimumTimeoutHostPath, "The minimum ActiveDeadlineSeconds to use for a HostPath Recycler pod.  This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.IncrementTimeoutHostPath, "pv-recycler-timeout-increment-hostpath", s.VolumeConfiguration.PersistentVolumeRecyclerConfiguration.IncrementTimeoutHostPath, "the increment of time added per Gi to ActiveDeadlineSeconds for a HostPath scrubber pod.  This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.VolumeConfiguration.EnableHostPathProvisioning, "enable-hostpath-provisioner", s.VolumeConfiguration.EnableHostPathProvisioning, "Enable HostPath PV provisioning when running without a cloud provider. This allows testing and development of provisioning features.  HostPath provisioning is not supported in any way, won't work in a multi-node cluster, and should not be used for anything other than testing or development.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.VolumeConfiguration.EnableDynamicProvisioning, "enable-dynamic-provisioning", s.VolumeConfiguration.EnableDynamicProvisioning, "Enable dynamic provisioning for environments that support it.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.VolumeConfiguration.FlexVolumePluginDir, "flex-volume-plugin-dir", s.VolumeConfiguration.FlexVolumePluginDir, "Full path of the directory in which the flex volume plugin should search for additional third party volume plugins.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.TerminatedPodGCThreshold, "terminated-pod-gc-threshold", s.TerminatedPodGCThreshold, "Number of terminated pods that can exist before the terminated pod garbage collector starts deleting terminated pods. If <= 0, the terminated pod garbage collector is disabled.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.HorizontalPodAutoscalerSyncPeriod.Duration, "horizontal-pod-autoscaler-sync-period", s.HorizontalPodAutoscalerSyncPeriod.Duration, "The period for syncing the number of pods in horizontal pod autoscaler.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.HorizontalPodAutoscalerUpscaleForbiddenWindow.Duration, "horizontal-pod-autoscaler-upscale-delay", s.HorizontalPodAutoscalerUpscaleForbiddenWindow.Duration, "The period since last upscale, before another upscale can be performed in horizontal pod autoscaler.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.HorizontalPodAutoscalerDownscaleForbiddenWindow.Duration, "horizontal-pod-autoscaler-downscale-delay", s.HorizontalPodAutoscalerDownscaleForbiddenWindow.Duration, "The period since last downscale, before another downscale can be performed in horizontal pod autoscaler.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.DeploymentControllerSyncPeriod.Duration, "deployment-controller-sync-period", s.DeploymentControllerSyncPeriod.Duration, "Period for syncing the deployments.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.PodEvictionTimeout.Duration, "pod-eviction-timeout", s.PodEvictionTimeout.Duration, "The grace period for deleting pods on failed nodes.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.DeletingPodsQps, "deleting-pods-qps", 0.1, "Number of nodes per second on which pods are deleted in case of node failure.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("deleting-pods-qps", "This flag is currently no-op and will be deleted.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.DeletingPodsBurst, "deleting-pods-burst", 0, "Number of nodes on which pods are bursty deleted in case of node failure. For more details look into RateLimiter.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("deleting-pods-burst", "This flag is currently no-op and will be deleted.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.RegisterRetryCount, "register-retry-count", s.RegisterRetryCount, ""+
+0000000000000000000000000000000000000000;;			"The number of retries for initial node registration.  Retry interval equals node-sync-period.")
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("register-retry-count", "This flag is currently no-op and will be deleted.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeMonitorGracePeriod.Duration, "node-monitor-grace-period", s.NodeMonitorGracePeriod.Duration,
+0000000000000000000000000000000000000000;;			"Amount of time which we allow running Node to be unresponsive before marking it unhealthy. "+
+0000000000000000000000000000000000000000;;				"Must be N times more than kubelet's nodeStatusUpdateFrequency, "+
+0000000000000000000000000000000000000000;;				"where N means number of retries allowed for kubelet to post node status.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeStartupGracePeriod.Duration, "node-startup-grace-period", s.NodeStartupGracePeriod.Duration,
+0000000000000000000000000000000000000000;;			"Amount of time which we allow starting Node to be unresponsive before marking it unhealthy.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeMonitorPeriod.Duration, "node-monitor-period", s.NodeMonitorPeriod.Duration,
+0000000000000000000000000000000000000000;;			"The period for syncing NodeStatus in NodeController.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ServiceAccountKeyFile, "service-account-private-key-file", s.ServiceAccountKeyFile, "Filename containing a PEM-encoded private RSA or ECDSA key used to sign service account tokens.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ClusterSigningCertFile, "cluster-signing-cert-file", s.ClusterSigningCertFile, "Filename containing a PEM-encoded X509 CA certificate used to issue cluster-scoped certificates")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ClusterSigningKeyFile, "cluster-signing-key-file", s.ClusterSigningKeyFile, "Filename containing a PEM-encoded RSA or ECDSA private key used to sign cluster-scoped certificates")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ClusterSigningDuration.Duration, "experimental-cluster-signing-duration", s.ClusterSigningDuration.Duration, "The length of duration signed certificates will be given.")
+0000000000000000000000000000000000000000;;		var dummy string
+0000000000000000000000000000000000000000;;		fs.MarkDeprecated("insecure-experimental-approve-all-kubelet-csrs-for-group", "This flag does nothing.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&dummy, "insecure-experimental-approve-all-kubelet-csrs-for-group", "", "This flag does nothing.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableProfiling, "profiling", true, "Enable profiling via web interface host:port/debug/pprof/")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", false, "Enable lock contention profiling, if profiling is enabled")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ClusterName, "cluster-name", s.ClusterName, "The instance prefix for the cluster")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ClusterCIDR, "cluster-cidr", s.ClusterCIDR, "CIDR Range for Pods in cluster.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ServiceCIDR, "service-cluster-ip-range", s.ServiceCIDR, "CIDR Range for Services in cluster.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.NodeCIDRMaskSize, "node-cidr-mask-size", s.NodeCIDRMaskSize, "Mask size for node cidr in cluster.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.AllocateNodeCIDRs, "allocate-node-cidrs", false,
+0000000000000000000000000000000000000000;;			"Should CIDRs for Pods be allocated and set on the cloud provider.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.CIDRAllocatorType, "cidr-allocator-type", "RangeAllocator",
+0000000000000000000000000000000000000000;;			"Type of CIDR allocator to use")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.ConfigureCloudRoutes, "configure-cloud-routes", true, "Should CIDRs allocated by allocate-node-cidrs be configured on the cloud provider.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.RootCAFile, "root-ca-file", s.RootCAFile, "If set, this root certificate authority will be included in service account's token secret. This must be a valid PEM-encoded CA bundle.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ContentType, "kube-api-content-type", s.ContentType, "Content type of requests sent to apiserver.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.KubeAPIQPS, "kube-api-qps", s.KubeAPIQPS, "QPS to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.KubeAPIBurst, "kube-api-burst", s.KubeAPIBurst, "Burst to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ControllerStartInterval.Duration, "controller-start-interval", s.ControllerStartInterval.Duration, "Interval between starting controller managers.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableGarbageCollector, "enable-garbage-collector", s.EnableGarbageCollector, "Enables the generic garbage collector. MUST be synced with the corresponding flag of the kube-apiserver.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.ConcurrentGCSyncs, "concurrent-gc-syncs", s.ConcurrentGCSyncs, "The number of garbage collector workers that are allowed to sync concurrently.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.NodeEvictionRate, "node-eviction-rate", 0.1, "Number of nodes per second on which pods are deleted in case of node failure when a zone is healthy (see --unhealthy-zone-threshold for definition of healthy/unhealthy). Zone refers to entire cluster in non-multizone clusters.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.SecondaryNodeEvictionRate, "secondary-node-eviction-rate", 0.01, "Number of nodes per second on which pods are deleted in case of node failure when a zone is unhealthy (see --unhealthy-zone-threshold for definition of healthy/unhealthy). Zone refers to entire cluster in non-multizone clusters. This value is implicitly overridden to 0 if the cluster size is smaller than --large-cluster-size-threshold.")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.LargeClusterSizeThreshold, "large-cluster-size-threshold", 50, "Number of nodes from which NodeController treats the cluster as large for the eviction logic purposes. --secondary-node-eviction-rate is implicitly overridden to 0 for clusters this size or smaller.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.UnhealthyZoneThreshold, "unhealthy-zone-threshold", 0.55, "Fraction of Nodes in a zone which needs to be not Ready (minimum 3) for zone to be treated as unhealthy. ")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.DisableAttachDetachReconcilerSync, "disable-attach-detach-reconcile-sync", false, "Disable volume attach detach reconciler sync. Disabling this may cause volumes to be mismatched with pods. Use wisely.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ReconcilerSyncLoopPeriod.Duration, "attach-detach-reconcile-sync-period", s.ReconcilerSyncLoopPeriod.Duration, "The reconciler sync wait time between volume attach detach. This duration must be larger than one second, and increasing this value from the default may allow for volumes to be mismatched with pods.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableTaintManager, "enable-taint-manager", s.EnableTaintManager, "WARNING: Beta feature. If set to true enables NoExecute Taints and will evict all not-tolerating Pod running on Nodes tainted with this kind of Taints.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.HorizontalPodAutoscalerUseRESTClients, "horizontal-pod-autoscaler-use-rest-clients", s.HorizontalPodAutoscalerUseRESTClients, "WARNING: alpha feature.  If set to true, causes the horizontal pod autoscaler controller to use REST clients through the kube-aggregator, instead of using the legacy metrics client through the API server proxy.  This is required for custom metrics support in the horizontal pod autoscaler.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		leaderelectionconfig.BindFlags(&s.LeaderElection, fs)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		utilfeature.DefaultFeatureGate.AddFlag(fs)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Validate is used to validate the options and config before launching the controller manager
+0000000000000000000000000000000000000000;;	func (s *CMServer) Validate(allControllers []string, disabledByDefaultControllers []string) error {
+0000000000000000000000000000000000000000;;		var errs []error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allControllersSet := sets.NewString(allControllers...)
+0000000000000000000000000000000000000000;;		for _, controller := range s.Controllers {
+0000000000000000000000000000000000000000;;			if controller == "*" {
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if strings.HasPrefix(controller, "-") {
+0000000000000000000000000000000000000000;;				controller = controller[1:]
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if !allControllersSet.Has(controller) {
+0000000000000000000000000000000000000000;;				errs = append(errs, fmt.Errorf("%q is not in the list of known controllers", controller))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return utilerrors.NewAggregate(errs)
+0000000000000000000000000000000000000000;;	}

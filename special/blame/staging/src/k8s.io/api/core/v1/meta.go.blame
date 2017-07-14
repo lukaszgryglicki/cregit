@@ -1,0 +1,108 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+ecec2473aa1691cdc7eb64dd20e3178e79041e91;pkg/api/v1/meta.go[pkg/api/v1/meta.go][staging/src/k8s.io/api/core/v1/meta.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package v1
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/types"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (obj *ObjectMeta) GetObjectMeta() metav1.Object { return obj }
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Namespace implements metav1.Object for any object with an ObjectMeta typed field. Allows
+0000000000000000000000000000000000000000;;	// fast, direct access to metadata fields for API objects.
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetNamespace() string                { return meta.Namespace }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetNamespace(namespace string)       { meta.Namespace = namespace }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetName() string                     { return meta.Name }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetName(name string)                 { meta.Name = name }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetGenerateName() string             { return meta.GenerateName }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetGenerateName(generateName string) { meta.GenerateName = generateName }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetUID() types.UID                   { return meta.UID }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetUID(uid types.UID)                { meta.UID = uid }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetResourceVersion() string          { return meta.ResourceVersion }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetResourceVersion(version string)   { meta.ResourceVersion = version }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetGeneration() int64                { return meta.Generation }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetGeneration(generation int64)      { meta.Generation = generation }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetSelfLink() string                 { return meta.SelfLink }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetSelfLink(selfLink string)         { meta.SelfLink = selfLink }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetCreationTimestamp() metav1.Time   { return meta.CreationTimestamp }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetCreationTimestamp(creationTimestamp metav1.Time) {
+0000000000000000000000000000000000000000;;		meta.CreationTimestamp = creationTimestamp
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetDeletionTimestamp() *metav1.Time { return meta.DeletionTimestamp }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetDeletionTimestamp(deletionTimestamp *metav1.Time) {
+0000000000000000000000000000000000000000;;		meta.DeletionTimestamp = deletionTimestamp
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetDeletionGracePeriodSeconds() *int64 { return meta.DeletionGracePeriodSeconds }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetDeletionGracePeriodSeconds(deletionGracePeriodSeconds *int64) {
+0000000000000000000000000000000000000000;;		meta.DeletionGracePeriodSeconds = deletionGracePeriodSeconds
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetLabels() map[string]string                 { return meta.Labels }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetLabels(labels map[string]string)           { meta.Labels = labels }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetAnnotations() map[string]string            { return meta.Annotations }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetAnnotations(annotations map[string]string) { meta.Annotations = annotations }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetInitializers() *metav1.Initializers        { return meta.Initializers }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetInitializers(initializers *metav1.Initializers) {
+0000000000000000000000000000000000000000;;		meta.Initializers = initializers
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetFinalizers() []string           { return meta.Finalizers }
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetFinalizers(finalizers []string) { meta.Finalizers = finalizers }
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetOwnerReferences() []metav1.OwnerReference {
+0000000000000000000000000000000000000000;;		ret := make([]metav1.OwnerReference, len(meta.OwnerReferences))
+0000000000000000000000000000000000000000;;		for i := 0; i < len(meta.OwnerReferences); i++ {
+0000000000000000000000000000000000000000;;			ret[i].Kind = meta.OwnerReferences[i].Kind
+0000000000000000000000000000000000000000;;			ret[i].Name = meta.OwnerReferences[i].Name
+0000000000000000000000000000000000000000;;			ret[i].UID = meta.OwnerReferences[i].UID
+0000000000000000000000000000000000000000;;			ret[i].APIVersion = meta.OwnerReferences[i].APIVersion
+0000000000000000000000000000000000000000;;			if meta.OwnerReferences[i].Controller != nil {
+0000000000000000000000000000000000000000;;				value := *meta.OwnerReferences[i].Controller
+0000000000000000000000000000000000000000;;				ret[i].Controller = &value
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if meta.OwnerReferences[i].BlockOwnerDeletion != nil {
+0000000000000000000000000000000000000000;;				value := *meta.OwnerReferences[i].BlockOwnerDeletion
+0000000000000000000000000000000000000000;;				ret[i].BlockOwnerDeletion = &value
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetOwnerReferences(references []metav1.OwnerReference) {
+0000000000000000000000000000000000000000;;		newReferences := make([]metav1.OwnerReference, len(references))
+0000000000000000000000000000000000000000;;		for i := 0; i < len(references); i++ {
+0000000000000000000000000000000000000000;;			newReferences[i].Kind = references[i].Kind
+0000000000000000000000000000000000000000;;			newReferences[i].Name = references[i].Name
+0000000000000000000000000000000000000000;;			newReferences[i].UID = references[i].UID
+0000000000000000000000000000000000000000;;			newReferences[i].APIVersion = references[i].APIVersion
+0000000000000000000000000000000000000000;;			if references[i].Controller != nil {
+0000000000000000000000000000000000000000;;				value := *references[i].Controller
+0000000000000000000000000000000000000000;;				newReferences[i].Controller = &value
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if references[i].BlockOwnerDeletion != nil {
+0000000000000000000000000000000000000000;;				value := *references[i].BlockOwnerDeletion
+0000000000000000000000000000000000000000;;				newReferences[i].BlockOwnerDeletion = &value
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		meta.OwnerReferences = newReferences
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) GetClusterName() string {
+0000000000000000000000000000000000000000;;		return meta.ClusterName
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (meta *ObjectMeta) SetClusterName(clusterName string) {
+0000000000000000000000000000000000000000;;		meta.ClusterName = clusterName
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,34 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+c57945713162b980f4fa5cb5db9bf2a45be4301c;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package autoscaling
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// MetricSpecsAnnotation is the annotation which holds non-CPU-utilization HPA metric
+0000000000000000000000000000000000000000;;	// specs when converting the `Metrics` field from autoscaling/v2alpha1
+0000000000000000000000000000000000000000;;	const MetricSpecsAnnotation = "autoscaling.alpha.kubernetes.io/metrics"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// MetricStatusesAnnotation is the annotation which holds non-CPU-utilization HPA metric
+0000000000000000000000000000000000000000;;	// statuses when converting the `CurrentMetrics` field from autoscaling/v2alpha1
+0000000000000000000000000000000000000000;;	const MetricStatusesAnnotation = "autoscaling.alpha.kubernetes.io/current-metrics"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// HorizontalPodAutoscalerConditionsAnnotation is the annotation which holds the conditions
+0000000000000000000000000000000000000000;;	// of an HPA when converting the `Conditions` field from autoscaling/v2alpha1
+0000000000000000000000000000000000000000;;	const HorizontalPodAutoscalerConditionsAnnotation = "autoscaling.alpha.kubernetes.io/conditions"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// DefaultCPUUtilization is the default value for CPU utilization, provided no other
+0000000000000000000000000000000000000000;;	// metrics are present.  This is here because it's used by both the v2alpha1 defaulting
+0000000000000000000000000000000000000000;;	// logic, and the pseudo-defaulting done in v1 conversion.
+0000000000000000000000000000000000000000;;	const DefaultCPUUtilization = 80

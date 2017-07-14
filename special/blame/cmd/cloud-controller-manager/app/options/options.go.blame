@@ -1,0 +1,96 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+ebf9cb8298907e456c57393b9ba4f41ee9ec0dec;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		utilfeature "k8s.io/apiserver/pkg/util/feature"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/componentconfig"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/leaderelectionconfig"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/master/ports"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// add the kubernetes feature gates
+0000000000000000000000000000000000000000;;		_ "k8s.io/kubernetes/pkg/features"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// CloudControllerMangerServer is the main context object for the controller manager.
+0000000000000000000000000000000000000000;;	type CloudControllerManagerServer struct {
+0000000000000000000000000000000000000000;;		componentconfig.KubeControllerManagerConfiguration
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		Master     string
+0000000000000000000000000000000000000000;;		Kubeconfig string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// NodeStatusUpdateFrequency is the freuency at which the controller updates nodes' status
+0000000000000000000000000000000000000000;;		NodeStatusUpdateFrequency metav1.Duration
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NewCloudControllerManagerServer creates a new ExternalCMServer with a default config.
+0000000000000000000000000000000000000000;;	func NewCloudControllerManagerServer() *CloudControllerManagerServer {
+0000000000000000000000000000000000000000;;		s := CloudControllerManagerServer{
+0000000000000000000000000000000000000000;;			KubeControllerManagerConfiguration: componentconfig.KubeControllerManagerConfiguration{
+0000000000000000000000000000000000000000;;				Port:                    ports.CloudControllerManagerPort,
+0000000000000000000000000000000000000000;;				Address:                 "0.0.0.0",
+0000000000000000000000000000000000000000;;				ConcurrentServiceSyncs:  1,
+0000000000000000000000000000000000000000;;				MinResyncPeriod:         metav1.Duration{Duration: 12 * time.Hour},
+0000000000000000000000000000000000000000;;				NodeMonitorPeriod:       metav1.Duration{Duration: 5 * time.Second},
+0000000000000000000000000000000000000000;;				ClusterName:             "kubernetes",
+0000000000000000000000000000000000000000;;				ConfigureCloudRoutes:    true,
+0000000000000000000000000000000000000000;;				ContentType:             "application/vnd.kubernetes.protobuf",
+0000000000000000000000000000000000000000;;				KubeAPIQPS:              20.0,
+0000000000000000000000000000000000000000;;				KubeAPIBurst:            30,
+0000000000000000000000000000000000000000;;				LeaderElection:          leaderelectionconfig.DefaultLeaderElectionConfiguration(),
+0000000000000000000000000000000000000000;;				ControllerStartInterval: metav1.Duration{Duration: 0 * time.Second},
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			NodeStatusUpdateFrequency: metav1.Duration{Duration: 5 * time.Minute},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		s.LeaderElection.LeaderElect = true
+0000000000000000000000000000000000000000;;		return &s
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddFlags adds flags for a specific ExternalCMServer to the specified FlagSet
+0000000000000000000000000000000000000000;;	func (s *CloudControllerManagerServer) AddFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.Port, "port", s.Port, "The port that the cloud-controller-manager's http service runs on")
+0000000000000000000000000000000000000000;;		fs.Var(componentconfig.IPVar{Val: &s.Address}, "address", "The IP address to serve on (set to 0.0.0.0 for all interfaces)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.CloudProvider, "cloud-provider", s.CloudProvider, "The provider of cloud services. Cannot be empty.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.CloudConfigFile, "cloud-config", s.CloudConfigFile, "The path to the cloud provider configuration file.  Empty string for no configuration file.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.MinResyncPeriod.Duration, "min-resync-period", s.MinResyncPeriod.Duration, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeMonitorPeriod.Duration, "node-monitor-period", s.NodeMonitorPeriod.Duration,
+0000000000000000000000000000000000000000;;			"The period for syncing NodeStatus in NodeController.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.NodeStatusUpdateFrequency.Duration, "node-status-update-frequency", s.NodeStatusUpdateFrequency.Duration, "Specifies how often the controller updates nodes' status.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ServiceAccountKeyFile, "service-account-private-key-file", s.ServiceAccountKeyFile, "Filename containing a PEM-encoded private RSA or ECDSA key used to sign service account tokens.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.UseServiceAccountCredentials, "use-service-account-credentials", s.UseServiceAccountCredentials, "If true, use individual service account credentials for each controller.")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.RouteReconciliationPeriod.Duration, "route-reconciliation-period", s.RouteReconciliationPeriod.Duration, "The period for reconciling routes created for Nodes by cloud provider.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.ConfigureCloudRoutes, "configure-cloud-routes", true, "Should CIDRs allocated by allocate-node-cidrs be configured on the cloud provider.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableProfiling, "profiling", true, "Enable profiling via web interface host:port/debug/pprof/")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.EnableContentionProfiling, "contention-profiling", false, "Enable lock contention profiling, if profiling is enabled")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ClusterCIDR, "cluster-cidr", s.ClusterCIDR, "CIDR Range for Pods in cluster.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&s.AllocateNodeCIDRs, "allocate-node-cidrs", false, "Should CIDRs for Pods be allocated and set on the cloud provider.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
+0000000000000000000000000000000000000000;;		fs.StringVar(&s.ContentType, "kube-api-content-type", s.ContentType, "Content type of requests sent to apiserver.")
+0000000000000000000000000000000000000000;;		fs.Float32Var(&s.KubeAPIQPS, "kube-api-qps", s.KubeAPIQPS, "QPS to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.Int32Var(&s.KubeAPIBurst, "kube-api-burst", s.KubeAPIBurst, "Burst to use while talking with kubernetes apiserver")
+0000000000000000000000000000000000000000;;		fs.DurationVar(&s.ControllerStartInterval.Duration, "controller-start-interval", s.ControllerStartInterval.Duration, "Interval between starting controller managers.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		leaderelectionconfig.BindFlags(&s.LeaderElection, fs)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		utilfeature.DefaultFeatureGate.AddFlag(fs)
+0000000000000000000000000000000000000000;;	}

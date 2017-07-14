@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000;;	// Copyright 2011 Google Inc.  All rights reserved.
+0000000000000000000000000000000000000000;;	// Use of this source code is governed by a BSD-style
+0000000000000000000000000000000000000000;;	// license that can be found in the LICENSE file.
+268e3120b2e4a7425b04801561b9aaf732ed6369;third_party/src/code.google.com/p/go-uuid/uuid/doc.go[third_party/src/code.google.com/p/go-uuid/uuid/doc.go][vendor/github.com/pborman/uuid/doc.go];	
+0000000000000000000000000000000000000000;;	// The uuid package generates and inspects UUIDs.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// UUIDs are based on RFC 4122 and DCE 1.1: Authentication and Security Services.
+0000000000000000000000000000000000000000;;	package uuid

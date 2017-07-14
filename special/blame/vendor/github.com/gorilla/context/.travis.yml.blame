@@ -1,0 +1,9 @@
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	language: go
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	go:
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - 1.0
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - 1.1
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - 1.2
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - 1.3
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - 1.4
+2300ac0e08fc49b83d6c5f7668561f728a0b380c;Godeps/_workspace/src/github.com/gorilla/context/.travis.yml[Godeps/_workspace/src/github.com/gorilla/context/.travis.yml][vendor/github.com/gorilla/context/.travis.yml];	  - tip

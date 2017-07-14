@@ -1,0 +1,117 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+a83b043e9718820d1c58ce84625288a569dff928;cmd/kubernetes-discovery/pkg/apis/apiregistration/validation/validation.go[cmd/kubernetes-discovery/pkg/apis/apiregistration/validation/validation.go][staging/src/k8s.io/kube-aggregator/pkg/apis/apiregistration/validation/validation.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package validation
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/validation/path"
+0000000000000000000000000000000000000000;;		utilvalidation "k8s.io/apimachinery/pkg/util/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation/field"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/kube-aggregator/pkg/apis/apiregistration"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateAPIService(apiService *apiregistration.APIService) field.ErrorList {
+0000000000000000000000000000000000000000;;		requiredName := apiService.Spec.Version + "." + apiService.Spec.Group
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs := validation.ValidateObjectMeta(&apiService.ObjectMeta, false,
+0000000000000000000000000000000000000000;;			func(name string, prefix bool) []string {
+0000000000000000000000000000000000000000;;				if minimalFailures := path.IsValidPathSegmentName(name); len(minimalFailures) > 0 {
+0000000000000000000000000000000000000000;;					return minimalFailures
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				// the name *must* be version.group
+0000000000000000000000000000000000000000;;				if name != requiredName {
+0000000000000000000000000000000000000000;;					return []string{fmt.Sprintf("must be `spec.version+\".\"+spec.group`: %q", requiredName)}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				return []string{}
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// in this case we allow empty group
+0000000000000000000000000000000000000000;;		if len(apiService.Spec.Group) == 0 && apiService.Spec.Version != "v1" {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(field.NewPath("spec", "group"), "only v1 may have an empty group and it better be legacy kube"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(apiService.Spec.Group) > 0 {
+0000000000000000000000000000000000000000;;			for _, errString := range utilvalidation.IsDNS1123Subdomain(apiService.Spec.Group) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "group"), apiService.Spec.Group, errString))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for _, errString := range utilvalidation.IsDNS1035Label(apiService.Spec.Version) {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "version"), apiService.Spec.Version, errString))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiService.Spec.GroupPriorityMinimum <= 0 || apiService.Spec.GroupPriorityMinimum > 20000 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "groupPriorityMinimum"), apiService.Spec.GroupPriorityMinimum, "must be positive and less than 20000"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiService.Spec.VersionPriority <= 0 || apiService.Spec.VersionPriority > 1000 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "versionPriority"), apiService.Spec.VersionPriority, "must be positive and less than 1000"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiService.Spec.Service == nil {
+0000000000000000000000000000000000000000;;			if len(apiService.Spec.CABundle) != 0 {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "caBundle"), fmt.Sprintf("%d bytes", len(apiService.Spec.CABundle)), "local APIServices may not have a caBundle"))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if apiService.Spec.InsecureSkipTLSVerify {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "insecureSkipTLSVerify"), apiService.Spec.InsecureSkipTLSVerify, "local APIServices may not have insecureSkipTLSVerify"))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return allErrs
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if len(apiService.Spec.Service.Namespace) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(field.NewPath("spec", "service", "namespace"), ""))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(apiService.Spec.Service.Name) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(field.NewPath("spec", "service", "name"), ""))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiService.Spec.InsecureSkipTLSVerify && len(apiService.Spec.CABundle) > 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "insecureSkipTLSVerify"), apiService.Spec.InsecureSkipTLSVerify, "may not be true if caBundle is present"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateAPIServiceUpdate(newAPIService *apiregistration.APIService, oldAPIService *apiregistration.APIService) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := validation.ValidateObjectMetaUpdate(&newAPIService.ObjectMeta, &oldAPIService.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateAPIService(newAPIService)...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateAPIServiceStatus(status *apiregistration.APIServiceStatus, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for i, condition := range status.Conditions {
+0000000000000000000000000000000000000000;;			if condition.Status != apiregistration.ConditionTrue &&
+0000000000000000000000000000000000000000;;				condition.Status != apiregistration.ConditionFalse &&
+0000000000000000000000000000000000000000;;				condition.Status != apiregistration.ConditionUnknown {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.NotSupported(fldPath.Child("conditions").Index(i).Child("status"), condition.Status, []string{
+0000000000000000000000000000000000000000;;					string(apiregistration.ConditionTrue), string(apiregistration.ConditionFalse), string(apiregistration.ConditionUnknown)}))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateAPIServiceStatusUpdate(newAPIService *apiregistration.APIService, oldAPIService *apiregistration.APIService) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := validation.ValidateObjectMetaUpdate(&newAPIService.ObjectMeta, &oldAPIService.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateAPIServiceStatus(&newAPIService.Status, field.NewPath("status"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}

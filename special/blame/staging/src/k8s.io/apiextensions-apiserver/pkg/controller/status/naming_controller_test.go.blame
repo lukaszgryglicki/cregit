@@ -1,0 +1,337 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+5e7ba88435211b6b448ab330b995393899c40600;staging/src/k8s.io/kube-apiextensions-server/pkg/controller/status/naming_controller_test.go[staging/src/k8s.io/kube-apiextensions-server/pkg/controller/status/naming_controller_test.go][staging/src/k8s.io/apiextensions-apiserver/pkg/controller/status/naming_controller_test.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package status
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"reflect"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;		"testing"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+0000000000000000000000000000000000000000;;		listers "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/internalversion"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/client-go/tools/cache"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type crdBuilder struct {
+0000000000000000000000000000000000000000;;		curr apiextensions.CustomResourceDefinition
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func newCRD(name string) *crdBuilder {
+0000000000000000000000000000000000000000;;		tokens := strings.SplitN(name, ".", 2)
+0000000000000000000000000000000000000000;;		return &crdBuilder{
+0000000000000000000000000000000000000000;;			curr: apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;				ObjectMeta: metav1.ObjectMeta{Name: name},
+0000000000000000000000000000000000000000;;				Spec: apiextensions.CustomResourceDefinitionSpec{
+0000000000000000000000000000000000000000;;					Group: tokens[1],
+0000000000000000000000000000000000000000;;					Names: apiextensions.CustomResourceDefinitionNames{
+0000000000000000000000000000000000000000;;						Plural: tokens[0],
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (b *crdBuilder) SpecNames(plural, singular, kind, listKind string, shortNames ...string) *crdBuilder {
+0000000000000000000000000000000000000000;;		b.curr.Spec.Names.Plural = plural
+0000000000000000000000000000000000000000;;		b.curr.Spec.Names.Singular = singular
+0000000000000000000000000000000000000000;;		b.curr.Spec.Names.Kind = kind
+0000000000000000000000000000000000000000;;		b.curr.Spec.Names.ListKind = listKind
+0000000000000000000000000000000000000000;;		b.curr.Spec.Names.ShortNames = shortNames
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return b
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (b *crdBuilder) StatusNames(plural, singular, kind, listKind string, shortNames ...string) *crdBuilder {
+0000000000000000000000000000000000000000;;		b.curr.Status.AcceptedNames.Plural = plural
+0000000000000000000000000000000000000000;;		b.curr.Status.AcceptedNames.Singular = singular
+0000000000000000000000000000000000000000;;		b.curr.Status.AcceptedNames.Kind = kind
+0000000000000000000000000000000000000000;;		b.curr.Status.AcceptedNames.ListKind = listKind
+0000000000000000000000000000000000000000;;		b.curr.Status.AcceptedNames.ShortNames = shortNames
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return b
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (b *crdBuilder) Condition(c apiextensions.CustomResourceDefinitionCondition) *crdBuilder {
+0000000000000000000000000000000000000000;;		b.curr.Status.Conditions = append(b.curr.Status.Conditions, c)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return b
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func names(plural, singular, kind, listKind string, shortNames ...string) apiextensions.CustomResourceDefinitionNames {
+0000000000000000000000000000000000000000;;		ret := apiextensions.CustomResourceDefinitionNames{
+0000000000000000000000000000000000000000;;			Plural:     plural,
+0000000000000000000000000000000000000000;;			Singular:   singular,
+0000000000000000000000000000000000000000;;			Kind:       kind,
+0000000000000000000000000000000000000000;;			ListKind:   listKind,
+0000000000000000000000000000000000000000;;			ShortNames: shortNames,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (b *crdBuilder) NewOrDie() *apiextensions.CustomResourceDefinition {
+0000000000000000000000000000000000000000;;		return &b.curr
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var acceptedCondition = apiextensions.CustomResourceDefinitionCondition{
+0000000000000000000000000000000000000000;;		Type:    apiextensions.NamesAccepted,
+0000000000000000000000000000000000000000;;		Status:  apiextensions.ConditionTrue,
+0000000000000000000000000000000000000000;;		Reason:  "NoConflicts",
+0000000000000000000000000000000000000000;;		Message: "no conflicts found",
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func nameConflictCondition(reason, message string) apiextensions.CustomResourceDefinitionCondition {
+0000000000000000000000000000000000000000;;		return apiextensions.CustomResourceDefinitionCondition{
+0000000000000000000000000000000000000000;;			Type:    apiextensions.NamesAccepted,
+0000000000000000000000000000000000000000;;			Status:  apiextensions.ConditionFalse,
+0000000000000000000000000000000000000000;;			Reason:  reason,
+0000000000000000000000000000000000000000;;			Message: message,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var establishedCondition = apiextensions.CustomResourceDefinitionCondition{
+0000000000000000000000000000000000000000;;		Type:    apiextensions.Established,
+0000000000000000000000000000000000000000;;		Status:  apiextensions.ConditionTrue,
+0000000000000000000000000000000000000000;;		Reason:  "InitialNamesAccepted",
+0000000000000000000000000000000000000000;;		Message: "the initial names have been accepted",
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var notEstablishedCondition = apiextensions.CustomResourceDefinitionCondition{
+0000000000000000000000000000000000000000;;		Type:    apiextensions.Established,
+0000000000000000000000000000000000000000;;		Status:  apiextensions.ConditionFalse,
+0000000000000000000000000000000000000000;;		Reason:  "NotAccepted",
+0000000000000000000000000000000000000000;;		Message: "not all names are accepted",
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestSync(t *testing.T) {
+0000000000000000000000000000000000000000;;		tests := []struct {
+0000000000000000000000000000000000000000;;			name string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			in                            *apiextensions.CustomResourceDefinition
+0000000000000000000000000000000000000000;;			existing                      []*apiextensions.CustomResourceDefinition
+0000000000000000000000000000000000000000;;			expectedNames                 apiextensions.CustomResourceDefinitionNames
+0000000000000000000000000000000000000000;;			expectedNameConflictCondition apiextensions.CustomResourceDefinitionCondition
+0000000000000000000000000000000000000000;;			expectedEstablishedCondition  apiextensions.CustomResourceDefinitionCondition
+0000000000000000000000000000000000000000;;		}{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name:     "first resource",
+0000000000000000000000000000000000000000;;				in:       newCRD("alfa.bravo.com").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{},
+0000000000000000000000000000000000000000;;				expectedNames: apiextensions.CustomResourceDefinitionNames{
+0000000000000000000000000000000000000000;;					Plural: "alfa",
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "different groups",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("alfa.charlie.com").StatusNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflict plural to singular",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "alfa", "", "").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("PluralConflict", `"alfa" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflict singular to shortName",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "", "", "delta-singular").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("SingularConflict", `"delta-singular" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflict on shortName to shortName",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "", "", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "foxtrot-listkind"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("ShortNamesConflict", `"hotel-shortname-2" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflict on kind to listkind",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "", "echo-kind").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("KindConflict", `"echo-kind" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflict on listkind to kind",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "foxtrot-listkind", "").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("ListKindConflict", `"foxtrot-listkind" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "no conflict on resource and kind",
+0000000000000000000000000000000000000000;;				in:   newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "echo-kind", "", "").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "merge on conflicts",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;					SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					StatusNames("zulu", "yankee-singular", "xray-kind", "whiskey-listkind", "victor-shortname-1", "uniform-shortname-2").
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "foxtrot-listkind", "", "delta-singular").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "yankee-singular", "echo-kind", "whiskey-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("ListKindConflict", `"foxtrot-listkind" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "merge on conflicts shortNames as one",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;					SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					StatusNames("zulu", "yankee-singular", "xray-kind", "whiskey-listkind", "victor-shortname-1", "uniform-shortname-2").
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "indias", "foxtrot-listkind", "", "delta-singular", "golf-shortname-1").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "yankee-singular", "echo-kind", "whiskey-listkind", "victor-shortname-1", "uniform-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("ListKindConflict", `"foxtrot-listkind" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "no conflicts on self",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;					SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					StatusNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;						SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;						StatusNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;						NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "no conflicts on self, remove shortname",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;					SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1").
+0000000000000000000000000000000000000000;;					StatusNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("alfa.bravo.com").
+0000000000000000000000000000000000000000;;						SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;						StatusNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;						NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name:     "established before with true condition",
+0000000000000000000000000000000000000000;;				in:       newCRD("alfa.bravo.com").Condition(establishedCondition).NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{},
+0000000000000000000000000000000000000000;;				expectedNames: apiextensions.CustomResourceDefinitionNames{
+0000000000000000000000000000000000000000;;					Plural: "alfa",
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name:     "not established before with false condition",
+0000000000000000000000000000000000000000;;				in:       newCRD("alfa.bravo.com").Condition(notEstablishedCondition).NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{},
+0000000000000000000000000000000000000000;;				expectedNames: apiextensions.CustomResourceDefinitionNames{
+0000000000000000000000000000000000000000;;					Plural: "alfa",
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: acceptedCondition,
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflicting, established before with true condition",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					Condition(establishedCondition).
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "alfa", "", "").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("PluralConflict", `"alfa" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  establishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				name: "conflicting, not established before with false condition",
+0000000000000000000000000000000000000000;;				in: newCRD("alfa.bravo.com").SpecNames("alfa", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2").
+0000000000000000000000000000000000000000;;					Condition(notEstablishedCondition).
+0000000000000000000000000000000000000000;;					NewOrDie(),
+0000000000000000000000000000000000000000;;				existing: []*apiextensions.CustomResourceDefinition{
+0000000000000000000000000000000000000000;;					newCRD("india.bravo.com").StatusNames("india", "alfa", "", "").NewOrDie(),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;				expectedNames:                 names("", "delta-singular", "echo-kind", "foxtrot-listkind", "golf-shortname-1", "hotel-shortname-2"),
+0000000000000000000000000000000000000000;;				expectedNameConflictCondition: nameConflictCondition("PluralConflict", `"alfa" is already in use`),
+0000000000000000000000000000000000000000;;				expectedEstablishedCondition:  notEstablishedCondition,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for _, tc := range tests {
+0000000000000000000000000000000000000000;;			crdIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+0000000000000000000000000000000000000000;;			for _, obj := range tc.existing {
+0000000000000000000000000000000000000000;;				crdIndexer.Add(obj)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			c := NamingConditionController{
+0000000000000000000000000000000000000000;;				crdLister:        listers.NewCustomResourceDefinitionLister(crdIndexer),
+0000000000000000000000000000000000000000;;				crdMutationCache: cache.NewIntegerResourceVersionMutationCache(crdIndexer, crdIndexer, 60*time.Second, false),
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			actualNames, actualNameConflictCondition, actualEstablishedCondition := c.calculateNamesAndConditions(tc.in)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if e, a := tc.expectedNames, actualNames; !reflect.DeepEqual(e, a) {
+0000000000000000000000000000000000000000;;				t.Errorf("%v expected %v, got %#v", tc.name, e, a)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if e, a := tc.expectedNameConflictCondition, actualNameConflictCondition; !apiextensions.IsCRDConditionEquivalent(&e, &a) {
+0000000000000000000000000000000000000000;;				t.Errorf("%v expected %v, got %v", tc.name, e, a)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if e, a := tc.expectedEstablishedCondition, actualEstablishedCondition; !apiextensions.IsCRDConditionEquivalent(&e, &a) {
+0000000000000000000000000000000000000000;;				t.Errorf("%v expected %v, got %v", tc.name, e, a)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,17 @@
+0000000000000000000000000000000000000000;;	package types
+b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/gomega/types/types.go[Godeps/_workspace/src/github.com/onsi/gomega/types/types.go][vendor/github.com/onsi/gomega/types/types.go];	
+0000000000000000000000000000000000000000;;	type GomegaFailHandler func(message string, callerSkip ...int)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	//A simple *testing.T interface wrapper
+0000000000000000000000000000000000000000;;	type GomegaTestingT interface {
+0000000000000000000000000000000000000000;;		Errorf(format string, args ...interface{})
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	//All Gomega matchers must implement the GomegaMatcher interface
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	//For details on writing custom matchers, check out: http://onsi.github.io/gomega/#adding_your_own_matchers
+0000000000000000000000000000000000000000;;	type GomegaMatcher interface {
+0000000000000000000000000000000000000000;;		Match(actual interface{}) (success bool, err error)
+0000000000000000000000000000000000000000;;		FailureMessage(actual interface{}) (message string)
+0000000000000000000000000000000000000000;;		NegatedFailureMessage(actual interface{}) (message string)
+0000000000000000000000000000000000000000;;	}

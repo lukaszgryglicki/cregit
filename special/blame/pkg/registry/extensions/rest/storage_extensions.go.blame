@@ -1,0 +1,100 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+d3caf1c70cae2a2b3c683a179a3ee90f4f0c21a6;pkg/master/storage_extensions.go[pkg/master/storage_extensions.go][pkg/registry/extensions/rest/storage_extensions.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package rest
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		extensionsapiv1beta1 "k8s.io/api/extensions/v1beta1"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/generic"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/rest"
+0000000000000000000000000000000000000000;;		genericapiserver "k8s.io/apiserver/pkg/server"
+0000000000000000000000000000000000000000;;		serverstorage "k8s.io/apiserver/pkg/server/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/extensions"
+0000000000000000000000000000000000000000;;		expcontrollerstore "k8s.io/kubernetes/pkg/registry/extensions/controller/storage"
+0000000000000000000000000000000000000000;;		daemonstore "k8s.io/kubernetes/pkg/registry/extensions/daemonset/storage"
+0000000000000000000000000000000000000000;;		deploymentstore "k8s.io/kubernetes/pkg/registry/extensions/deployment/storage"
+0000000000000000000000000000000000000000;;		ingressstore "k8s.io/kubernetes/pkg/registry/extensions/ingress/storage"
+0000000000000000000000000000000000000000;;		networkpolicystore "k8s.io/kubernetes/pkg/registry/extensions/networkpolicy/storage"
+0000000000000000000000000000000000000000;;		pspstore "k8s.io/kubernetes/pkg/registry/extensions/podsecuritypolicy/storage"
+0000000000000000000000000000000000000000;;		replicasetstore "k8s.io/kubernetes/pkg/registry/extensions/replicaset/storage"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type RESTStorageProvider struct {
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, bool) {
+0000000000000000000000000000000000000000;;		apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(extensions.GroupName, api.Registry, api.Scheme, api.ParameterCodec, api.Codecs)
+0000000000000000000000000000000000000000;;		// If you add a version here, be sure to add an entry in `k8s.io/kubernetes/cmd/kube-apiserver/app/aggregator.go with specific priorities.
+0000000000000000000000000000000000000000;;		// TODO refactor the plumbing to provide the information in the APIGroupInfo
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.AnyResourcesForVersionEnabled(extensionsapiv1beta1.SchemeGroupVersion) {
+0000000000000000000000000000000000000000;;			apiGroupInfo.VersionedResourcesStorageMap[extensionsapiv1beta1.SchemeGroupVersion.Version] = p.v1beta1Storage(apiResourceConfigSource, restOptionsGetter)
+0000000000000000000000000000000000000000;;			apiGroupInfo.GroupMeta.GroupVersion = extensionsapiv1beta1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return apiGroupInfo, true
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
+0000000000000000000000000000000000000000;;		version := extensionsapiv1beta1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		storage := map[string]rest.Storage{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// This is a dummy replication controller for scale subresource purposes.
+0000000000000000000000000000000000000000;;		// TODO: figure out how to enable this only if needed as a part of scale subresource GA.
+0000000000000000000000000000000000000000;;		controllerStorage := expcontrollerstore.NewStorage(restOptionsGetter)
+0000000000000000000000000000000000000000;;		storage["replicationcontrollers"] = controllerStorage.ReplicationController
+0000000000000000000000000000000000000000;;		storage["replicationcontrollers/scale"] = controllerStorage.Scale
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("daemonsets")) {
+0000000000000000000000000000000000000000;;			daemonSetStorage, daemonSetStatusStorage := daemonstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["daemonsets"] = daemonSetStorage
+0000000000000000000000000000000000000000;;			storage["daemonsets/status"] = daemonSetStatusStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("deployments")) {
+0000000000000000000000000000000000000000;;			deploymentStorage := deploymentstore.NewStorage(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["deployments"] = deploymentStorage.Deployment
+0000000000000000000000000000000000000000;;			storage["deployments/status"] = deploymentStorage.Status
+0000000000000000000000000000000000000000;;			storage["deployments/rollback"] = deploymentStorage.Rollback
+0000000000000000000000000000000000000000;;			storage["deployments/scale"] = deploymentStorage.Scale
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("ingresses")) {
+0000000000000000000000000000000000000000;;			ingressStorage, ingressStatusStorage := ingressstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["ingresses"] = ingressStorage
+0000000000000000000000000000000000000000;;			storage["ingresses/status"] = ingressStatusStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("podsecuritypolicy")) || apiResourceConfigSource.ResourceEnabled(version.WithResource("podsecuritypolicies")) {
+0000000000000000000000000000000000000000;;			podSecurityExtensionsStorage := pspstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["podSecurityPolicies"] = podSecurityExtensionsStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("replicasets")) {
+0000000000000000000000000000000000000000;;			replicaSetStorage := replicasetstore.NewStorage(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["replicasets"] = replicaSetStorage.ReplicaSet
+0000000000000000000000000000000000000000;;			storage["replicasets/status"] = replicaSetStorage.Status
+0000000000000000000000000000000000000000;;			storage["replicasets/scale"] = replicaSetStorage.Scale
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("networkpolicies")) {
+0000000000000000000000000000000000000000;;			networkExtensionsStorage := networkpolicystore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["networkpolicies"] = networkExtensionsStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return storage
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) GroupName() string {
+0000000000000000000000000000000000000000;;		return extensions.GroupName
+0000000000000000000000000000000000000000;;	}

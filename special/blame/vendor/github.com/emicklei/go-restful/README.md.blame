@@ -1,0 +1,74 @@
+0000000000000000000000000000000000000000;;	go-restful
+0000000000000000000000000000000000000000;;	==========
+0000000000000000000000000000000000000000;;	package for building REST-style Web Services using Google Go
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![Build Status](https://travis-ci.org/emicklei/go-restful.png)](https://travis-ci.org/emicklei/go-restful)
+0000000000000000000000000000000000000000;;	[![Go Report Card](https://goreportcard.com/badge/github.com/emicklei/go-restful)](https://goreportcard.com/report/github.com/emicklei/go-restful)
+0000000000000000000000000000000000000000;;	[![GoDoc](https://godoc.org/github.com/emicklei/go-restful?status.svg)](https://godoc.org/github.com/emicklei/go-restful)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- [Code examples](https://github.com/emicklei/go-restful/tree/master/examples)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	REST asks developers to use HTTP methods explicitly and in a way that's consistent with the protocol definition. This basic REST design principle establishes a one-to-one mapping between create, read, update, and delete (CRUD) operations and HTTP methods. According to this mapping:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- GET = Retrieve a representation of a resource
+0000000000000000000000000000000000000000;;	- POST = Create if you are sending content to the server to create a subordinate of the specified resource collection, using some server-side algorithm.
+0000000000000000000000000000000000000000;;	- PUT = Create if you are sending the full content of the specified resource (URI).
+0000000000000000000000000000000000000000;;	- PUT = Update if you are updating the full content of the specified resource.
+0000000000000000000000000000000000000000;;	- DELETE = Delete if you are requesting the server to delete the resource
+0000000000000000000000000000000000000000;;	- PATCH = Update partial content of a resource
+0000000000000000000000000000000000000000;;	- OPTIONS = Get information about the communication options for the request URI
+0000000000000000000000000000000000000000;;	    
+0000000000000000000000000000000000000000;;	### Example
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	```Go
+0000000000000000000000000000000000000000;;	ws := new(restful.WebService)
+0000000000000000000000000000000000000000;;	ws.
+0000000000000000000000000000000000000000;;		Path("/users").
+0000000000000000000000000000000000000000;;		Consumes(restful.MIME_XML, restful.MIME_JSON).
+0000000000000000000000000000000000000000;;		Produces(restful.MIME_JSON, restful.MIME_XML)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	ws.Route(ws.GET("/{user-id}").To(u.findUser).
+0000000000000000000000000000000000000000;;		Doc("get a user").
+0000000000000000000000000000000000000000;;		Param(ws.PathParameter("user-id", "identifier of the user").DataType("string")).
+0000000000000000000000000000000000000000;;		Writes(User{}))		
+0000000000000000000000000000000000000000;;	...
+0000000000000000000000000000000000000000;;		
+0000000000000000000000000000000000000000;;	func (u UserResource) findUser(request *restful.Request, response *restful.Response) {
+0000000000000000000000000000000000000000;;		id := request.PathParameter("user-id")
+0000000000000000000000000000000000000000;;		...
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	```
+0000000000000000000000000000000000000000;;		
+0000000000000000000000000000000000000000;;	[Full API of a UserResource](https://github.com/emicklei/go-restful/tree/master/examples/restful-user-resource.go) 
+0000000000000000000000000000000000000000;;			
+0000000000000000000000000000000000000000;;	### Features
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Routes for request &#8594; function mapping with path parameter (e.g. {id}) support
+0000000000000000000000000000000000000000;;	- Configurable router:
+0000000000000000000000000000000000000000;;		- (default) Fast routing algorithm that allows static elements, regular expressions and dynamic parameters in the URL path (e.g. /meetings/{id} or /static/{subpath:*}
+0000000000000000000000000000000000000000;;		- Routing algorithm after [JSR311](http://jsr311.java.net/nonav/releases/1.1/spec/spec.html) that is implemented using (but does **not** accept) regular expressions
+0000000000000000000000000000000000000000;;	- Request API for reading structs from JSON/XML and accesing parameters (path,query,header)
+0000000000000000000000000000000000000000;;	- Response API for writing structs to JSON/XML and setting headers
+0000000000000000000000000000000000000000;;	- Customizable encoding using EntityReaderWriter registration
+0000000000000000000000000000000000000000;;	- Filters for intercepting the request &#8594; response flow on Service or Route level
+0000000000000000000000000000000000000000;;	- Request-scoped variables using attributes
+0000000000000000000000000000000000000000;;	- Containers for WebServices on different HTTP endpoints
+0000000000000000000000000000000000000000;;	- Content encoding (gzip,deflate) of request and response payloads
+0000000000000000000000000000000000000000;;	- Automatic responses on OPTIONS (using a filter)
+0000000000000000000000000000000000000000;;	- Automatic CORS request handling (using a filter)
+0000000000000000000000000000000000000000;;	- API declaration for Swagger UI (see [go-restful-swagger12](https://github.com/emicklei/go-restful-swagger12),[go-restful-openapi](https://github.com/emicklei/go-restful-openapi))
+0000000000000000000000000000000000000000;;	- Panic recovery to produce HTTP 500, customizable using RecoverHandler(...)
+0000000000000000000000000000000000000000;;	- Route errors produce HTTP 404/405/406/415 errors, customizable using ServiceErrorHandler(...)
+0000000000000000000000000000000000000000;;	- Configurable (trace) logging
+0000000000000000000000000000000000000000;;	- Customizable gzip/deflate readers and writers using CompressorProvider registration
+0000000000000000000000000000000000000000;;		
+0000000000000000000000000000000000000000;;	### Resources
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- [Example posted on blog](http://ernestmicklei.com/2012/11/go-restful-first-working-example/)
+0000000000000000000000000000000000000000;;	- [Design explained on blog](http://ernestmicklei.com/2012/11/go-restful-api-design/)
+0000000000000000000000000000000000000000;;	- [sourcegraph](https://sourcegraph.com/github.com/emicklei/go-restful)
+0000000000000000000000000000000000000000;;	- [showcase: Mora - MongoDB REST Api server](https://github.com/emicklei/mora)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Type ```git shortlog -s``` for a full list of contributors.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	© 2012 - 2017, http://ernestmicklei.com. MIT License. Contributions are welcome.

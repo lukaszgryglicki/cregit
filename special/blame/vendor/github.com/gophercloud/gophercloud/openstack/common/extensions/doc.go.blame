@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000;;	// Package extensions provides information and interaction with the different extensions available
+0000000000000000000000000000000000000000;;	// for an OpenStack service.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// The purpose of OpenStack API extensions is to:
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// - Introduce new features in the API without requiring a version change.
+0000000000000000000000000000000000000000;;	// - Introduce vendor-specific niche functionality.
+0000000000000000000000000000000000000000;;	// - Act as a proving ground for experimental functionalities that might be included in a future
+0000000000000000000000000000000000000000;;	//   version of the API.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Extensions usually have tags that prevent conflicts with other extensions that define attributes
+0000000000000000000000000000000000000000;;	// or resources with the same names, and with core resources and attributes.
+0000000000000000000000000000000000000000;;	// Because an extension might not be supported by all plug-ins, its availability varies with deployments
+0000000000000000000000000000000000000000;;	// and the specific plug-in.
+0000000000000000000000000000000000000000;;	package extensions

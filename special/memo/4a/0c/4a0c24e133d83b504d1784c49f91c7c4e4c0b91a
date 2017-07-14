@@ -1,0 +1,25 @@
+begin_unit
+DECL|package|main
+package|package
+IDENT|main
+;|
+import|import
+STRING|"fmt"
+;|
+DECL|func|main
+func|func
+IDENT|main
+(|(
+)|)
+{|{
+IDENT|fmt
+.|.
+IDENT|Println
+(|(
+STRING|"Hello wicked World!"
+)|)
+;|
+}|}
+;|
+end_unit
+

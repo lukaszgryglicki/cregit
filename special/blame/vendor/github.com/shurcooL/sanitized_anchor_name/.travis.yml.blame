@@ -1,0 +1,10 @@
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	language: go
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	go:
+88b975cc595f9f01f269d01fab01b7f2e33a52d4;;	  - 1.5
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	install:
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	  - go get golang.org/x/tools/cmd/vet
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	script:
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	  - go get -t -v ./...
+88b975cc595f9f01f269d01fab01b7f2e33a52d4;;	  - diff -u <(echo -n) <(gofmt -d -s .)
+88b975cc595f9f01f269d01fab01b7f2e33a52d4;;	  - go tool vet .
+50f9755c60b2914e7a0c6daa6fbd3a38d2cab61c;Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml[Godeps/_workspace/src/github.com/shurcooL/sanitized_anchor_name/.travis.yml][vendor/github.com/shurcooL/sanitized_anchor_name/.travis.yml];	  - go test -v -race ./...

@@ -1,0 +1,14 @@
+0000000000000000000000000000000000000000;;	# DNS Horizontal Autoscaler
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	DNS Horizontal Autoscaler enables horizontal autoscaling feature for DNS service
+0000000000000000000000000000000000000000;;	in Kubernetes clusters. This autoscaler runs as a Deployment. It collects cluster
+0000000000000000000000000000000000000000;;	status from the APIServer, horizontally scales the number of DNS backends based
+0000000000000000000000000000000000000000;;	on demand. Autoscaling parameters could be tuned by modifying the `kube-dns-autoscaler`
+0000000000000000000000000000000000000000;;	ConfigMap in `kube-system` namespace.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Learn more about:
+0000000000000000000000000000000000000000;;	- Usage: http://kubernetes.io/docs/tasks/administer-cluster/dns-horizontal-autoscaling/
+0000000000000000000000000000000000000000;;	- Implementation: https://github.com/kubernetes-incubator/cluster-proportional-autoscaler/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/addons/dns-horizontal-autoscaler/README.md?pixel)]()

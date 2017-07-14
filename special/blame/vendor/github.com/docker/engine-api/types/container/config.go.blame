@@ -1,0 +1,37 @@
+0000000000000000000000000000000000000000;;	package container
+4fd292dfb7492cc1ce958d1370115de07503bc67;Godeps/_workspace/src/github.com/docker/engine-api/types/container/config.go[Godeps/_workspace/src/github.com/docker/engine-api/types/container/config.go][vendor/github.com/docker/engine-api/types/container/config.go];	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"github.com/docker/engine-api/types/strslice"
+0000000000000000000000000000000000000000;;		"github.com/docker/go-connections/nat"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Config contains the configuration data about a container.
+0000000000000000000000000000000000000000;;	// It should hold only portable information about the container.
+0000000000000000000000000000000000000000;;	// Here, "portable" means "independent from the host we are running on".
+0000000000000000000000000000000000000000;;	// Non-portable information *should* appear in HostConfig.
+0000000000000000000000000000000000000000;;	// All fields added to this struct must be marked `omitempty` to keep getting
+0000000000000000000000000000000000000000;;	// predictable hashes from the old `v1Compatibility` configuration.
+0000000000000000000000000000000000000000;;	type Config struct {
+0000000000000000000000000000000000000000;;		Hostname        string                // Hostname
+0000000000000000000000000000000000000000;;		Domainname      string                // Domainname
+0000000000000000000000000000000000000000;;		User            string                // User that will run the command(s) inside the container
+0000000000000000000000000000000000000000;;		AttachStdin     bool                  // Attach the standard input, makes possible user interaction
+0000000000000000000000000000000000000000;;		AttachStdout    bool                  // Attach the standard output
+0000000000000000000000000000000000000000;;		AttachStderr    bool                  // Attach the standard error
+0000000000000000000000000000000000000000;;		ExposedPorts    map[nat.Port]struct{} `json:",omitempty"` // List of exposed ports
+0000000000000000000000000000000000000000;;		Tty             bool                  // Attach standard streams to a tty, including stdin if it is not closed.
+0000000000000000000000000000000000000000;;		OpenStdin       bool                  // Open stdin
+0000000000000000000000000000000000000000;;		StdinOnce       bool                  // If true, close stdin after the 1 attached client disconnects.
+0000000000000000000000000000000000000000;;		Env             []string              // List of environment variable to set in the container
+0000000000000000000000000000000000000000;;		Cmd             strslice.StrSlice     // Command to run when starting the container
+0000000000000000000000000000000000000000;;		ArgsEscaped     bool                  `json:",omitempty"` // True if command is already escaped (Windows specific)
+0000000000000000000000000000000000000000;;		Image           string                // Name of the image as it was passed by the operator (eg. could be symbolic)
+0000000000000000000000000000000000000000;;		Volumes         map[string]struct{}   // List of volumes (mounts) used for the container
+0000000000000000000000000000000000000000;;		WorkingDir      string                // Current directory (PWD) in the command will be launched
+0000000000000000000000000000000000000000;;		Entrypoint      strslice.StrSlice     // Entrypoint to run when starting the container
+0000000000000000000000000000000000000000;;		NetworkDisabled bool                  `json:",omitempty"` // Is network disabled
+0000000000000000000000000000000000000000;;		MacAddress      string                `json:",omitempty"` // Mac Address of the container
+0000000000000000000000000000000000000000;;		OnBuild         []string              // ONBUILD metadata that were defined on the image Dockerfile
+0000000000000000000000000000000000000000;;		Labels          map[string]string     // List of labels set to this container
+0000000000000000000000000000000000000000;;		StopSignal      string                `json:",omitempty"` // Signal to stop a container
+0000000000000000000000000000000000000000;;	}

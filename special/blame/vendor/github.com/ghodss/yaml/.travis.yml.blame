@@ -1,0 +1,7 @@
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	language: go
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	go:
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	  - 1.3
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	  - 1.4
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	script:
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	  - go test
+322fca125ffdd884dad947c2f7c9f3516e5a4ec4;Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml[Godeps/_workspace/src/github.com/ghodss/yaml/.travis.yml][vendor/github.com/ghodss/yaml/.travis.yml];	  - go build

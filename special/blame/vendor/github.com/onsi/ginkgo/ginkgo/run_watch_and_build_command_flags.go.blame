@@ -1,0 +1,160 @@
+0000000000000000000000000000000000000000;;	package main
+b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/ginkgo/ginkgo/run_watch_and_build_command_flags.go[Godeps/_workspace/src/github.com/onsi/ginkgo/ginkgo/run_watch_and_build_command_flags.go][vendor/github.com/onsi/ginkgo/ginkgo/run_watch_and_build_command_flags.go];	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"flag"
+0000000000000000000000000000000000000000;;		"runtime"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/onsi/ginkgo/config"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type RunWatchAndBuildCommandFlags struct {
+0000000000000000000000000000000000000000;;		Recurse     bool
+0000000000000000000000000000000000000000;;		SkipPackage string
+0000000000000000000000000000000000000000;;		GoOpts      map[string]interface{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		//for run and watch commands
+0000000000000000000000000000000000000000;;		NumCPU         int
+0000000000000000000000000000000000000000;;		NumCompilers   int
+0000000000000000000000000000000000000000;;		ParallelStream bool
+0000000000000000000000000000000000000000;;		Notify         bool
+0000000000000000000000000000000000000000;;		AfterSuiteHook string
+0000000000000000000000000000000000000000;;		AutoNodes      bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		//only for run command
+0000000000000000000000000000000000000000;;		KeepGoing       bool
+0000000000000000000000000000000000000000;;		UntilItFails    bool
+0000000000000000000000000000000000000000;;		RandomizeSuites bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		//only for watch command
+0000000000000000000000000000000000000000;;		Depth int
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		FlagSet *flag.FlagSet
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const runMode = 1
+0000000000000000000000000000000000000000;;	const watchMode = 2
+0000000000000000000000000000000000000000;;	const buildMode = 3
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func NewRunCommandFlags(flagSet *flag.FlagSet) *RunWatchAndBuildCommandFlags {
+0000000000000000000000000000000000000000;;		c := &RunWatchAndBuildCommandFlags{
+0000000000000000000000000000000000000000;;			FlagSet: flagSet,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		c.flags(runMode)
+0000000000000000000000000000000000000000;;		return c
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func NewWatchCommandFlags(flagSet *flag.FlagSet) *RunWatchAndBuildCommandFlags {
+0000000000000000000000000000000000000000;;		c := &RunWatchAndBuildCommandFlags{
+0000000000000000000000000000000000000000;;			FlagSet: flagSet,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		c.flags(watchMode)
+0000000000000000000000000000000000000000;;		return c
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func NewBuildCommandFlags(flagSet *flag.FlagSet) *RunWatchAndBuildCommandFlags {
+0000000000000000000000000000000000000000;;		c := &RunWatchAndBuildCommandFlags{
+0000000000000000000000000000000000000000;;			FlagSet: flagSet,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		c.flags(buildMode)
+0000000000000000000000000000000000000000;;		return c
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) wasSet(flagName string) bool {
+0000000000000000000000000000000000000000;;		wasSet := false
+0000000000000000000000000000000000000000;;		c.FlagSet.Visit(func(f *flag.Flag) {
+0000000000000000000000000000000000000000;;			if f.Name == flagName {
+0000000000000000000000000000000000000000;;				wasSet = true
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return wasSet
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) computeNodes() {
+0000000000000000000000000000000000000000;;		if c.wasSet("nodes") {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if c.AutoNodes {
+0000000000000000000000000000000000000000;;			switch n := runtime.NumCPU(); {
+0000000000000000000000000000000000000000;;			case n <= 4:
+0000000000000000000000000000000000000000;;				c.NumCPU = n
+0000000000000000000000000000000000000000;;			default:
+0000000000000000000000000000000000000000;;				c.NumCPU = n - 1
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) stringSlot(slot string) *string {
+0000000000000000000000000000000000000000;;		var opt string
+0000000000000000000000000000000000000000;;		c.GoOpts[slot] = &opt
+0000000000000000000000000000000000000000;;		return &opt
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) boolSlot(slot string) *bool {
+0000000000000000000000000000000000000000;;		var opt bool
+0000000000000000000000000000000000000000;;		c.GoOpts[slot] = &opt
+0000000000000000000000000000000000000000;;		return &opt
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) intSlot(slot string) *int {
+0000000000000000000000000000000000000000;;		var opt int
+0000000000000000000000000000000000000000;;		c.GoOpts[slot] = &opt
+0000000000000000000000000000000000000000;;		return &opt
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *RunWatchAndBuildCommandFlags) flags(mode int) {
+0000000000000000000000000000000000000000;;		c.GoOpts = make(map[string]interface{})
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		onWindows := (runtime.GOOS == "windows")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(&(c.Recurse), "r", false, "Find and run test suites under the current directory recursively.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("race"), "race", false, "Run tests with race detection enabled.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("cover"), "cover", false, "Run tests with coverage analysis, will generate coverage profiles with the package name in the current directory.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("coverpkg"), "coverpkg", "", "Run tests with coverage on the given external modules.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(&(c.SkipPackage), "skipPackage", "", "A comma-separated list of package names to be skipped.  If any part of the package's path matches, that package is ignored.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("tags"), "tags", "", "A list of build tags to consider satisfied during the build.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("gcflags"), "gcflags", "", "Arguments to pass on each go tool compile invocation.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("covermode"), "covermode", "", "Set the mode for coverage analysis.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("a"), "a", false, "Force rebuilding of packages that are already up-to-date.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("n"), "n", false, "Have `go test` print the commands but do not run them.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("msan"), "msan", false, "Enable interoperation with memory sanitizer.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("x"), "x", false, "Have `go test` print the commands.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("work"), "work", false, "Print the name of the temporary work directory and do not delete it when exiting.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("asmflags"), "asmflags", "", "Arguments to pass on each go tool asm invocation.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("buildmode"), "buildmode", "", "Build mode to use. See 'go help buildmode' for more.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("compiler"), "compiler", "", "Name of compiler to use, as in runtime.Compiler (gccgo or gc).")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("gccgoflags"), "gccgoflags", "", "Arguments to pass on each gccgo compiler/linker invocation.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("installsuffix"), "installsuffix", "", "A suffix to use in the name of the package installation directory.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("ldflags"), "ldflags", "", "Arguments to pass on each go tool link invocation.")
+0000000000000000000000000000000000000000;;		c.FlagSet.BoolVar(c.boolSlot("linkshared"), "linkshared", false, "Link against shared libraries previously created with -buildmode=shared.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("pkgdir"), "pkgdir", "", "install and load all packages from the given dir instead of the usual locations.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("toolexec"), "toolexec", "", "a program to use to invoke toolchain programs like vet and asm.")
+0000000000000000000000000000000000000000;;		c.FlagSet.IntVar(c.intSlot("blockprofilerate"), "blockprofilerate", 1, "Control the detail provided in goroutine blocking profiles by calling runtime.SetBlockProfileRate with the given value.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("coverprofile"), "coverprofile", "", "Write a coverage profile to the specified file after all tests have passed.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("cpuprofile"), "cpuprofile", "", "Write a CPU profile to the specified file before exiting.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("memprofile"), "memprofile", "", "Write a memory profile to the specified file after all tests have passed.")
+0000000000000000000000000000000000000000;;		c.FlagSet.IntVar(c.intSlot("memprofilerate"), "memprofilerate", 0, "Enable more precise (and expensive) memory profiles by setting runtime.MemProfileRate.")
+0000000000000000000000000000000000000000;;		c.FlagSet.StringVar(c.stringSlot("outputdir"), "outputdir", "", "Place output files from profiling in the specified directory.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if mode == runMode || mode == watchMode {
+0000000000000000000000000000000000000000;;			config.Flags(c.FlagSet, "", false)
+0000000000000000000000000000000000000000;;			c.FlagSet.IntVar(&(c.NumCPU), "nodes", 1, "The number of parallel test nodes to run")
+0000000000000000000000000000000000000000;;			c.FlagSet.IntVar(&(c.NumCompilers), "compilers", 0, "The number of concurrent compilations to run (0 will autodetect)")
+0000000000000000000000000000000000000000;;			c.FlagSet.BoolVar(&(c.AutoNodes), "p", false, "Run in parallel with auto-detected number of nodes")
+0000000000000000000000000000000000000000;;			c.FlagSet.BoolVar(&(c.ParallelStream), "stream", onWindows, "stream parallel test output in real time: less coherent, but useful for debugging")
+0000000000000000000000000000000000000000;;			if !onWindows {
+0000000000000000000000000000000000000000;;				c.FlagSet.BoolVar(&(c.Notify), "notify", false, "Send desktop notifications when a test run completes")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			c.FlagSet.StringVar(&(c.AfterSuiteHook), "afterSuiteHook", "", "Run a command when a suite test run completes")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if mode == runMode {
+0000000000000000000000000000000000000000;;			c.FlagSet.BoolVar(&(c.KeepGoing), "keepGoing", false, "When true, failures from earlier test suites do not prevent later test suites from running")
+0000000000000000000000000000000000000000;;			c.FlagSet.BoolVar(&(c.UntilItFails), "untilItFails", false, "When true, Ginkgo will keep rerunning tests until a failure occurs")
+0000000000000000000000000000000000000000;;			c.FlagSet.BoolVar(&(c.RandomizeSuites), "randomizeSuites", false, "When true, Ginkgo will randomize the order in which test suites run")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if mode == watchMode {
+0000000000000000000000000000000000000000;;			c.FlagSet.IntVar(&(c.Depth), "depth", 1, "Ginkgo will watch dependencies down to this depth in the dependency tree")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}

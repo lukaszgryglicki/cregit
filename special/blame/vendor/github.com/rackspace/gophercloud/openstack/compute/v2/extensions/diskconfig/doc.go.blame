@@ -1,0 +1,3 @@
+0000000000000000000000000000000000000000;;	// Package diskconfig provides information and interaction with the Disk
+0000000000000000000000000000000000000000;;	// Config extension that works with the OpenStack Compute service.
+0000000000000000000000000000000000000000;;	package diskconfig

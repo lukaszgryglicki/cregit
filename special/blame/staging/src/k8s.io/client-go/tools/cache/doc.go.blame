@@ -1,0 +1,24 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+7ae9f03395c6627a081201b94a92727a999ac034;staging/src/k8s.io/client-go/1.4/tools/cache/doc.go[staging/src/k8s.io/client-go/1.4/tools/cache/doc.go][staging/src/k8s.io/client-go/tools/cache/doc.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package cache is a client-side caching mechanism. It is useful for
+0000000000000000000000000000000000000000;;	// reducing the number of server calls you'd otherwise need to make.
+0000000000000000000000000000000000000000;;	// Reflector watches a server and updates a Store. Two stores are provided;
+0000000000000000000000000000000000000000;;	// one that simply caches objects (for example, to allow a scheduler to
+0000000000000000000000000000000000000000;;	// list currently available nodes), and one that additionally acts as
+0000000000000000000000000000000000000000;;	// a FIFO queue (for example, to allow a scheduler to process incoming
+0000000000000000000000000000000000000000;;	// pods).
+0000000000000000000000000000000000000000;;	package cache // import "k8s.io/client-go/tools/cache"

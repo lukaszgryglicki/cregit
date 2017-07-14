@@ -1,0 +1,79 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+c507aab7c3e12a6fd7aae5913db7610c2cbc52a4;federation/pkg/typeadapters/adapter.go[federation/pkg/typeadapters/adapter.go][federation/pkg/federatedtypes/adapter.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package federatedtypes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		pkgruntime "k8s.io/apimachinery/pkg/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/watch"
+0000000000000000000000000000000000000000;;		restclient "k8s.io/client-go/rest"
+0000000000000000000000000000000000000000;;		federationclientset "k8s.io/kubernetes/federation/client/clientset_generated/federation_clientset"
+0000000000000000000000000000000000000000;;		kubeclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// FederatedTypeAdapter defines operations for interacting with a
+0000000000000000000000000000000000000000;;	// federated type.  Code written to this interface can then target any
+0000000000000000000000000000000000000000;;	// type for which an implementation of this interface exists.
+0000000000000000000000000000000000000000;;	type FederatedTypeAdapter interface {
+0000000000000000000000000000000000000000;;		Kind() string
+0000000000000000000000000000000000000000;;		ObjectType() pkgruntime.Object
+0000000000000000000000000000000000000000;;		IsExpectedType(obj interface{}) bool
+0000000000000000000000000000000000000000;;		Copy(obj pkgruntime.Object) pkgruntime.Object
+0000000000000000000000000000000000000000;;		Equivalent(obj1, obj2 pkgruntime.Object) bool
+0000000000000000000000000000000000000000;;		QualifiedName(obj pkgruntime.Object) QualifiedName
+0000000000000000000000000000000000000000;;		ObjectMeta(obj pkgruntime.Object) *metav1.ObjectMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Fed* operations target the federation control plane
+0000000000000000000000000000000000000000;;		FedCreate(obj pkgruntime.Object) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		FedDelete(qualifiedName QualifiedName, options *metav1.DeleteOptions) error
+0000000000000000000000000000000000000000;;		FedGet(qualifiedName QualifiedName) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		FedList(namespace string, options metav1.ListOptions) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		FedUpdate(obj pkgruntime.Object) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		FedWatch(namespace string, options metav1.ListOptions) (watch.Interface, error)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// The following operations are intended to target a cluster that is a member of a federation
+0000000000000000000000000000000000000000;;		ClusterCreate(client kubeclientset.Interface, obj pkgruntime.Object) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		ClusterDelete(client kubeclientset.Interface, qualifiedName QualifiedName, options *metav1.DeleteOptions) error
+0000000000000000000000000000000000000000;;		ClusterGet(client kubeclientset.Interface, qualifiedName QualifiedName) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		ClusterList(client kubeclientset.Interface, namespace string, options metav1.ListOptions) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		ClusterUpdate(client kubeclientset.Interface, obj pkgruntime.Object) (pkgruntime.Object, error)
+0000000000000000000000000000000000000000;;		ClusterWatch(client kubeclientset.Interface, namespace string, options metav1.ListOptions) (watch.Interface, error)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		IsSchedulingAdapter() bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		NewTestObject(namespace string) pkgruntime.Object
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AdapterFactory defines the function signature for factory methods
+0000000000000000000000000000000000000000;;	// that create instances of FederatedTypeAdapter.  Such methods should
+0000000000000000000000000000000000000000;;	// be registered with RegisterAdapterFactory to ensure the type
+0000000000000000000000000000000000000000;;	// adapter is discoverable.
+0000000000000000000000000000000000000000;;	type AdapterFactory func(client federationclientset.Interface, config *restclient.Config) FederatedTypeAdapter
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// SetAnnotation sets the given key and value in the given object's ObjectMeta.Annotations map
+0000000000000000000000000000000000000000;;	func SetAnnotation(adapter FederatedTypeAdapter, obj pkgruntime.Object, key, value string) {
+0000000000000000000000000000000000000000;;		meta := adapter.ObjectMeta(obj)
+0000000000000000000000000000000000000000;;		if meta.Annotations == nil {
+0000000000000000000000000000000000000000;;			meta.Annotations = make(map[string]string)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		meta.Annotations[key] = value
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ObjectKey returns a cluster-unique key for the given object
+0000000000000000000000000000000000000000;;	func ObjectKey(adapter FederatedTypeAdapter, obj pkgruntime.Object) string {
+0000000000000000000000000000000000000000;;		return adapter.QualifiedName(obj).String()
+0000000000000000000000000000000000000000;;	}

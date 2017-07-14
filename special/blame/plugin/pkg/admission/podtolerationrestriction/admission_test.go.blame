@@ -1,0 +1,200 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+3b06cf288046874117f039532276be415780809c;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package podtolerationrestriction
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"encoding/json"
+0000000000000000000000000000000000000000;;		"testing"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/admission"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+0000000000000000000000000000000000000000;;		informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+0000000000000000000000000000000000000000;;		kubeadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/util/tolerations"
+0000000000000000000000000000000000000000;;		pluginapi "k8s.io/kubernetes/plugin/pkg/admission/podtolerationrestriction/apis/podtolerationrestriction"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TestPodAdmission verifies various scenarios involving pod/namespace tolerations
+0000000000000000000000000000000000000000;;	func TestPodAdmission(t *testing.T) {
+0000000000000000000000000000000000000000;;		namespace := &api.Namespace{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{
+0000000000000000000000000000000000000000;;				Name:      "testNamespace",
+0000000000000000000000000000000000000000;;				Namespace: "",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		mockClient := &fake.Clientset{}
+0000000000000000000000000000000000000000;;		handler, informerFactory, err := newHandlerForTest(mockClient)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("unexpected error initializing handler: %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		stopCh := make(chan struct{})
+0000000000000000000000000000000000000000;;		defer close(stopCh)
+0000000000000000000000000000000000000000;;		informerFactory.Start(stopCh)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		pod := &api.Pod{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		tests := []struct {
+0000000000000000000000000000000000000000;;			defaultClusterTolerations []api.Toleration
+0000000000000000000000000000000000000000;;			namespaceTolerations      []api.Toleration
+0000000000000000000000000000000000000000;;			whitelist                 []api.Toleration
+0000000000000000000000000000000000000000;;			clusterWhitelist          []api.Toleration
+0000000000000000000000000000000000000000;;			podTolerations            []api.Toleration
+0000000000000000000000000000000000000000;;			mergedTolerations         []api.Toleration
+0000000000000000000000000000000000000000;;			admit                     bool
+0000000000000000000000000000000000000000;;			testName                  string
+0000000000000000000000000000000000000000;;		}{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{},
+0000000000000000000000000000000000000000;;				mergedTolerations:         []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     true,
+0000000000000000000000000000000000000000;;				testName:                  "default cluster tolerations with empty pod tolerations",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				mergedTolerations:         []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     true,
+0000000000000000000000000000000000000000;;				testName:                  "default cluster tolerations with pod tolerations specified",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				mergedTolerations:         []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     true,
+0000000000000000000000000000000000000000;;				testName:                  "namespace tolerations",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{},
+0000000000000000000000000000000000000000;;				mergedTolerations:         []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     true,
+0000000000000000000000000000000000000000;;				testName:                  "no pod tolerations",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue1", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     false,
+0000000000000000000000000000000000000000;;				testName:                  "conflicting pod and namespace tolerations",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue2", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue1", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     false,
+0000000000000000000000000000000000000000;;				testName:                  "conflicting pod and default cluster tolerations",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				whitelist:                 []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{},
+0000000000000000000000000000000000000000;;				mergedTolerations:         []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				admit:                     true,
+0000000000000000000000000000000000000000;;				testName:                  "merged pod tolerations satisfy whitelist",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				defaultClusterTolerations: []api.Toleration{},
+0000000000000000000000000000000000000000;;				namespaceTolerations:      []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				whitelist:                 []api.Toleration{{Key: "testKey", Operator: "Equal", Value: "testValue1", Effect: "NoSchedule", TolerationSeconds: nil}},
+0000000000000000000000000000000000000000;;				podTolerations:            []api.Toleration{},
+0000000000000000000000000000000000000000;;				admit:                     false,
+0000000000000000000000000000000000000000;;				testName:                  "merged pod tolerations conflict with the whitelist",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for _, test := range tests {
+0000000000000000000000000000000000000000;;			if len(test.namespaceTolerations) > 0 {
+0000000000000000000000000000000000000000;;				tolerationStr, err := json.Marshal(test.namespaceTolerations)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Errorf("error in marshalling namespace tolerations %v", test.namespaceTolerations)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				namespace.Annotations = map[string]string{NSDefaultTolerations: string(tolerationStr)}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if len(test.whitelist) > 0 {
+0000000000000000000000000000000000000000;;				tolerationStr, err := json.Marshal(test.whitelist)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Errorf("error in marshalling namespace whitelist %v", test.whitelist)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				namespace.Annotations[NSWLTolerations] = string(tolerationStr)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			informerFactory.Core().InternalVersion().Namespaces().Informer().GetStore().Update(namespace)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			handler.pluginConfig = &pluginapi.Configuration{Default: test.defaultClusterTolerations, Whitelist: test.clusterWhitelist}
+0000000000000000000000000000000000000000;;			pod.Spec.Tolerations = test.podTolerations
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			err := handler.Admit(admission.NewAttributesRecord(pod, nil, api.Kind("Pod").WithVersion("version"), "testNamespace", namespace.ObjectMeta.Name, api.Resource("pods").WithVersion("version"), "", admission.Create, nil))
+0000000000000000000000000000000000000000;;			if test.admit && err != nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Test: %s, expected no error but got: %s", test.testName, err)
+0000000000000000000000000000000000000000;;			} else if !test.admit && err == nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Test: %s, expected an error", test.testName)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			updatedPodTolerations := pod.Spec.Tolerations
+0000000000000000000000000000000000000000;;			if test.admit && !tolerations.EqualTolerations(updatedPodTolerations, test.mergedTolerations) {
+0000000000000000000000000000000000000000;;				t.Errorf("Test: %s, expected: %#v but got: %#v", test.testName, test.mergedTolerations, updatedPodTolerations)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestHandles(t *testing.T) {
+0000000000000000000000000000000000000000;;		for op, shouldHandle := range map[admission.Operation]bool{
+0000000000000000000000000000000000000000;;			admission.Create:  true,
+0000000000000000000000000000000000000000;;			admission.Update:  true,
+0000000000000000000000000000000000000000;;			admission.Connect: false,
+0000000000000000000000000000000000000000;;			admission.Delete:  false,
+0000000000000000000000000000000000000000;;		} {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			pluginConfig, err := loadConfiguration(nil)
+0000000000000000000000000000000000000000;;			// must not fail
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				t.Errorf("%v: error reading default configuration", op)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			ptPlugin := NewPodTolerationsPlugin(pluginConfig)
+0000000000000000000000000000000000000000;;			if e, a := shouldHandle, ptPlugin.Handles(op); e != a {
+0000000000000000000000000000000000000000;;				t.Errorf("%v: shouldHandle=%t, handles=%t", op, e, a)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// newHandlerForTest returns the admission controller configured for testing.
+0000000000000000000000000000000000000000;;	func newHandlerForTest(c clientset.Interface) (*podTolerationsPlugin, informers.SharedInformerFactory, error) {
+0000000000000000000000000000000000000000;;		f := informers.NewSharedInformerFactory(c, 5*time.Minute)
+0000000000000000000000000000000000000000;;		pluginConfig, err := loadConfiguration(nil)
+0000000000000000000000000000000000000000;;		// must not fail
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		handler := NewPodTolerationsPlugin(pluginConfig)
+0000000000000000000000000000000000000000;;		pluginInitializer := kubeadmission.NewPluginInitializer(c, nil, f, nil, nil, nil, nil)
+0000000000000000000000000000000000000000;;		pluginInitializer.Initialize(handler)
+0000000000000000000000000000000000000000;;		err = admission.Validate(handler)
+0000000000000000000000000000000000000000;;		return handler, f, err
+0000000000000000000000000000000000000000;;	}

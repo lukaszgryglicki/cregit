@@ -1,0 +1,1014 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+51e2fb175751f9fc5d2d5b588426a7b5e2921ba9;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package etcd
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"context"
+0000000000000000000000000000000000000000;;		"encoding/json"
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"io/ioutil"
+0000000000000000000000000000000000000000;;		"mime"
+0000000000000000000000000000000000000000;;		"net"
+0000000000000000000000000000000000000000;;		"net/http"
+0000000000000000000000000000000000000000;;		"os"
+0000000000000000000000000000000000000000;;		"reflect"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;		"sync/atomic"
+0000000000000000000000000000000000000000;;		"testing"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/api/core/v1"
+0000000000000000000000000000000000000000;;		apiequality "k8s.io/apimachinery/pkg/api/equality"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/meta"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime/schema"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/diff"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/sets"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/wait"
+0000000000000000000000000000000000000000;;		genericapiserver "k8s.io/apiserver/pkg/server"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/storage/storagebackend"
+0000000000000000000000000000000000000000;;		kclient "k8s.io/client-go/kubernetes"
+0000000000000000000000000000000000000000;;		restclient "k8s.io/client-go/rest"
+0000000000000000000000000000000000000000;;		"k8s.io/client-go/tools/clientcmd"
+0000000000000000000000000000000000000000;;		clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+0000000000000000000000000000000000000000;;		"k8s.io/client-go/util/flowcontrol"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/cmd/kube-apiserver/app"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
+0000000000000000000000000000000000000000;;		kapi "k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/kubectl/cmd/util"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/test/integration/framework"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// install all APIs
+0000000000000000000000000000000000000000;;		_ "k8s.io/kubernetes/pkg/master" // TODO what else is needed
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/coreos/etcd/clientv3"
+0000000000000000000000000000000000000000;;		"github.com/coreos/etcd/pkg/transport"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Etcd data for all persisted objects.
+0000000000000000000000000000000000000000;;	var etcdStorageData = map[schema.GroupVersionResource]struct {
+0000000000000000000000000000000000000000;;		stub             string                   // Valid JSON stub to use during create
+0000000000000000000000000000000000000000;;		prerequisites    []prerequisite           // Optional, ordered list of JSON objects to create before stub
+0000000000000000000000000000000000000000;;		expectedEtcdPath string                   // Expected location of object in etcd, do not use any variables, constants, etc to derive this value - always supply the full raw string
+0000000000000000000000000000000000000000;;		expectedGVK      *schema.GroupVersionKind // The GVK that we expect this object to be stored as - leave this nil to use the default
+0000000000000000000000000000000000000000;;	}{
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/api/v1
+0000000000000000000000000000000000000000;;		gvr("", "v1", "configmaps"): {
+0000000000000000000000000000000000000000;;			stub:             `{"data": {"foo": "bar"}, "metadata": {"name": "cm1"}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/configmaps/etcdstoragepathtestnamespace/cm1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "services"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "service1"}, "spec": {"externalName": "service1name", "ports": [{"port": 10000, "targetPort": 11000}], "selector": {"test": "data"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/services/specs/etcdstoragepathtestnamespace/service1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "podtemplates"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "pt1name"}, "template": {"metadata": {"labels": {"pt": "01"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container9"}]}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/podtemplates/etcdstoragepathtestnamespace/pt1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "pods"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "pod1"}, "spec": {"containers": [{"image": "fedora:latest", "name": "container7", "resources": {"limits": {"cpu": "1M"}, "requests": {"cpu": "1M"}}}]}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/pods/etcdstoragepathtestnamespace/pod1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "endpoints"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "ep1name"}, "subsets": [{"addresses": [{"hostname": "bar-001", "ip": "192.168.3.1"}], "ports": [{"port": 8000}]}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/services/endpoints/etcdstoragepathtestnamespace/ep1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "resourcequotas"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "rq1name"}, "spec": {"hard": {"cpu": "5M"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/resourcequotas/etcdstoragepathtestnamespace/rq1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "limitranges"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "lr1name"}, "spec": {"limits": [{"type": "Pod"}]}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/limitranges/etcdstoragepathtestnamespace/lr1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "namespaces"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "namespace1"}, "spec": {"finalizers": ["kubernetes"]}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/namespaces/namespace1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "nodes"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "node1"}, "spec": {"unschedulable": true}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/minions/node1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "persistentvolumes"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "pv1name"}, "spec": {"accessModes": ["ReadWriteOnce"], "capacity": {"storage": "3M"}, "hostPath": {"path": "/tmp/test/"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/persistentvolumes/pv1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "events"): {
+0000000000000000000000000000000000000000;;			stub:             `{"involvedObject": {"namespace": "etcdstoragepathtestnamespace"}, "message": "some data here", "metadata": {"name": "event1"}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/events/etcdstoragepathtestnamespace/event1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "persistentvolumeclaims"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "pvc1"}, "spec": {"accessModes": ["ReadWriteOnce"], "resources": {"limits": {"storage": "1M"}, "requests": {"storage": "2M"}}, "selector": {"matchLabels": {"pvc": "stuff"}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/persistentvolumeclaims/etcdstoragepathtestnamespace/pvc1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "serviceaccounts"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "sa1name"}, "secrets": [{"name": "secret00"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/serviceaccounts/etcdstoragepathtestnamespace/sa1name",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "secrets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"data": {"key": "ZGF0YSBmaWxl"}, "metadata": {"name": "secret1"}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/secrets/etcdstoragepathtestnamespace/secret1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("", "v1", "replicationcontrollers"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "rc1"}, "spec": {"selector": {"new": "stuff"}, "template": {"metadata": {"labels": {"new": "stuff"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container8"}]}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/controllers/etcdstoragepathtestnamespace/rc1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/apps/v1beta1
+0000000000000000000000000000000000000000;;		gvr("apps", "v1beta1", "statefulsets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "ss1"}, "spec": {"template": {"metadata": {"labels": {"a": "b"}}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/statefulsets/etcdstoragepathtestnamespace/ss1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("apps", "v1beta1", "deployments"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "deployment2"}, "spec": {"selector": {"matchLabels": {"f": "z"}}, "template": {"metadata": {"labels": {"f": "z"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container6"}]}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/deployments/etcdstoragepathtestnamespace/deployment2",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("extensions", "v1beta1", "Deployment"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("apps", "v1beta1", "controllerrevisions"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata":{"name":"crs1"},"data":{"name":"abc","namespace":"default","creationTimestamp":null,"Spec":{"Replicas":0,"Selector":{"matchLabels":{"foo":"bar"}},"Template":{"creationTimestamp":null,"labels":{"foo":"bar"},"Spec":{"Volumes":null,"InitContainers":null,"Containers":null,"RestartPolicy":"Always","TerminationGracePeriodSeconds":null,"ActiveDeadlineSeconds":null,"DNSPolicy":"ClusterFirst","NodeSelector":null,"ServiceAccountName":"","AutomountServiceAccountToken":null,"NodeName":"","SecurityContext":null,"ImagePullSecrets":null,"Hostname":"","Subdomain":"","Affinity":null,"SchedulerName":"","Tolerations":null,"HostAliases":null}},"VolumeClaimTemplates":null,"ServiceName":""},"Status":{"ObservedGeneration":null,"Replicas":0}},"revision":0}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/controllerrevisions/etcdstoragepathtestnamespace/crs1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/autoscaling/v1
+0000000000000000000000000000000000000000;;		gvr("autoscaling", "v1", "horizontalpodautoscalers"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "hpa2"}, "spec": {"maxReplicas": 3, "scaleTargetRef": {"kind": "something", "name": "cross"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/horizontalpodautoscalers/etcdstoragepathtestnamespace/hpa2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/autoscaling/v2alpha1
+0000000000000000000000000000000000000000;;		gvr("autoscaling", "v2alpha1", "horizontalpodautoscalers"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "hpa1"}, "spec": {"maxReplicas": 3, "scaleTargetRef": {"kind": "something", "name": "cross"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/horizontalpodautoscalers/etcdstoragepathtestnamespace/hpa1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("autoscaling", "v1", "HorizontalPodAutoscaler"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/batch/v1
+0000000000000000000000000000000000000000;;		gvr("batch", "v1", "jobs"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "job1"}, "spec": {"manualSelector": true, "selector": {"matchLabels": {"controller-uid": "uid1"}}, "template": {"metadata": {"labels": {"controller-uid": "uid1"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container1"}], "dnsPolicy": "ClusterFirst", "restartPolicy": "Never"}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/jobs/etcdstoragepathtestnamespace/job1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/batch/v2alpha1
+0000000000000000000000000000000000000000;;		gvr("batch", "v2alpha1", "cronjobs"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "cj1"}, "spec": {"jobTemplate": {"spec": {"template": {"metadata": {"labels": {"controller-uid": "uid0"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container0"}], "dnsPolicy": "ClusterFirst", "restartPolicy": "Never"}}}}, "schedule": "* * * * *"}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/cronjobs/etcdstoragepathtestnamespace/cj1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("batch", "v2alpha1", "scheduledjobs"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "cj2"}, "spec": {"jobTemplate": {"spec": {"template": {"metadata": {"labels": {"controller-uid": "uid0"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container0"}], "dnsPolicy": "ClusterFirst", "restartPolicy": "Never"}}}}, "schedule": "* * * * *"}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/cronjobs/etcdstoragepathtestnamespace/cj2",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("batch", "v2alpha1", "CronJob"), // scheduledjobs were deprecated by cronjobs
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/certificates/v1beta1
+0000000000000000000000000000000000000000;;		gvr("certificates.k8s.io", "v1beta1", "certificatesigningrequests"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "csr1"}, "spec": {"request": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQnlqQ0NBVE1DQVFBd2dZa3hDekFKQmdOVkJBWVRBbFZUTVJNd0VRWURWUVFJRXdwRFlXeHBabTl5Ym1saApNUll3RkFZRFZRUUhFdzFOYjNWdWRHRnBiaUJXYVdWM01STXdFUVlEVlFRS0V3cEhiMjluYkdVZ1NXNWpNUjh3CkhRWURWUVFMRXhaSmJtWnZjbTFoZEdsdmJpQlVaV05vYm05c2IyZDVNUmN3RlFZRFZRUURFdzUzZDNjdVoyOXYKWjJ4bExtTnZiVENCbnpBTkJna3Foa2lHOXcwQkFRRUZBQU9CalFBd2dZa0NnWUVBcFp0WUpDSEo0VnBWWEhmVgpJbHN0UVRsTzRxQzAzaGpYK1prUHl2ZFlkMVE0K3FiQWVUd1htQ1VLWUhUaFZSZDVhWFNxbFB6eUlCd2llTVpyCldGbFJRZGRaMUl6WEFsVlJEV3dBbzYwS2VjcWVBWG5uVUsrNWZYb1RJL1VnV3NocmU4dEoreC9UTUhhUUtSL0oKY0lXUGhxYVFoc0p1elpidkFkR0E4MEJMeGRNQ0F3RUFBYUFBTUEwR0NTcUdTSWIzRFFFQkJRVUFBNEdCQUlobAo0UHZGcStlN2lwQVJnSTVaTStHWng2bXBDejQ0RFRvMEprd2ZSRGYrQnRyc2FDMHE2OGVUZjJYaFlPc3E0ZmtIClEwdUEwYVZvZzNmNWlKeENhM0hwNWd4YkpRNnpWNmtKMFRFc3VhYU9oRWtvOXNkcENvUE9uUkJtMmkvWFJEMkQKNmlOaDhmOHowU2hHc0ZxakRnRkh5RjNvK2xVeWorVUM2SDFRVzdibgotLS0tLUVORCBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0="}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/certificatesigningrequests/csr1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/extensions/v1beta1
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "daemonsets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "ds1"}, "spec": {"selector": {"matchLabels": {"u": "t"}}, "template": {"metadata": {"labels": {"u": "t"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container5"}]}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/daemonsets/etcdstoragepathtestnamespace/ds1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "podsecuritypolicies"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "psp1"}, "spec": {"fsGroup": {"rule": "RunAsAny"}, "privileged": true, "runAsUser": {"rule": "RunAsAny"}, "seLinux": {"rule": "MustRunAs"}, "supplementalGroups": {"rule": "RunAsAny"}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/podsecuritypolicy/psp1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "ingresses"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "ingress1"}, "spec": {"backend": {"serviceName": "service", "servicePort": 5000}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/ingress/etcdstoragepathtestnamespace/ingress1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "networkpolicies"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "np1"}, "spec": {"podSelector": {"matchLabels": {"e": "f"}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/networkpolicies/etcdstoragepathtestnamespace/np1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "deployments"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "deployment1"}, "spec": {"selector": {"matchLabels": {"f": "z"}}, "template": {"metadata": {"labels": {"f": "z"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container6"}]}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/deployments/etcdstoragepathtestnamespace/deployment1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "replicasets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "rs1"}, "spec": {"selector": {"matchLabels": {"g": "h"}}, "template": {"metadata": {"labels": {"g": "h"}}, "spec": {"containers": [{"image": "fedora:latest", "name": "container4"}]}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/replicasets/etcdstoragepathtestnamespace/rs1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/networking/v1
+0000000000000000000000000000000000000000;;		gvr("networking.k8s.io", "v1", "networkpolicies"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "np2"}, "spec": {"podSelector": {"matchLabels": {"e": "f"}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/networkpolicies/etcdstoragepathtestnamespace/np2",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("extensions", "v1beta1", "NetworkPolicy"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/policy/v1beta1
+0000000000000000000000000000000000000000;;		gvr("policy", "v1beta1", "poddisruptionbudgets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "pdb1"}, "spec": {"selector": {"matchLabels": {"anokkey": "anokvalue"}}}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/poddisruptionbudgets/etcdstoragepathtestnamespace/pdb1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/storage/v1beta1
+0000000000000000000000000000000000000000;;		gvr("storage.k8s.io", "v1beta1", "storageclasses"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "sc1"}, "provisioner": "aws"}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/storageclasses/sc1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("storage.k8s.io", "v1", "StorageClass"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/storage/v1
+0000000000000000000000000000000000000000;;		gvr("storage.k8s.io", "v1", "storageclasses"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "sc2"}, "provisioner": "aws"}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/storageclasses/sc2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/settings/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("settings.k8s.io", "v1alpha1", "podpresets"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "podpre1"}, "spec": {"env": [{"name": "FOO"}]}}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/podpresets/etcdstoragepathtestnamespace/podpre1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/rbac/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1alpha1", "roles"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "role1"}, "rules": [{"apiGroups": ["v1"], "resources": ["events"], "verbs": ["watch"]}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/roles/etcdstoragepathtestnamespace/role1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("rbac.authorization.k8s.io", "v1beta1", "Role"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1alpha1", "clusterroles"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "crole1"}, "rules": [{"nonResourceURLs": ["/version"], "verbs": ["get"]}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/clusterroles/crole1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("rbac.authorization.k8s.io", "v1beta1", "ClusterRole"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1alpha1", "rolebindings"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "roleb1"}, "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "somecr"}, "subjects": [{"apiVersion": "rbac.authorization.k8s.io/v1alpha1", "kind": "Group", "name": "system:authenticated"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/rolebindings/etcdstoragepathtestnamespace/roleb1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("rbac.authorization.k8s.io", "v1beta1", "RoleBinding"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1alpha1", "clusterrolebindings"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "croleb1"}, "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "somecr"}, "subjects": [{"apiVersion": "rbac.authorization.k8s.io/v1alpha1", "kind": "Group", "name": "system:authenticated"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/clusterrolebindings/croleb1",
+0000000000000000000000000000000000000000;;			expectedGVK:      gvkP("rbac.authorization.k8s.io", "v1beta1", "ClusterRoleBinding"),
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/rbac/v1beta1
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1beta1", "roles"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "role2"}, "rules": [{"apiGroups": ["v1"], "resources": ["events"], "verbs": ["watch"]}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/roles/etcdstoragepathtestnamespace/role2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1beta1", "clusterroles"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "crole2"}, "rules": [{"nonResourceURLs": ["/version"], "verbs": ["get"]}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/clusterroles/crole2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1beta1", "rolebindings"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "roleb2"}, "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "somecr"}, "subjects": [{"apiVersion": "rbac.authorization.k8s.io/v1alpha1", "kind": "Group", "name": "system:authenticated"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/rolebindings/etcdstoragepathtestnamespace/roleb2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("rbac.authorization.k8s.io", "v1beta1", "clusterrolebindings"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata": {"name": "croleb2"}, "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "somecr"}, "subjects": [{"apiVersion": "rbac.authorization.k8s.io/v1alpha1", "kind": "Group", "name": "system:authenticated"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/clusterrolebindings/croleb2",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/admissionregistration/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("admissionregistration.k8s.io", "v1alpha1", "initializerconfigurations"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata":{"name":"ic1"},"initializers":[{"name":"initializer.k8s.io","rules":[{"apiGroups":["group"],"apiVersions":["version"],"resources":["resource"]}],"failurePolicy":"Ignore"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/initializerconfigurations/ic1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;		gvr("admissionregistration.k8s.io", "v1alpha1", "externaladmissionhookconfigurations"): {
+0000000000000000000000000000000000000000;;			stub:             `{"metadata":{"name":"hook1","creationTimestamp":null},"externalAdmissionHooks":[{"name":"externaladmissionhook.k8s.io","clientConfig":{"service":{"namespace":"","name":""},"caBundle":null},"rules":[{"operations":["CREATE"],"apiGroups":["group"],"apiVersions":["version"],"resources":["resource"]}],"failurePolicy":"Ignore"}]}`,
+0000000000000000000000000000000000000000;;			expectedEtcdPath: "/registry/externaladmissionhookconfigurations/hook1",
+0000000000000000000000000000000000000000;;		},
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Be very careful when whitelisting an object as ephemeral.
+0000000000000000000000000000000000000000;;	// Doing so removes the safety we gain from this test by skipping that object.
+0000000000000000000000000000000000000000;;	var ephemeralWhiteList = createEphemeralWhiteList(
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/federation/apis/federation/v1beta1
+0000000000000000000000000000000000000000;;		gvr("federation", "v1beta1", "clusters"), // we cannot create this
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/api/v1
+0000000000000000000000000000000000000000;;		gvr("", "v1", "bindings"),             // annotation on pod, not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("", "v1", "rangeallocations"),     // stored in various places in etcd but cannot be directly created
+0000000000000000000000000000000000000000;;		gvr("", "v1", "componentstatuses"),    // status info not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("", "v1", "serializedreferences"), // used for serilization, not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("", "v1", "podstatusresults"),     // wrapper object not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/authentication/v1beta1
+0000000000000000000000000000000000000000;;		gvr("authentication.k8s.io", "v1beta1", "tokenreviews"), // not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/authentication/v1
+0000000000000000000000000000000000000000;;		gvr("authentication.k8s.io", "v1", "tokenreviews"), // not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/authorization/v1beta1
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SAR objects that are not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1beta1", "selfsubjectaccessreviews"),
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1beta1", "localsubjectaccessreviews"),
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1beta1", "subjectaccessreviews"),
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/authorization/v1
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SAR objects that are not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1", "selfsubjectaccessreviews"),
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1", "localsubjectaccessreviews"),
+0000000000000000000000000000000000000000;;		gvr("authorization.k8s.io", "v1", "subjectaccessreviews"),
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/autoscaling/v1
+0000000000000000000000000000000000000000;;		gvr("autoscaling", "v1", "scales"), // not stored in etcd, part of kapiv1.ReplicationController
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/apps/v1beta1
+0000000000000000000000000000000000000000;;		gvr("apps", "v1beta1", "scales"),              // not stored in etcd, part of kapiv1.ReplicationController
+0000000000000000000000000000000000000000;;		gvr("apps", "v1beta1", "deploymentrollbacks"), // used to rollback deployment, not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/batch/v2alpha1
+0000000000000000000000000000000000000000;;		gvr("batch", "v2alpha1", "jobtemplates"), // not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/componentconfig/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("componentconfig", "v1alpha1", "kubeletconfigurations"),       // not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("componentconfig", "v1alpha1", "kubeschedulerconfigurations"), // not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("componentconfig", "v1alpha1", "kubeproxyconfigurations"),     // not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/extensions/v1beta1
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "deploymentrollbacks"),          // used to rollback deployment, not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "replicationcontrollerdummies"), // not stored in etcd
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "scales"),                       // not stored in etcd, part of kapiv1.ReplicationController
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "thirdpartyresourcedatas"),      // we cannot create this
+0000000000000000000000000000000000000000;;		gvr("extensions", "v1beta1", "thirdpartyresources"),          // these have been removed from the API server, but kept for the client
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/imagepolicy/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("imagepolicy.k8s.io", "v1alpha1", "imagereviews"), // not stored in etcd
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/policy/v1beta1
+0000000000000000000000000000000000000000;;		gvr("policy", "v1beta1", "evictions"), // not stored in etcd, deals with evicting kapiv1.Pod
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/apis/admission/v1alpha1
+0000000000000000000000000000000000000000;;		gvr("admission.k8s.io", "v1alpha1", "admissionreviews"), // not stored in etcd, call out to webhooks.
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Only add kinds to this list when there is no mapping from GVK to GVR (and thus there is no way to create the object)
+0000000000000000000000000000000000000000;;	var kindWhiteList = sets.NewString(
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/api/v1
+0000000000000000000000000000000000000000;;		"DeleteOptions",
+0000000000000000000000000000000000000000;;		"ExportOptions",
+0000000000000000000000000000000000000000;;		"ListOptions",
+0000000000000000000000000000000000000000;;		"NodeProxyOptions",
+0000000000000000000000000000000000000000;;		"PodAttachOptions",
+0000000000000000000000000000000000000000;;		"PodExecOptions",
+0000000000000000000000000000000000000000;;		"PodLogOptions",
+0000000000000000000000000000000000000000;;		"PodProxyOptions",
+0000000000000000000000000000000000000000;;		"ServiceProxyOptions",
+0000000000000000000000000000000000000000;;		"GetOptions",
+0000000000000000000000000000000000000000;;		"APIGroup",
+0000000000000000000000000000000000000000;;		"PodPortForwardOptions",
+0000000000000000000000000000000000000000;;		"APIVersions",
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/watch/versioned
+0000000000000000000000000000000000000000;;		"WatchEvent",
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// k8s.io/kubernetes/pkg/api/unversioned
+0000000000000000000000000000000000000000;;		"Status",
+0000000000000000000000000000000000000000;;		// --
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// namespace used for all tests, do not change this
+0000000000000000000000000000000000000000;;	const testNamespace = "etcdstoragepathtestnamespace"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TestEtcdStoragePath tests to make sure that all objects are stored in an expected location in etcd.
+0000000000000000000000000000000000000000;;	// It will start failing when a new type is added to ensure that all future types are added to this test.
+0000000000000000000000000000000000000000;;	// It will also fail when a type gets moved to a different location. Be very careful in this situation because
+0000000000000000000000000000000000000000;;	// it essentially means that you will be break old clusters unless you create some migration path for the old data.
+0000000000000000000000000000000000000000;;	func TestEtcdStoragePath(t *testing.T) {
+0000000000000000000000000000000000000000;;		certDir, _ := ioutil.TempDir("", "test-integration-etcd")
+0000000000000000000000000000000000000000;;		defer os.RemoveAll(certDir)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		client, kvClient, mapper := startRealMasterOrDie(t, certDir)
+0000000000000000000000000000000000000000;;		defer func() {
+0000000000000000000000000000000000000000;;			dumpEtcdKVOnFailure(t, kvClient)
+0000000000000000000000000000000000000000;;		}()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kindSeen := sets.NewString()
+0000000000000000000000000000000000000000;;		pathSeen := map[string][]schema.GroupVersionResource{}
+0000000000000000000000000000000000000000;;		etcdSeen := map[schema.GroupVersionResource]empty{}
+0000000000000000000000000000000000000000;;		ephemeralSeen := map[schema.GroupVersionResource]empty{}
+0000000000000000000000000000000000000000;;		cohabitatingResources := map[string]map[schema.GroupVersionKind]empty{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for gvk, apiType := range kapi.Scheme.AllKnownTypes() {
+0000000000000000000000000000000000000000;;			// we do not care about internal objects or lists // TODO make sure this is always true
+0000000000000000000000000000000000000000;;			if gvk.Version == runtime.APIVersionInternal || strings.HasSuffix(apiType.Name(), "List") {
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			kind := gvk.Kind
+0000000000000000000000000000000000000000;;			pkgPath := apiType.PkgPath()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				kindSeen.Insert(kind)
+0000000000000000000000000000000000000000;;				if kindWhiteList.Has(kind) {
+0000000000000000000000000000000000000000;;					// t.Logf("skipping test for %s from %s because its GVK %s is whitelisted and has no mapping", kind, pkgPath, gvk)
+0000000000000000000000000000000000000000;;				} else {
+0000000000000000000000000000000000000000;;					t.Errorf("no mapping found for %s from %s but its GVK %s is not whitelisted", kind, pkgPath, gvk)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			gvResource := gvk.GroupVersion().WithResource(mapping.Resource)
+0000000000000000000000000000000000000000;;			etcdSeen[gvResource] = empty{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			testData, hasTest := etcdStorageData[gvResource]
+0000000000000000000000000000000000000000;;			_, isEphemeral := ephemeralWhiteList[gvResource]
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if !hasTest && !isEphemeral {
+0000000000000000000000000000000000000000;;				t.Errorf("no test data for %s from %s.  Please add a test for your new type to etcdStorageData.", kind, pkgPath)
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if hasTest && isEphemeral {
+0000000000000000000000000000000000000000;;				t.Errorf("duplicate test data for %s from %s.  Object has both test data and is ephemeral.", kind, pkgPath)
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if isEphemeral { // TODO it would be nice if we could remove this and infer if an object is not stored in etcd
+0000000000000000000000000000000000000000;;				// t.Logf("Skipping test for %s from %s", kind, pkgPath)
+0000000000000000000000000000000000000000;;				ephemeralSeen[gvResource] = empty{}
+0000000000000000000000000000000000000000;;				delete(etcdSeen, gvResource)
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if len(testData.expectedEtcdPath) == 0 {
+0000000000000000000000000000000000000000;;				t.Errorf("empty test data for %s from %s", kind, pkgPath)
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			shouldCreate := len(testData.stub) != 0 // try to create only if we have a stub
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			var input *metaObject
+0000000000000000000000000000000000000000;;			if shouldCreate {
+0000000000000000000000000000000000000000;;				if input, err = jsonToMetaObject([]byte(testData.stub)); err != nil || input.isEmpty() {
+0000000000000000000000000000000000000000;;					t.Errorf("invalid test data for %s from %s: %v", kind, pkgPath, err)
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			func() { // forces defer to run per iteration of the for loop
+0000000000000000000000000000000000000000;;				all := &[]cleanupData{}
+0000000000000000000000000000000000000000;;				defer func() {
+0000000000000000000000000000000000000000;;					if !t.Failed() { // do not cleanup if test has already failed since we may need things in the etcd dump
+0000000000000000000000000000000000000000;;						if err := client.cleanup(all); err != nil {
+0000000000000000000000000000000000000000;;							t.Fatalf("failed to clean up etcd: %#v", err)
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if err := client.createPrerequisites(mapper, testNamespace, testData.prerequisites, all); err != nil {
+0000000000000000000000000000000000000000;;					t.Errorf("failed to create prerequisites for %s from %s: %#v", kind, pkgPath, err)
+0000000000000000000000000000000000000000;;					return
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if shouldCreate { // do not try to create items with no stub
+0000000000000000000000000000000000000000;;					if err := client.create(testData.stub, testNamespace, mapping, all); err != nil {
+0000000000000000000000000000000000000000;;						t.Errorf("failed to create stub for %s from %s: %#v", kind, pkgPath, err)
+0000000000000000000000000000000000000000;;						return
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				output, err := getFromEtcd(kvClient, testData.expectedEtcdPath)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Errorf("failed to get from etcd for %s from %s: %#v", kind, pkgPath, err)
+0000000000000000000000000000000000000000;;					return
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				expectedGVK := gvk
+0000000000000000000000000000000000000000;;				if testData.expectedGVK != nil {
+0000000000000000000000000000000000000000;;					if gvk == *testData.expectedGVK {
+0000000000000000000000000000000000000000;;						t.Errorf("GVK override %s for %s from %s is unnecessary or something was changed incorrectly", testData.expectedGVK, kind, pkgPath)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					expectedGVK = *testData.expectedGVK
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				actualGVK := output.getGVK()
+0000000000000000000000000000000000000000;;				if actualGVK != expectedGVK {
+0000000000000000000000000000000000000000;;					t.Errorf("GVK for %s from %s does not match, expected %s got %s", kind, pkgPath, expectedGVK, actualGVK)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if !apiequality.Semantic.DeepDerivative(input, output) {
+0000000000000000000000000000000000000000;;					t.Errorf("Test stub for %s from %s does not match: %s", kind, pkgPath, diff.ObjectGoPrintDiff(input, output))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				addGVKToEtcdBucket(cohabitatingResources, actualGVK, getEtcdBucket(testData.expectedEtcdPath))
+0000000000000000000000000000000000000000;;				pathSeen[testData.expectedEtcdPath] = append(pathSeen[testData.expectedEtcdPath], gvResource)
+0000000000000000000000000000000000000000;;			}()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if inEtcdData, inEtcdSeen := diffMaps(etcdStorageData, etcdSeen); len(inEtcdData) != 0 || len(inEtcdSeen) != 0 {
+0000000000000000000000000000000000000000;;			t.Errorf("etcd data does not match the types we saw:\nin etcd data but not seen:\n%s\nseen but not in etcd data:\n%s", inEtcdData, inEtcdSeen)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if inEphemeralWhiteList, inEphemeralSeen := diffMaps(ephemeralWhiteList, ephemeralSeen); len(inEphemeralWhiteList) != 0 || len(inEphemeralSeen) != 0 {
+0000000000000000000000000000000000000000;;			t.Errorf("ephemeral whitelist does not match the types we saw:\nin ephemeral whitelist but not seen:\n%s\nseen but not in ephemeral whitelist:\n%s", inEphemeralWhiteList, inEphemeralSeen)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if inKindData, inKindSeen := diffMaps(kindWhiteList, kindSeen); len(inKindData) != 0 || len(inKindSeen) != 0 {
+0000000000000000000000000000000000000000;;			t.Errorf("kind whitelist data does not match the types we saw:\nin kind whitelist but not seen:\n%s\nseen but not in kind whitelist:\n%s", inKindData, inKindSeen)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for bucket, gvks := range cohabitatingResources {
+0000000000000000000000000000000000000000;;			if len(gvks) != 1 {
+0000000000000000000000000000000000000000;;				gvkStrings := []string{}
+0000000000000000000000000000000000000000;;				for key := range gvks {
+0000000000000000000000000000000000000000;;					gvkStrings = append(gvkStrings, keyStringer(key))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Errorf("cohabitating resources in etcd bucket %s have inconsistent GVKs\nyou may need to use DefaultStorageFactory.AddCohabitatingResources to sync the GVK of these resources:\n%s", bucket, gvkStrings)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for path, gvrs := range pathSeen {
+0000000000000000000000000000000000000000;;			if len(gvrs) != 1 {
+0000000000000000000000000000000000000000;;				gvrStrings := []string{}
+0000000000000000000000000000000000000000;;				for _, key := range gvrs {
+0000000000000000000000000000000000000000;;					gvrStrings = append(gvrStrings, keyStringer(key))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Errorf("invalid test data, please ensure all expectedEtcdPath are unique, path %s has duplicate GVRs:\n%s", path, gvrStrings)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func startRealMasterOrDie(t *testing.T, certDir string) (*allClient, clientv3.KV, meta.RESTMapper) {
+0000000000000000000000000000000000000000;;		_, defaultServiceClusterIPRange, err := net.ParseCIDR("10.0.0.0/24")
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatal(err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kubeClientConfigValue := atomic.Value{}
+0000000000000000000000000000000000000000;;		storageConfigValue := atomic.Value{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		go func() {
+0000000000000000000000000000000000000000;;			for {
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions := options.NewServerRunOptions()
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.SecureServing.BindAddress = net.ParseIP("127.0.0.1")
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.SecureServing.ServerCert.CertDirectory = certDir
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.Etcd.StorageConfig.ServerList = []string{framework.GetEtcdURLFromEnv()}
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.Etcd.DefaultStorageMediaType = runtime.ContentTypeJSON // TODO use protobuf?
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.ServiceClusterIPRange = *defaultServiceClusterIPRange
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.Authorization.Mode = "RBAC"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				// always get a fresh port in case something claimed the old one
+0000000000000000000000000000000000000000;;				kubePort, err := framework.FindFreeLocalPort()
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Fatal(err)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				kubeAPIServerOptions.SecureServing.BindPort = kubePort
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				tunneler, proxyTransport, err := app.CreateNodeDialer(kubeAPIServerOptions)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Fatal(err)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				kubeAPIServerConfig, sharedInformers, _, _, _, err := app.CreateKubeAPIServerConfig(kubeAPIServerOptions, tunneler, proxyTransport)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Fatal(err)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				kubeAPIServerConfig.APIResourceConfigSource = &allResourceSource{} // force enable all resources
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				kubeAPIServer, err := app.CreateKubeAPIServer(kubeAPIServerConfig, genericapiserver.EmptyDelegate, sharedInformers)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					t.Fatal(err)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				kubeClientConfigValue.Store(kubeAPIServerConfig.GenericConfig.LoopbackClientConfig)
+0000000000000000000000000000000000000000;;				storageConfigValue.Store(kubeAPIServerOptions.Etcd.StorageConfig)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if err := kubeAPIServer.GenericAPIServer.PrepareRun().Run(wait.NeverStop); err != nil {
+0000000000000000000000000000000000000000;;					t.Log(err)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				time.Sleep(100 * time.Millisecond)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err := wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (done bool, err error) {
+0000000000000000000000000000000000000000;;			obj := kubeClientConfigValue.Load()
+0000000000000000000000000000000000000000;;			if obj == nil {
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			kubeClientConfig := kubeClientConfigValue.Load().(*restclient.Config)
+0000000000000000000000000000000000000000;;			kubeClient, err := kclient.NewForConfig(kubeClientConfig)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				// this happens because we race the API server start
+0000000000000000000000000000000000000000;;				t.Log(err)
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if _, err := kubeClient.Discovery().ServerVersion(); err != nil {
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return true, nil
+0000000000000000000000000000000000000000;;		}); err != nil {
+0000000000000000000000000000000000000000;;			t.Fatal(err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kubeClientConfig := kubeClientConfigValue.Load().(*restclient.Config)
+0000000000000000000000000000000000000000;;		storageConfig := storageConfigValue.Load().(storagebackend.Config)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kubeClient := clientset.NewForConfigOrDie(kubeClientConfig)
+0000000000000000000000000000000000000000;;		if _, err := kubeClient.CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}); err != nil {
+0000000000000000000000000000000000000000;;			t.Fatal(err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		client, err := newClient(*kubeClientConfig)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatal(err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		kvClient, err := getEtcdKVClient(storageConfig)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatal(err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		mapper, _ := util.NewFactory(clientcmd.NewDefaultClientConfig(*clientcmdapi.NewConfig(), &clientcmd.ConfigOverrides{})).Object()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return client, kvClient, mapper
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func dumpEtcdKVOnFailure(t *testing.T, kvClient clientv3.KV) {
+0000000000000000000000000000000000000000;;		if t.Failed() {
+0000000000000000000000000000000000000000;;			response, err := kvClient.Get(context.Background(), "/", clientv3.WithPrefix())
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				t.Fatal(err)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			for _, kv := range response.Kvs {
+0000000000000000000000000000000000000000;;				t.Error(string(kv.Key), "->", string(kv.Value))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func addGVKToEtcdBucket(cohabitatingResources map[string]map[schema.GroupVersionKind]empty, gvk schema.GroupVersionKind, bucket string) {
+0000000000000000000000000000000000000000;;		if cohabitatingResources[bucket] == nil {
+0000000000000000000000000000000000000000;;			cohabitatingResources[bucket] = map[schema.GroupVersionKind]empty{}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		cohabitatingResources[bucket][gvk] = empty{}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// getEtcdBucket assumes the last segment of the given etcd path is the name of the object.
+0000000000000000000000000000000000000000;;	// Thus it strips that segment to extract the object's storage "bucket" in etcd. We expect
+0000000000000000000000000000000000000000;;	// all objects that share the a bucket (cohabitating resources) to be stored as the same GVK.
+0000000000000000000000000000000000000000;;	func getEtcdBucket(path string) string {
+0000000000000000000000000000000000000000;;		idx := strings.LastIndex(path, "/")
+0000000000000000000000000000000000000000;;		if idx == -1 {
+0000000000000000000000000000000000000000;;			panic("path with no slashes " + path)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		bucket := path[:idx]
+0000000000000000000000000000000000000000;;		if len(bucket) == 0 {
+0000000000000000000000000000000000000000;;			panic("invalid bucket for path " + path)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return bucket
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// stable fields to compare as a sanity check
+0000000000000000000000000000000000000000;;	type metaObject struct {
+0000000000000000000000000000000000000000;;		// all of type meta
+0000000000000000000000000000000000000000;;		Kind       string `json:"kind,omitempty" protobuf:"bytes,1,opt,name=kind"`
+0000000000000000000000000000000000000000;;		APIVersion string `json:"apiVersion,omitempty" protobuf:"bytes,2,opt,name=apiVersion"`
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// parts of object meta
+0000000000000000000000000000000000000000;;		Metadata struct {
+0000000000000000000000000000000000000000;;			Name      string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
+0000000000000000000000000000000000000000;;			Namespace string `json:"namespace,omitempty" protobuf:"bytes,2,opt,name=namespace"`
+0000000000000000000000000000000000000000;;		} `json:"metadata,omitempty" protobuf:"bytes,3,opt,name=metadata"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (obj *metaObject) getGVK() schema.GroupVersionKind {
+0000000000000000000000000000000000000000;;		return schema.FromAPIVersionAndKind(obj.APIVersion, obj.Kind)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (obj *metaObject) isEmpty() bool {
+0000000000000000000000000000000000000000;;		return obj == nil || *obj == metaObject{} // compare to zero value since all fields are strings
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type prerequisite struct {
+0000000000000000000000000000000000000000;;		gvrData schema.GroupVersionResource
+0000000000000000000000000000000000000000;;		stub    string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type empty struct{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type cleanupData struct {
+0000000000000000000000000000000000000000;;		obj     runtime.Object
+0000000000000000000000000000000000000000;;		mapping *meta.RESTMapping
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func gvr(g, v, r string) schema.GroupVersionResource {
+0000000000000000000000000000000000000000;;		return schema.GroupVersionResource{Group: g, Version: v, Resource: r}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func gvkP(g, v, k string) *schema.GroupVersionKind {
+0000000000000000000000000000000000000000;;		return &schema.GroupVersionKind{Group: g, Version: v, Kind: k}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func createEphemeralWhiteList(gvrs ...schema.GroupVersionResource) map[schema.GroupVersionResource]empty {
+0000000000000000000000000000000000000000;;		ephemeral := map[schema.GroupVersionResource]empty{}
+0000000000000000000000000000000000000000;;		for _, gvResource := range gvrs {
+0000000000000000000000000000000000000000;;			if _, ok := ephemeral[gvResource]; ok {
+0000000000000000000000000000000000000000;;				panic("invalid ephemeral whitelist contains duplicate keys")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			ephemeral[gvResource] = empty{}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ephemeral
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func jsonToMetaObject(stub []byte) (*metaObject, error) {
+0000000000000000000000000000000000000000;;		obj := &metaObject{}
+0000000000000000000000000000000000000000;;		if err := json.Unmarshal(stub, obj); err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return obj, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func keyStringer(i interface{}) string {
+0000000000000000000000000000000000000000;;		base := "\n\t"
+0000000000000000000000000000000000000000;;		switch key := i.(type) {
+0000000000000000000000000000000000000000;;		case string:
+0000000000000000000000000000000000000000;;			return base + key
+0000000000000000000000000000000000000000;;		case schema.GroupVersionResource:
+0000000000000000000000000000000000000000;;			return base + key.String()
+0000000000000000000000000000000000000000;;		case schema.GroupVersionKind:
+0000000000000000000000000000000000000000;;			return base + key.String()
+0000000000000000000000000000000000000000;;		default:
+0000000000000000000000000000000000000000;;			panic("unexpected type")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type allClient struct {
+0000000000000000000000000000000000000000;;		client  *http.Client
+0000000000000000000000000000000000000000;;		config  *restclient.Config
+0000000000000000000000000000000000000000;;		backoff restclient.BackoffManager
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *allClient) verb(verb string, gvk schema.GroupVersionKind) (*restclient.Request, error) {
+0000000000000000000000000000000000000000;;		apiPath := "/apis"
+0000000000000000000000000000000000000000;;		if gvk.Group == kapi.GroupName {
+0000000000000000000000000000000000000000;;			apiPath = "/api"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		baseURL, versionedAPIPath, err := restclient.DefaultServerURL(c.config.Host, apiPath, gvk.GroupVersion(), true)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		contentConfig := c.config.ContentConfig
+0000000000000000000000000000000000000000;;		gv := gvk.GroupVersion()
+0000000000000000000000000000000000000000;;		contentConfig.GroupVersion = &gv
+0000000000000000000000000000000000000000;;		serializers, err := createSerializers(contentConfig)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return restclient.NewRequest(c.client, verb, baseURL, versionedAPIPath, contentConfig, *serializers, c.backoff, c.config.RateLimiter), nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *allClient) create(stub, ns string, mapping *meta.RESTMapping, all *[]cleanupData) error {
+0000000000000000000000000000000000000000;;		req, err := c.verb("POST", mapping.GroupVersionKind)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
+0000000000000000000000000000000000000000;;		output, err := req.NamespaceIfScoped(ns, namespaced).Resource(mapping.Resource).Body(strings.NewReader(stub)).Do().Get()
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		*all = append(*all, cleanupData{output, mapping})
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *allClient) destroy(obj runtime.Object, mapping *meta.RESTMapping) error {
+0000000000000000000000000000000000000000;;		req, err := c.verb("DELETE", mapping.GroupVersionKind)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
+0000000000000000000000000000000000000000;;		name, err := mapping.MetadataAccessor.Name(obj)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		ns, err := mapping.MetadataAccessor.Namespace(obj)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return req.NamespaceIfScoped(ns, namespaced).Resource(mapping.Resource).Name(name).Do().Error()
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *allClient) cleanup(all *[]cleanupData) error {
+0000000000000000000000000000000000000000;;		for i := len(*all) - 1; i >= 0; i-- { // delete in reverse order in case creation order mattered
+0000000000000000000000000000000000000000;;			obj := (*all)[i].obj
+0000000000000000000000000000000000000000;;			mapping := (*all)[i].mapping
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if err := c.destroy(obj, mapping); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *allClient) createPrerequisites(mapper meta.RESTMapper, ns string, prerequisites []prerequisite, all *[]cleanupData) error {
+0000000000000000000000000000000000000000;;		for _, prerequisite := range prerequisites {
+0000000000000000000000000000000000000000;;			gvk, err := mapper.KindFor(prerequisite.gvrData)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if err := c.create(prerequisite.stub, ns, mapping, all); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func newClient(config restclient.Config) (*allClient, error) {
+0000000000000000000000000000000000000000;;		config.ContentConfig.NegotiatedSerializer = kapi.Codecs
+0000000000000000000000000000000000000000;;		config.ContentConfig.ContentType = "application/json"
+0000000000000000000000000000000000000000;;		config.Timeout = 30 * time.Second
+0000000000000000000000000000000000000000;;		config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(3, 10)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		transport, err := restclient.TransportFor(&config)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		client := &http.Client{
+0000000000000000000000000000000000000000;;			Transport: transport,
+0000000000000000000000000000000000000000;;			Timeout:   config.Timeout,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		backoff := &restclient.URLBackoff{
+0000000000000000000000000000000000000000;;			Backoff: flowcontrol.NewBackOff(1*time.Second, 10*time.Second),
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return &allClient{
+0000000000000000000000000000000000000000;;			client:  client,
+0000000000000000000000000000000000000000;;			config:  &config,
+0000000000000000000000000000000000000000;;			backoff: backoff,
+0000000000000000000000000000000000000000;;		}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// copied from restclient
+0000000000000000000000000000000000000000;;	func createSerializers(config restclient.ContentConfig) (*restclient.Serializers, error) {
+0000000000000000000000000000000000000000;;		mediaTypes := config.NegotiatedSerializer.SupportedMediaTypes()
+0000000000000000000000000000000000000000;;		contentType := config.ContentType
+0000000000000000000000000000000000000000;;		mediaType, _, err := mime.ParseMediaType(contentType)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, fmt.Errorf("the content type specified in the client configuration is not recognized: %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		info, ok := runtime.SerializerInfoForMediaType(mediaTypes, mediaType)
+0000000000000000000000000000000000000000;;		if !ok {
+0000000000000000000000000000000000000000;;			if len(contentType) != 0 || len(mediaTypes) == 0 {
+0000000000000000000000000000000000000000;;				return nil, fmt.Errorf("no serializers registered for %s", contentType)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			info = mediaTypes[0]
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		internalGV := schema.GroupVersions{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				Group:   config.GroupVersion.Group,
+0000000000000000000000000000000000000000;;				Version: runtime.APIVersionInternal,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			// always include the legacy group as a decoding target to handle non-error `Status` return types
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				Group:   "",
+0000000000000000000000000000000000000000;;				Version: runtime.APIVersionInternal,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		s := &restclient.Serializers{
+0000000000000000000000000000000000000000;;			Encoder: config.NegotiatedSerializer.EncoderForVersion(info.Serializer, *config.GroupVersion),
+0000000000000000000000000000000000000000;;			Decoder: config.NegotiatedSerializer.DecoderToVersion(info.Serializer, internalGV),
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			RenegotiatedDecoder: func(contentType string, params map[string]string) (runtime.Decoder, error) {
+0000000000000000000000000000000000000000;;				info, ok := runtime.SerializerInfoForMediaType(mediaTypes, contentType)
+0000000000000000000000000000000000000000;;				if !ok {
+0000000000000000000000000000000000000000;;					return nil, fmt.Errorf("serializer for %s not registered", contentType)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				return config.NegotiatedSerializer.DecoderToVersion(info.Serializer, internalGV), nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if info.StreamSerializer != nil {
+0000000000000000000000000000000000000000;;			s.StreamingSerializer = info.StreamSerializer.Serializer
+0000000000000000000000000000000000000000;;			s.Framer = info.StreamSerializer.Framer
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return s, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getFromEtcd(keys clientv3.KV, path string) (*metaObject, error) {
+0000000000000000000000000000000000000000;;		response, err := keys.Get(context.Background(), path)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if response.More || response.Count != 1 || len(response.Kvs) != 1 {
+0000000000000000000000000000000000000000;;			return nil, fmt.Errorf("Invalid etcd response (not found == %v): %#v", response.Count == 0, response)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return jsonToMetaObject(response.Kvs[0].Value)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func diffMaps(a, b interface{}) ([]string, []string) {
+0000000000000000000000000000000000000000;;		inA := diffMapKeys(a, b, keyStringer)
+0000000000000000000000000000000000000000;;		inB := diffMapKeys(b, a, keyStringer)
+0000000000000000000000000000000000000000;;		return inA, inB
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func diffMapKeys(a, b interface{}, stringer func(interface{}) string) []string {
+0000000000000000000000000000000000000000;;		av := reflect.ValueOf(a)
+0000000000000000000000000000000000000000;;		bv := reflect.ValueOf(b)
+0000000000000000000000000000000000000000;;		ret := []string{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for _, ka := range av.MapKeys() {
+0000000000000000000000000000000000000000;;			kat := ka.Interface()
+0000000000000000000000000000000000000000;;			found := false
+0000000000000000000000000000000000000000;;			for _, kb := range bv.MapKeys() {
+0000000000000000000000000000000000000000;;				kbt := kb.Interface()
+0000000000000000000000000000000000000000;;				if kat == kbt {
+0000000000000000000000000000000000000000;;					found = true
+0000000000000000000000000000000000000000;;					break
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if !found {
+0000000000000000000000000000000000000000;;				ret = append(ret, stringer(kat))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getEtcdKVClient(config storagebackend.Config) (clientv3.KV, error) {
+0000000000000000000000000000000000000000;;		tlsInfo := transport.TLSInfo{
+0000000000000000000000000000000000000000;;			CertFile: config.CertFile,
+0000000000000000000000000000000000000000;;			KeyFile:  config.KeyFile,
+0000000000000000000000000000000000000000;;			CAFile:   config.CAFile,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		tlsConfig, err := tlsInfo.ClientConfig()
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		cfg := clientv3.Config{
+0000000000000000000000000000000000000000;;			Endpoints: config.ServerList,
+0000000000000000000000000000000000000000;;			TLS:       tlsConfig,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		c, err := clientv3.New(cfg)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return clientv3.NewKV(c), nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type allResourceSource struct{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (*allResourceSource) AnyVersionOfResourceEnabled(resource schema.GroupResource) bool { return true }
+0000000000000000000000000000000000000000;;	func (*allResourceSource) AllResourcesForVersionEnabled(version schema.GroupVersion) bool { return true }
+0000000000000000000000000000000000000000;;	func (*allResourceSource) AnyResourcesForGroupEnabled(group string) bool                  { return true }
+0000000000000000000000000000000000000000;;	func (*allResourceSource) ResourceEnabled(resource schema.GroupVersionResource) bool      { return true }
+0000000000000000000000000000000000000000;;	func (*allResourceSource) AnyResourcesForVersionEnabled(version schema.GroupVersion) bool { return true }

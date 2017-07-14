@@ -1,0 +1,60 @@
+0000000000000000000000000000000000000000;;	## How to Contribute ##
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	We always welcome contributions to help make `go-zfs` better. Please take a moment to read this document if you would like to contribute.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Reporting issues ###
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	We use [Github issues](https://github.com/mistifyio/go-zfs/issues) to track bug reports, feature requests, and submitting pull requests.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	If you find a bug:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Use the GitHub issue search to check whether the bug has already been reported.
+0000000000000000000000000000000000000000;;	* If the issue has been fixed, try to reproduce the issue using the latest `master` branch of the repository.
+0000000000000000000000000000000000000000;;	* If the issue still reproduces or has not yet been reported, try to isolate the problem before opening an issue, if possible. Also provide the steps taken to reproduce the bug.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Pull requests ###
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	We welcome bug fixes, improvements, and new features. Before embarking on making significant changes, please open an issue and ask first so that you do not risk duplicating efforts or spending time working on something that may be out of scope. For minor items, just open a pull request.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[Fork the project](https://help.github.com/articles/fork-a-repo), clone your fork, and add the upstream to your remote:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    $ git clone git@github.com:<your-username>/go-zfs.git
+0000000000000000000000000000000000000000;;	    $ cd go-zfs
+0000000000000000000000000000000000000000;;	    $ git remote add upstream https://github.com/mistifyio/go-zfs.git
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	If you need to pull new changes committed upstream:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    $ git checkout master
+0000000000000000000000000000000000000000;;	    $ git fetch upstream
+0000000000000000000000000000000000000000;;	    $ git merge upstream/master
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Don' work directly on master as this makes it harder to merge later. Create a feature branch for your fix or new feature:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    $ git checkout -b <feature-branch-name>
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Please try to commit your changes in logical chunks. Ideally, you should include the issue number in the commit message.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    $ git commit -m "Issue #<issue-number> - <commit-message>"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Push your feature branch to your fork.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    $ git push origin <feature-branch-name>
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[Open a Pull Request](https://help.github.com/articles/using-pull-requests) against the upstream master branch. Please give your pull request a clear title and description and note which issue(s) your pull request fixes.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* All Go code should be formatted using [gofmt](http://golang.org/cmd/gofmt/). 
+0000000000000000000000000000000000000000;;	* Every exported function should have [documentation](http://blog.golang.org/godoc-documenting-go-code) and corresponding [tests](http://golang.org/doc/code.html#Testing).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	**Important:** By submitting a patch, you agree to allow the project owners to license your work under the [Apache 2.0 License](./LICENSE).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Go Tools ###
+0000000000000000000000000000000000000000;;	For consistency and to catch minor issues for all of go code, please run the following:
+0000000000000000000000000000000000000000;;	* goimports
+0000000000000000000000000000000000000000;;	* go vet
+0000000000000000000000000000000000000000;;	* golint
+0000000000000000000000000000000000000000;;	* errcheck
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Many editors can execute the above on save.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	----
+0000000000000000000000000000000000000000;;	Guidelines based on http://azkaban.github.io/contributing.html

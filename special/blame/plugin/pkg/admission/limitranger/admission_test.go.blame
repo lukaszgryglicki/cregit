@@ -1,0 +1,663 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+582e49e90422e842d5b2268c4c15f4d2d1a14d73;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package limitranger
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"strconv"
+0000000000000000000000000000000000000000;;		"testing"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		apiequality "k8s.io/apimachinery/pkg/api/equality"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/resource"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/wait"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/admission"
+0000000000000000000000000000000000000000;;		core "k8s.io/client-go/testing"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+0000000000000000000000000000000000000000;;		informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+0000000000000000000000000000000000000000;;		kubeadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getComputeResourceList(cpu, memory string) api.ResourceList {
+0000000000000000000000000000000000000000;;		res := api.ResourceList{}
+0000000000000000000000000000000000000000;;		if cpu != "" {
+0000000000000000000000000000000000000000;;			res[api.ResourceCPU] = resource.MustParse(cpu)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if memory != "" {
+0000000000000000000000000000000000000000;;			res[api.ResourceMemory] = resource.MustParse(memory)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return res
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getStorageResourceList(storage string) api.ResourceList {
+0000000000000000000000000000000000000000;;		res := api.ResourceList{}
+0000000000000000000000000000000000000000;;		if storage != "" {
+0000000000000000000000000000000000000000;;			res[api.ResourceStorage] = resource.MustParse(storage)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return res
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getResourceRequirements(requests, limits api.ResourceList) api.ResourceRequirements {
+0000000000000000000000000000000000000000;;		res := api.ResourceRequirements{}
+0000000000000000000000000000000000000000;;		res.Requests = requests
+0000000000000000000000000000000000000000;;		res.Limits = limits
+0000000000000000000000000000000000000000;;		return res
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// createLimitRange creates a limit range with the specified data
+0000000000000000000000000000000000000000;;	func createLimitRange(limitType api.LimitType, min, max, defaultLimit, defaultRequest, maxLimitRequestRatio api.ResourceList) api.LimitRange {
+0000000000000000000000000000000000000000;;		return api.LimitRange{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{
+0000000000000000000000000000000000000000;;				Name:      "abc",
+0000000000000000000000000000000000000000;;				Namespace: "test",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			Spec: api.LimitRangeSpec{
+0000000000000000000000000000000000000000;;				Limits: []api.LimitRangeItem{
+0000000000000000000000000000000000000000;;					{
+0000000000000000000000000000000000000000;;						Type:                 limitType,
+0000000000000000000000000000000000000000;;						Min:                  min,
+0000000000000000000000000000000000000000;;						Max:                  max,
+0000000000000000000000000000000000000000;;						Default:              defaultLimit,
+0000000000000000000000000000000000000000;;						DefaultRequest:       defaultRequest,
+0000000000000000000000000000000000000000;;						MaxLimitRequestRatio: maxLimitRequestRatio,
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validLimitRange() api.LimitRange {
+0000000000000000000000000000000000000000;;		return api.LimitRange{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{
+0000000000000000000000000000000000000000;;				Name:      "abc",
+0000000000000000000000000000000000000000;;				Namespace: "test",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			Spec: api.LimitRangeSpec{
+0000000000000000000000000000000000000000;;				Limits: []api.LimitRangeItem{
+0000000000000000000000000000000000000000;;					{
+0000000000000000000000000000000000000000;;						Type: api.LimitTypePod,
+0000000000000000000000000000000000000000;;						Max:  getComputeResourceList("200m", "4Gi"),
+0000000000000000000000000000000000000000;;						Min:  getComputeResourceList("50m", "2Mi"),
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;					{
+0000000000000000000000000000000000000000;;						Type:           api.LimitTypeContainer,
+0000000000000000000000000000000000000000;;						Max:            getComputeResourceList("100m", "2Gi"),
+0000000000000000000000000000000000000000;;						Min:            getComputeResourceList("25m", "1Mi"),
+0000000000000000000000000000000000000000;;						Default:        getComputeResourceList("75m", "10Mi"),
+0000000000000000000000000000000000000000;;						DefaultRequest: getComputeResourceList("50m", "5Mi"),
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validLimitRangeNoDefaults() api.LimitRange {
+0000000000000000000000000000000000000000;;		return api.LimitRange{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{
+0000000000000000000000000000000000000000;;				Name:      "abc",
+0000000000000000000000000000000000000000;;				Namespace: "test",
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			Spec: api.LimitRangeSpec{
+0000000000000000000000000000000000000000;;				Limits: []api.LimitRangeItem{
+0000000000000000000000000000000000000000;;					{
+0000000000000000000000000000000000000000;;						Type: api.LimitTypePod,
+0000000000000000000000000000000000000000;;						Max:  getComputeResourceList("200m", "4Gi"),
+0000000000000000000000000000000000000000;;						Min:  getComputeResourceList("50m", "2Mi"),
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;					{
+0000000000000000000000000000000000000000;;						Type: api.LimitTypeContainer,
+0000000000000000000000000000000000000000;;						Max:  getComputeResourceList("100m", "2Gi"),
+0000000000000000000000000000000000000000;;						Min:  getComputeResourceList("25m", "1Mi"),
+0000000000000000000000000000000000000000;;					},
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validPod(name string, numContainers int, resources api.ResourceRequirements) api.Pod {
+0000000000000000000000000000000000000000;;		pod := api.Pod{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test"},
+0000000000000000000000000000000000000000;;			Spec:       api.PodSpec{},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		pod.Spec.Containers = make([]api.Container, 0, numContainers)
+0000000000000000000000000000000000000000;;		for i := 0; i < numContainers; i++ {
+0000000000000000000000000000000000000000;;			pod.Spec.Containers = append(pod.Spec.Containers, api.Container{
+0000000000000000000000000000000000000000;;				Image:     "foo:V" + strconv.Itoa(i),
+0000000000000000000000000000000000000000;;				Resources: resources,
+0000000000000000000000000000000000000000;;				Name:      "foo-" + strconv.Itoa(i),
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return pod
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validPodInit(pod api.Pod, resources ...api.ResourceRequirements) api.Pod {
+0000000000000000000000000000000000000000;;		for i := 0; i < len(resources); i++ {
+0000000000000000000000000000000000000000;;			pod.Spec.InitContainers = append(pod.Spec.InitContainers, api.Container{
+0000000000000000000000000000000000000000;;				Image:     "foo:V" + strconv.Itoa(i),
+0000000000000000000000000000000000000000;;				Resources: resources[i],
+0000000000000000000000000000000000000000;;				Name:      "foo-" + strconv.Itoa(i),
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return pod
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestDefaultContainerResourceRequirements(t *testing.T) {
+0000000000000000000000000000000000000000;;		limitRange := validLimitRange()
+0000000000000000000000000000000000000000;;		expected := api.ResourceRequirements{
+0000000000000000000000000000000000000000;;			Requests: getComputeResourceList("50m", "5Mi"),
+0000000000000000000000000000000000000000;;			Limits:   getComputeResourceList("75m", "10Mi"),
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		actual := defaultContainerResourceRequirements(&limitRange)
+0000000000000000000000000000000000000000;;		if !apiequality.Semantic.DeepEqual(expected, actual) {
+0000000000000000000000000000000000000000;;			t.Errorf("actual.Limits != expected.Limits; %v != %v", actual.Limits, expected.Limits)
+0000000000000000000000000000000000000000;;			t.Errorf("actual.Requests != expected.Requests; %v != %v", actual.Requests, expected.Requests)
+0000000000000000000000000000000000000000;;			t.Errorf("expected != actual; %v != %v", expected, actual)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func verifyAnnotation(t *testing.T, pod *api.Pod, expected string) {
+0000000000000000000000000000000000000000;;		a, ok := pod.ObjectMeta.Annotations[limitRangerAnnotation]
+0000000000000000000000000000000000000000;;		if !ok {
+0000000000000000000000000000000000000000;;			t.Errorf("No annotation but expected %v", expected)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if a != expected {
+0000000000000000000000000000000000000000;;			t.Errorf("Wrong annotation set by Limit Ranger: got %v, expected %v", a, expected)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func expectNoAnnotation(t *testing.T, pod *api.Pod) {
+0000000000000000000000000000000000000000;;		if a, ok := pod.ObjectMeta.Annotations[limitRangerAnnotation]; ok {
+0000000000000000000000000000000000000000;;			t.Errorf("Expected no annotation but got %v", a)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestMergePodResourceRequirements(t *testing.T) {
+0000000000000000000000000000000000000000;;		limitRange := validLimitRange()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// pod with no resources enumerated should get each resource from default request
+0000000000000000000000000000000000000000;;		expected := getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", ""))
+0000000000000000000000000000000000000000;;		pod := validPod("empty-resources", 1, expected)
+0000000000000000000000000000000000000000;;		defaultRequirements := defaultContainerResourceRequirements(&limitRange)
+0000000000000000000000000000000000000000;;		mergePodResourceRequirements(&pod, &defaultRequirements)
+0000000000000000000000000000000000000000;;		for i := range pod.Spec.Containers {
+0000000000000000000000000000000000000000;;			actual := pod.Spec.Containers[i].Resources
+0000000000000000000000000000000000000000;;			if !apiequality.Semantic.DeepEqual(expected, actual) {
+0000000000000000000000000000000000000000;;				t.Errorf("pod %v, expected != actual; %v != %v", pod.Name, expected, actual)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		verifyAnnotation(t, &pod, "LimitRanger plugin set: cpu, memory request for container foo-0; cpu, memory limit for container foo-0")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// pod with some resources enumerated should only merge empty
+0000000000000000000000000000000000000000;;		input := getResourceRequirements(getComputeResourceList("", "512Mi"), getComputeResourceList("", ""))
+0000000000000000000000000000000000000000;;		pod = validPodInit(validPod("limit-memory", 1, input), input)
+0000000000000000000000000000000000000000;;		expected = api.ResourceRequirements{
+0000000000000000000000000000000000000000;;			Requests: api.ResourceList{
+0000000000000000000000000000000000000000;;				api.ResourceCPU:    defaultRequirements.Requests[api.ResourceCPU],
+0000000000000000000000000000000000000000;;				api.ResourceMemory: resource.MustParse("512Mi"),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			Limits: defaultRequirements.Limits,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		mergePodResourceRequirements(&pod, &defaultRequirements)
+0000000000000000000000000000000000000000;;		for i := range pod.Spec.Containers {
+0000000000000000000000000000000000000000;;			actual := pod.Spec.Containers[i].Resources
+0000000000000000000000000000000000000000;;			if !apiequality.Semantic.DeepEqual(expected, actual) {
+0000000000000000000000000000000000000000;;				t.Errorf("pod %v, expected != actual; %v != %v", pod.Name, expected, actual)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range pod.Spec.InitContainers {
+0000000000000000000000000000000000000000;;			actual := pod.Spec.InitContainers[i].Resources
+0000000000000000000000000000000000000000;;			if !apiequality.Semantic.DeepEqual(expected, actual) {
+0000000000000000000000000000000000000000;;				t.Errorf("pod %v, expected != actual; %v != %v", pod.Name, expected, actual)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		verifyAnnotation(t, &pod, "LimitRanger plugin set: cpu request for container foo-0; cpu, memory limit for container foo-0")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// pod with all resources enumerated should not merge anything
+0000000000000000000000000000000000000000;;		input = getResourceRequirements(getComputeResourceList("100m", "512Mi"), getComputeResourceList("200m", "1G"))
+0000000000000000000000000000000000000000;;		initInputs := []api.ResourceRequirements{getResourceRequirements(getComputeResourceList("200m", "1G"), getComputeResourceList("400m", "2G"))}
+0000000000000000000000000000000000000000;;		pod = validPodInit(validPod("limit-memory", 1, input), initInputs...)
+0000000000000000000000000000000000000000;;		expected = input
+0000000000000000000000000000000000000000;;		mergePodResourceRequirements(&pod, &defaultRequirements)
+0000000000000000000000000000000000000000;;		for i := range pod.Spec.Containers {
+0000000000000000000000000000000000000000;;			actual := pod.Spec.Containers[i].Resources
+0000000000000000000000000000000000000000;;			if !apiequality.Semantic.DeepEqual(expected, actual) {
+0000000000000000000000000000000000000000;;				t.Errorf("pod %v, expected != actual; %v != %v", pod.Name, expected, actual)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range pod.Spec.InitContainers {
+0000000000000000000000000000000000000000;;			actual := pod.Spec.InitContainers[i].Resources
+0000000000000000000000000000000000000000;;			if !apiequality.Semantic.DeepEqual(initInputs[i], actual) {
+0000000000000000000000000000000000000000;;				t.Errorf("pod %v, expected != actual; %v != %v", pod.Name, initInputs[i], actual)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		expectNoAnnotation(t, &pod)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestPodLimitFunc(t *testing.T) {
+0000000000000000000000000000000000000000;;		type testCase struct {
+0000000000000000000000000000000000000000;;			pod        api.Pod
+0000000000000000000000000000000000000000;;			limitRange api.LimitRange
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		successCases := []testCase{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-cpu-request", 1, getResourceRequirements(getComputeResourceList("100m", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("50m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-cpu-request-limit", 1, getResourceRequirements(getComputeResourceList("100m", ""), getComputeResourceList("200m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("50m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-memory-request", 1, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("", "50Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-memory-request-limit", 1, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", "100Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("", "50Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-request-limit", 1, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-mem-request-limit", 1, getResourceRequirements(getComputeResourceList("", "250Mi"), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-ratio", 1, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("750m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, getComputeResourceList("1.5", "")),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-mem-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-cpu-request", 2, getResourceRequirements(getComputeResourceList("75m", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("100m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-cpu-request-limit", 2, getResourceRequirements(getComputeResourceList("75m", ""), getComputeResourceList("200m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("100m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-memory-request", 2, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-memory-request-limit", 2, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", "100Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod: validPodInit(
+0000000000000000000000000000000000000000;;					validPod("pod-init-min-memory-request", 2, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("", "100Mi"), getComputeResourceList("", "")),
+0000000000000000000000000000000000000000;;				),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod: validPodInit(
+0000000000000000000000000000000000000000;;					validPod("pod-init-min-memory-request-limit", 2, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", "100Mi"))),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("", "80Mi"), getComputeResourceList("", "100Mi")),
+0000000000000000000000000000000000000000;;				),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-cpu-request-limit", 2, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-cpu-limit", 2, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod: validPodInit(
+0000000000000000000000000000000000000000;;					validPod("pod-init-max-cpu-request-limit", 2, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("1", ""), getComputeResourceList("2", "")),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("1", ""), getComputeResourceList("1", "")),
+0000000000000000000000000000000000000000;;				),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod: validPodInit(
+0000000000000000000000000000000000000000;;					validPod("pod-init-max-cpu-limit", 2, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("2", "")),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("2", "")),
+0000000000000000000000000000000000000000;;				),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-request-limit", 2, getResourceRequirements(getComputeResourceList("", "250Mi"), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-limit", 2, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-ratio", 3, getResourceRequirements(getComputeResourceList("", "300Mi"), getComputeResourceList("", "450Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "2Gi"), api.ResourceList{}, api.ResourceList{}, getComputeResourceList("", "1.5")),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range successCases {
+0000000000000000000000000000000000000000;;			test := successCases[i]
+0000000000000000000000000000000000000000;;			err := PodLimitFunc(&test.limitRange, &test.pod)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected error for pod: %s, %v", test.pod.Name, err)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		errorCases := []testCase{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-cpu-request", 1, getResourceRequirements(getComputeResourceList("40m", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("50m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-cpu-request-limit", 1, getResourceRequirements(getComputeResourceList("40m", ""), getComputeResourceList("200m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("50m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-cpu-no-request-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("50m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-memory-request", 1, getResourceRequirements(getComputeResourceList("", "40Mi"), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("", "50Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-memory-request-limit", 1, getResourceRequirements(getComputeResourceList("", "40Mi"), getComputeResourceList("", "100Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("", "50Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-min-memory-no-request-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, getComputeResourceList("", "50Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-request-limit", 1, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("2500m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("2500m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-no-request-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-cpu-ratio", 1, getResourceRequirements(getComputeResourceList("1250m", ""), getComputeResourceList("2500m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, getComputeResourceList("1", "")),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-mem-request-limit", 1, getResourceRequirements(getComputeResourceList("", "250Mi"), getComputeResourceList("", "2Gi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-mem-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "2Gi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("ctr-max-mem-no-request-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypeContainer, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-cpu-request", 1, getResourceRequirements(getComputeResourceList("75m", ""), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("100m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-cpu-request-limit", 1, getResourceRequirements(getComputeResourceList("75m", ""), getComputeResourceList("200m", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("100m", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-memory-request", 1, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-min-memory-request-limit", 1, getResourceRequirements(getComputeResourceList("", "60Mi"), getComputeResourceList("", "100Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, getComputeResourceList("", "100Mi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-cpu-request-limit", 3, getResourceRequirements(getComputeResourceList("500m", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-cpu-limit", 3, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("1", ""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("2", ""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-request-limit", 3, getResourceRequirements(getComputeResourceList("", "250Mi"), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-limit", 3, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod: validPodInit(
+0000000000000000000000000000000000000000;;					validPod("pod-init-max-mem-limit", 1, getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;					getResourceRequirements(getComputeResourceList("", ""), getComputeResourceList("", "1.5Gi")),
+0000000000000000000000000000000000000000;;				),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pod:        validPod("pod-max-mem-ratio", 3, getResourceRequirements(getComputeResourceList("", "250Mi"), getComputeResourceList("", "500Mi"))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePod, api.ResourceList{}, getComputeResourceList("", "2Gi"), api.ResourceList{}, api.ResourceList{}, getComputeResourceList("", "1.5")),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range errorCases {
+0000000000000000000000000000000000000000;;			test := errorCases[i]
+0000000000000000000000000000000000000000;;			err := PodLimitFunc(&test.limitRange, &test.pod)
+0000000000000000000000000000000000000000;;			if err == nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Expected error for pod: %s", test.pod.Name)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestPodLimitFuncApplyDefault(t *testing.T) {
+0000000000000000000000000000000000000000;;		limitRange := validLimitRange()
+0000000000000000000000000000000000000000;;		testPod := validPodInit(validPod("foo", 1, getResourceRequirements(api.ResourceList{}, api.ResourceList{})), getResourceRequirements(api.ResourceList{}, api.ResourceList{}))
+0000000000000000000000000000000000000000;;		err := PodLimitFunc(&limitRange, &testPod)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("Unexpected error for valid pod: %v, %v", testPod.Name, err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for i := range testPod.Spec.Containers {
+0000000000000000000000000000000000000000;;			container := testPod.Spec.Containers[i]
+0000000000000000000000000000000000000000;;			limitMemory := container.Resources.Limits.Memory().String()
+0000000000000000000000000000000000000000;;			limitCpu := container.Resources.Limits.Cpu().String()
+0000000000000000000000000000000000000000;;			requestMemory := container.Resources.Requests.Memory().String()
+0000000000000000000000000000000000000000;;			requestCpu := container.Resources.Requests.Cpu().String()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if limitMemory != "10Mi" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected memory value %s", limitMemory)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if limitCpu != "75m" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected cpu value %s", limitCpu)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if requestMemory != "5Mi" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected memory value %s", requestMemory)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if requestCpu != "50m" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected cpu value %s", requestCpu)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for i := range testPod.Spec.InitContainers {
+0000000000000000000000000000000000000000;;			container := testPod.Spec.InitContainers[i]
+0000000000000000000000000000000000000000;;			limitMemory := container.Resources.Limits.Memory().String()
+0000000000000000000000000000000000000000;;			limitCpu := container.Resources.Limits.Cpu().String()
+0000000000000000000000000000000000000000;;			requestMemory := container.Resources.Requests.Memory().String()
+0000000000000000000000000000000000000000;;			requestCpu := container.Resources.Requests.Cpu().String()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			if limitMemory != "10Mi" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected memory value %s", limitMemory)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if limitCpu != "75m" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected cpu value %s", limitCpu)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if requestMemory != "5Mi" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected memory value %s", requestMemory)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if requestCpu != "50m" {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected cpu value %s", requestCpu)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestLimitRangerIgnoresSubresource(t *testing.T) {
+0000000000000000000000000000000000000000;;		limitRange := validLimitRangeNoDefaults()
+0000000000000000000000000000000000000000;;		mockClient := newMockClientForTest([]api.LimitRange{limitRange})
+0000000000000000000000000000000000000000;;		handler, informerFactory, err := newHandlerForTest(mockClient)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("unexpected error initializing handler: %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		informerFactory.Start(wait.NeverStop)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		testPod := validPod("testPod", 1, api.ResourceRequirements{})
+0000000000000000000000000000000000000000;;		err = handler.Admit(admission.NewAttributesRecord(&testPod, nil, api.Kind("Pod").WithVersion("version"), limitRange.Namespace, "testPod", api.Resource("pods").WithVersion("version"), "", admission.Update, nil))
+0000000000000000000000000000000000000000;;		if err == nil {
+0000000000000000000000000000000000000000;;			t.Errorf("Expected an error since the pod did not specify resource limits in its update call")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err = handler.Admit(admission.NewAttributesRecord(&testPod, nil, api.Kind("Pod").WithVersion("version"), limitRange.Namespace, "testPod", api.Resource("pods").WithVersion("version"), "status", admission.Update, nil))
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("Should have ignored calls to any subresource of pod %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestLimitRangerAdmitPod(t *testing.T) {
+0000000000000000000000000000000000000000;;		limitRange := validLimitRangeNoDefaults()
+0000000000000000000000000000000000000000;;		mockClient := newMockClientForTest([]api.LimitRange{limitRange})
+0000000000000000000000000000000000000000;;		handler, informerFactory, err := newHandlerForTest(mockClient)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("unexpected error initializing handler: %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		informerFactory.Start(wait.NeverStop)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		testPod := validPod("testPod", 1, api.ResourceRequirements{})
+0000000000000000000000000000000000000000;;		err = handler.Admit(admission.NewAttributesRecord(&testPod, nil, api.Kind("Pod").WithVersion("version"), limitRange.Namespace, "testPod", api.Resource("pods").WithVersion("version"), "", admission.Update, nil))
+0000000000000000000000000000000000000000;;		if err == nil {
+0000000000000000000000000000000000000000;;			t.Errorf("Expected an error since the pod did not specify resource limits in its update call")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err = handler.Admit(admission.NewAttributesRecord(&testPod, nil, api.Kind("Pod").WithVersion("version"), limitRange.Namespace, "testPod", api.Resource("pods").WithVersion("version"), "status", admission.Update, nil))
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Errorf("Should have ignored calls to any subresource of pod %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// newMockClientForTest creates a mock client that returns a client configured for the specified list of limit ranges
+0000000000000000000000000000000000000000;;	func newMockClientForTest(limitRanges []api.LimitRange) *fake.Clientset {
+0000000000000000000000000000000000000000;;		mockClient := &fake.Clientset{}
+0000000000000000000000000000000000000000;;		mockClient.AddReactor("list", "limitranges", func(action core.Action) (bool, runtime.Object, error) {
+0000000000000000000000000000000000000000;;			limitRangeList := &api.LimitRangeList{
+0000000000000000000000000000000000000000;;				ListMeta: metav1.ListMeta{
+0000000000000000000000000000000000000000;;					ResourceVersion: fmt.Sprintf("%d", len(limitRanges)),
+0000000000000000000000000000000000000000;;				},
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			for index, value := range limitRanges {
+0000000000000000000000000000000000000000;;				value.ResourceVersion = fmt.Sprintf("%d", index)
+0000000000000000000000000000000000000000;;				limitRangeList.Items = append(limitRangeList.Items, value)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return true, limitRangeList, nil
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		return mockClient
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// newHandlerForTest returns a handler configured for testing.
+0000000000000000000000000000000000000000;;	func newHandlerForTest(c clientset.Interface) (admission.Interface, informers.SharedInformerFactory, error) {
+0000000000000000000000000000000000000000;;		f := informers.NewSharedInformerFactory(c, 5*time.Minute)
+0000000000000000000000000000000000000000;;		handler, err := NewLimitRanger(&DefaultLimitRangerActions{})
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, f, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		pluginInitializer := kubeadmission.NewPluginInitializer(c, nil, f, nil, nil, nil, nil)
+0000000000000000000000000000000000000000;;		pluginInitializer.Initialize(handler)
+0000000000000000000000000000000000000000;;		err = admission.Validate(handler)
+0000000000000000000000000000000000000000;;		return handler, f, err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validPersistentVolumeClaim(name string, resources api.ResourceRequirements) api.PersistentVolumeClaim {
+0000000000000000000000000000000000000000;;		pvc := api.PersistentVolumeClaim{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test"},
+0000000000000000000000000000000000000000;;			Spec: api.PersistentVolumeClaimSpec{
+0000000000000000000000000000000000000000;;				Resources: resources,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return pvc
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func TestPersistentVolumeClaimLimitFunc(t *testing.T) {
+0000000000000000000000000000000000000000;;		type testCase struct {
+0000000000000000000000000000000000000000;;			pvc        api.PersistentVolumeClaim
+0000000000000000000000000000000000000000;;			limitRange api.LimitRange
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		successCases := []testCase{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-is-min-storage-request", getResourceRequirements(getStorageResourceList("1Gi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, getStorageResourceList("1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-is-max-storage-request", getResourceRequirements(getStorageResourceList("1Gi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, api.ResourceList{}, getStorageResourceList("1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-no-minmax-storage-request", getResourceRequirements(getStorageResourceList("100Gi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, getStorageResourceList(""), getStorageResourceList(""), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-within-minmax-storage-request", getResourceRequirements(getStorageResourceList("5Gi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, getStorageResourceList("1Gi"), getStorageResourceList("10Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range successCases {
+0000000000000000000000000000000000000000;;			test := successCases[i]
+0000000000000000000000000000000000000000;;			err := PersistentVolumeClaimLimitFunc(&test.limitRange, &test.pvc)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Unexpected error for pvc: %s, %v", test.pvc.Name, err)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		errorCases := []testCase{
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-below-min-storage-request", getResourceRequirements(getStorageResourceList("500Mi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, getStorageResourceList("1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;			{
+0000000000000000000000000000000000000000;;				pvc:        validPersistentVolumeClaim("pvc-exceeds-max-storage-request", getResourceRequirements(getStorageResourceList("100Gi"), getStorageResourceList(""))),
+0000000000000000000000000000000000000000;;				limitRange: createLimitRange(api.LimitTypePersistentVolumeClaim, getStorageResourceList("1Gi"), getStorageResourceList("1Gi"), api.ResourceList{}, api.ResourceList{}, api.ResourceList{}),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		for i := range errorCases {
+0000000000000000000000000000000000000000;;			test := errorCases[i]
+0000000000000000000000000000000000000000;;			err := PersistentVolumeClaimLimitFunc(&test.limitRange, &test.pvc)
+0000000000000000000000000000000000000000;;			if err == nil {
+0000000000000000000000000000000000000000;;				t.Errorf("Expected error for pvc: %s", test.pvc.Name)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}

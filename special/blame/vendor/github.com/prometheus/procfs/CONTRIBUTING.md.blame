@@ -1,0 +1,18 @@
+0000000000000000000000000000000000000000;;	# Contributing
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Prometheus uses GitHub to manage reviews of pull requests.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* If you have a trivial fix or improvement, go ahead and create a pull request,
+0000000000000000000000000000000000000000;;	  addressing (with `@...`) the maintainer of this repository (see
+0000000000000000000000000000000000000000;;	  [MAINTAINERS.md](MAINTAINERS.md)) in the description of the pull request.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* If you plan to do something more involved, first discuss your ideas
+0000000000000000000000000000000000000000;;	  on our [mailing list](https://groups.google.com/forum/?fromgroups#!forum/prometheus-developers).
+0000000000000000000000000000000000000000;;	  This will avoid unnecessary work and surely give you and us a good deal
+0000000000000000000000000000000000000000;;	  of inspiration.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Relevant coding style guidelines are the [Go Code Review
+0000000000000000000000000000000000000000;;	  Comments](https://code.google.com/p/go-wiki/wiki/CodeReviewComments)
+0000000000000000000000000000000000000000;;	  and the _Formatting and style_ section of Peter Bourgon's [Go: Best
+0000000000000000000000000000000000000000;;	  Practices for Production
+0000000000000000000000000000000000000000;;	  Environments](http://peter.bourgon.org/go-in-production/#formatting-and-style).

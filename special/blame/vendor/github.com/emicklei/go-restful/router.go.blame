@@ -1,0 +1,18 @@
+0000000000000000000000000000000000000000;;	package restful
+faffbe4b32b67a5323e317a6025ba76cb607b435;Godeps/_workspace/src/github.com/emicklei/go-restful/router.go[Godeps/_workspace/src/github.com/emicklei/go-restful/router.go][vendor/github.com/emicklei/go-restful/router.go];	
+0000000000000000000000000000000000000000;;	// Copyright 2013 Ernest Micklei. All rights reserved.
+0000000000000000000000000000000000000000;;	// Use of this source code is governed by a license
+0000000000000000000000000000000000000000;;	// that can be found in the LICENSE file.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import "net/http"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A RouteSelector finds the best matching Route given the input HTTP Request
+0000000000000000000000000000000000000000;;	type RouteSelector interface {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// SelectRoute finds a Route given the input HTTP Request and a list of WebServices.
+0000000000000000000000000000000000000000;;		// It returns a selected Route and its containing WebService or an error indicating
+0000000000000000000000000000000000000000;;		// a problem.
+0000000000000000000000000000000000000000;;		SelectRoute(
+0000000000000000000000000000000000000000;;			webServices []*WebService,
+0000000000000000000000000000000000000000;;			httpRequest *http.Request) (selectedService *WebService, selected *Route, err error)
+0000000000000000000000000000000000000000;;	}

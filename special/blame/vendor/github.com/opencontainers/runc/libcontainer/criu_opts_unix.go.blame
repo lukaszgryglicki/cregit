@@ -1,0 +1,37 @@
+0000000000000000000000000000000000000000;;	// +build linux freebsd
+a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/criu_opts_unix.go[Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/criu_opts_unix.go][vendor/github.com/opencontainers/runc/libcontainer/criu_opts_unix.go];	
+0000000000000000000000000000000000000000;;	package libcontainer
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// cgroup restoring strategy provided by criu
+0000000000000000000000000000000000000000;;	type cgMode uint32
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		CRIU_CG_MODE_SOFT    cgMode = 3 + iota // restore cgroup properties if only dir created by criu
+0000000000000000000000000000000000000000;;		CRIU_CG_MODE_FULL                      // always restore all cgroups and their properties
+0000000000000000000000000000000000000000;;		CRIU_CG_MODE_STRICT                    // restore all, requiring them to not present in the system
+0000000000000000000000000000000000000000;;		CRIU_CG_MODE_DEFAULT                   // the same as CRIU_CG_MODE_SOFT
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type CriuPageServerInfo struct {
+0000000000000000000000000000000000000000;;		Address string // IP address of CRIU page server
+0000000000000000000000000000000000000000;;		Port    int32  // port number of CRIU page server
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VethPairName struct {
+0000000000000000000000000000000000000000;;		ContainerInterfaceName string
+0000000000000000000000000000000000000000;;		HostInterfaceName      string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type CriuOpts struct {
+0000000000000000000000000000000000000000;;		ImagesDirectory         string             // directory for storing image files
+0000000000000000000000000000000000000000;;		WorkDirectory           string             // directory to cd and write logs/pidfiles/stats to
+0000000000000000000000000000000000000000;;		LeaveRunning            bool               // leave container in running state after checkpoint
+0000000000000000000000000000000000000000;;		TcpEstablished          bool               // checkpoint/restore established TCP connections
+0000000000000000000000000000000000000000;;		ExternalUnixConnections bool               // allow external unix connections
+0000000000000000000000000000000000000000;;		ShellJob                bool               // allow to dump and restore shell jobs
+0000000000000000000000000000000000000000;;		FileLocks               bool               // handle file locks, for safety
+0000000000000000000000000000000000000000;;		PageServer              CriuPageServerInfo // allow to dump to criu page server
+0000000000000000000000000000000000000000;;		VethPairs               []VethPairName     // pass the veth to criu when restore
+0000000000000000000000000000000000000000;;		ManageCgroupsMode       cgMode             // dump or restore cgroup mode
+0000000000000000000000000000000000000000;;		EmptyNs                 uint32             // don't c/r properties for namespace from this mask
+0000000000000000000000000000000000000000;;	}

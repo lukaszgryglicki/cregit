@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000;;	// +build linux,go1.5
+a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/setgroups_linux.go[Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/setgroups_linux.go][vendor/github.com/opencontainers/runc/libcontainer/setgroups_linux.go];	
+0000000000000000000000000000000000000000;;	package libcontainer
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import "syscall"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Set the GidMappingsEnableSetgroups member to true, so the process's
+0000000000000000000000000000000000000000;;	// setgroups proc entry wont be set to 'deny' if GidMappings are set
+0000000000000000000000000000000000000000;;	func enableSetgroups(sys *syscall.SysProcAttr) {
+0000000000000000000000000000000000000000;;		sys.GidMappingsEnableSetgroups = true
+0000000000000000000000000000000000000000;;	}

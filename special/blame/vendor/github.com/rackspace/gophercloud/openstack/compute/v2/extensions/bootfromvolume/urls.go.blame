@@ -1,0 +1,7 @@
+0000000000000000000000000000000000000000;;	package bootfromvolume
+54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/urls.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/urls.go][vendor/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/urls.go];	
+0000000000000000000000000000000000000000;;	import "github.com/rackspace/gophercloud"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func createURL(c *gophercloud.ServiceClient) string {
+0000000000000000000000000000000000000000;;		return c.ServiceURL("os-volumes_boot")
+0000000000000000000000000000000000000000;;	}

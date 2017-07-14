@@ -1,0 +1,298 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+2a810560bf8e35592e32759f1a0c5264ce314f31;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package bootstrappolicy
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/golang/glog"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		rbac "k8s.io/kubernetes/pkg/apis/rbac"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const saRolePrefix = "system:controller:"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		// controllerRoles is a slice of roles used for controllers
+0000000000000000000000000000000000000000;;		controllerRoles = []rbac.ClusterRole{}
+0000000000000000000000000000000000000000;;		// controllerRoleBindings is a slice of roles used for controllers
+0000000000000000000000000000000000000000;;		controllerRoleBindings = []rbac.ClusterRoleBinding{}
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func addControllerRole(role rbac.ClusterRole) {
+0000000000000000000000000000000000000000;;		if !strings.HasPrefix(role.Name, saRolePrefix) {
+0000000000000000000000000000000000000000;;			glog.Fatalf(`role %q must start with %q`, role.Name, saRolePrefix)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for _, existingRole := range controllerRoles {
+0000000000000000000000000000000000000000;;			if role.Name == existingRole.Name {
+0000000000000000000000000000000000000000;;				glog.Fatalf("role %q was already registered", role.Name)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		controllerRoles = append(controllerRoles, role)
+0000000000000000000000000000000000000000;;		addClusterRoleLabel(controllerRoles)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		controllerRoleBindings = append(controllerRoleBindings,
+0000000000000000000000000000000000000000;;			rbac.NewClusterBinding(role.Name).SAs("kube-system", role.Name[len(saRolePrefix):]).BindingOrDie())
+0000000000000000000000000000000000000000;;		addClusterRoleBindingLabel(controllerRoleBindings)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func eventsRule() rbac.PolicyRule {
+0000000000000000000000000000000000000000;;		return rbac.NewRule("create", "update", "patch").Groups(legacyGroup).Resources("events").RuleOrDie()
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func init() {
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "attachdetach-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("persistentvolumes", "persistentvolumeclaims").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("patch", "update").Groups(legacyGroup).Resources("nodes/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "cronjob-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(batchGroup).Resources("cronjobs").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "create", "update", "delete", "patch").Groups(batchGroup).Resources("jobs").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(batchGroup).Resources("cronjobs/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "daemon-set-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(extensionsGroup).Resources("daemonsets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(extensionsGroup).Resources("daemonsets/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "create", "delete", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("create").Groups(legacyGroup).Resources("pods/binding").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "create", "delete", "update", "patch").Groups(appsGroup).Resources("controllerrevisions").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "deployment-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(extensionsGroup, appsGroup).Resources("deployments").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(extensionsGroup, appsGroup).Resources("deployments/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "create", "update", "patch", "delete").Groups(extensionsGroup).Resources("replicasets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// TODO: remove "update" once
+0000000000000000000000000000000000000000;;				// https://github.com/kubernetes/kubernetes/issues/36897 is resolved.
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "disruption-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(extensionsGroup, appsGroup).Resources("deployments").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(extensionsGroup).Resources("replicasets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("replicationcontrollers").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(policyGroup).Resources("poddisruptionbudgets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(appsGroup).Resources("statefulsets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(policyGroup).Resources("poddisruptionbudgets/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "endpoint-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("services", "pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "create", "update", "delete").Groups(legacyGroup).Resources("endpoints").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("create").Groups(legacyGroup).Resources("endpoints/restricted").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "generic-garbage-collector"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				// the GC controller needs to run list/watches, selective gets, and updates against any resource
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "patch", "update", "delete").Groups("*").Resources("*").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "horizontal-pod-autoscaler"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(autoscalingGroup).Resources("horizontalpodautoscalers").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(autoscalingGroup).Resources("horizontalpodautoscalers/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "update").Groups(legacyGroup).Resources("replicationcontrollers/scale").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// TODO this should be removable when the HPA contoller is fixed
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "update").Groups(extensionsGroup).Resources("replicationcontrollers/scale").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "update").Groups(extensionsGroup, appsGroup).Resources("deployments/scale", "replicasets/scale").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// TODO: Remove the root /proxy permission in 1.7; MetricsClient no longer requires root proxy access as of 1.6 (fixed in https://github.com/kubernetes/kubernetes/pull/39636)
+0000000000000000000000000000000000000000;;				rbac.NewRule("proxy").Groups(legacyGroup).Resources("services").Names("https:heapster:", "http:heapster:").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// TODO: restrict this to the appropriate namespace
+0000000000000000000000000000000000000000;;				rbac.NewRule("get").Groups(legacyGroup).Resources("services/proxy").Names("https:heapster:", "http:heapster:").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "job-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(batchGroup).Resources("jobs").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(batchGroup).Resources("jobs/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "create", "delete", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "namespace-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "delete").Groups(legacyGroup).Resources("namespaces").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("namespaces/finalize", "namespaces/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "delete", "deletecollection").Groups("*").Resources("*").RuleOrDie(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "node-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "update", "delete", "patch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("patch", "update").Groups(legacyGroup).Resources("nodes/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// used for pod eviction
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("pods/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "persistent-volume-binder"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update", "create", "delete").Groups(legacyGroup).Resources("persistentvolumes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("persistentvolumes/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(legacyGroup).Resources("persistentvolumeclaims").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("persistentvolumeclaims/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "get", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				// glusterfs
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(storageGroup).Resources("storageclasses").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "create", "delete").Groups(legacyGroup).Resources("services", "endpoints").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get").Groups(legacyGroup).Resources("secrets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				// openstack
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				// recyclerClient.WatchPod
+0000000000000000000000000000000000000000;;				rbac.NewRule("watch").Groups(legacyGroup).Resources("events").RuleOrDie(),
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "pod-garbage-collector"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "replicaset-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(extensionsGroup).Resources("replicasets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(extensionsGroup).Resources("replicasets/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "patch", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "replication-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				// 1.0 controllers needed get, update, so without these old controllers break on new servers
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch", "update").Groups(legacyGroup).Resources("replicationcontrollers").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("replicationcontrollers/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch", "patch", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "resourcequota-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				// quota can count quota on anything for reconcilation, so it needs full viewing powers
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups("*").Resources("*").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("resourcequotas/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "route-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("patch").Groups(legacyGroup).Resources("nodes/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "service-account-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("create").Groups(legacyGroup).Resources("serviceaccounts").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "service-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("services").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(legacyGroup).Resources("services/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "statefulset-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(appsGroup).Resources("statefulsets").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(appsGroup).Resources("statefulsets/status").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "create", "delete", "update", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "create", "delete", "update", "patch", "list", "watch").Groups(appsGroup).Resources("controllerrevisions").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "create").Groups(legacyGroup).Resources("persistentvolumeclaims").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "ttl-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("update", "patch", "list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;		addControllerRole(rbac.ClusterRole{
+0000000000000000000000000000000000000000;;			ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "certificate-controller"},
+0000000000000000000000000000000000000000;;			Rules: []rbac.PolicyRule{
+0000000000000000000000000000000000000000;;				rbac.NewRule("get", "list", "watch").Groups(certificatesGroup).Resources("certificatesigningrequests").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("update").Groups(certificatesGroup).Resources("certificatesigningrequests/status", "certificatesigningrequests/approval").RuleOrDie(),
+0000000000000000000000000000000000000000;;				rbac.NewRule("create").Groups(authorizationGroup).Resources("subjectaccessreviews").RuleOrDie(),
+0000000000000000000000000000000000000000;;				eventsRule(),
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		})
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ControllerRoles returns the cluster roles used by controllers
+0000000000000000000000000000000000000000;;	func ControllerRoles() []rbac.ClusterRole {
+0000000000000000000000000000000000000000;;		return controllerRoles
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ControllerRoleBindings returns the role bindings used by controllers
+0000000000000000000000000000000000000000;;	func ControllerRoleBindings() []rbac.ClusterRoleBinding {
+0000000000000000000000000000000000000000;;		return controllerRoleBindings
+0000000000000000000000000000000000000000;;	}

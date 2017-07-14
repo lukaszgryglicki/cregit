@@ -1,0 +1,6 @@
+0000000000000000000000000000000000000000;;	// Package servers provides information and interaction with the server API
+0000000000000000000000000000000000000000;;	// resource in the OpenStack Compute service.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// A server is a virtual machine instance in the compute system. In order for
+0000000000000000000000000000000000000000;;	// one to be provisioned, a valid flavor and image are required.
+0000000000000000000000000000000000000000;;	package servers

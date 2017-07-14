@@ -1,0 +1,19 @@
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	language: go
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	sudo: false
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	install:
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- go get golang.org/x/crypto/ssh
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- go get -v -tags 'fixtures acceptance' ./...
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- go get github.com/wadey/gocovmerge
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- go get github.com/mattn/goveralls
+de398d0fa59449fe7f2bf99367a58390c9f149fd;;	- go get golang.org/x/tools/cmd/goimports
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	go:
+de398d0fa59449fe7f2bf99367a58390c9f149fd;;	- 1.8
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- tip
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	env:
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	  global:
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	  - secure: "xSQsAG5wlL9emjbCdxzz/hYQsSpJ/bABO1kkbwMSISVcJ3Nk0u4ywF+LS4bgeOnwPfmFvNTOqVDu3RwEvMeWXSI76t1piCPcObutb2faKLVD/hLoAS76gYX+Z8yGWGHrSB7Do5vTPj1ERe2UljdrnsSeOXzoDwFxYRaZLX4bBOB4AyoGvRniil5QXPATiA1tsWX1VMicj8a4F8X+xeESzjt1Q5Iy31e7vkptu71bhvXCaoo5QhYwT+pLR9dN0S1b7Ro0KVvkRefmr1lUOSYd2e74h6Lc34tC1h3uYZCS4h47t7v5cOXvMNxinEj2C51RvbjvZI1RLVdkuAEJD1Iz4+Ote46nXbZ//6XRZMZz/YxQ13l7ux1PFjgEB6HAapmF5Xd8PRsgeTU9LRJxpiTJ3P5QJ3leS1va8qnziM5kYipj/Rn+V8g2ad/rgkRox9LSiR9VYZD2Pe45YCb1mTKSl2aIJnV7nkOqsShY5LNB4JZSg7xIffA+9YVDktw8dJlATjZqt7WvJJ49g6A61mIUV4C15q2JPGKTkZzDiG81NtmS7hFa7k0yaE2ELgYocbcuyUcAahhxntYTC0i23nJmEHVNiZmBO3u7EgpWe4KGVfumU+lt12tIn5b3dZRBBUk3QakKKozSK1QPHGpk/AZGrhu7H6l8to6IICKWtDcyMPQ="
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	script:
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- ./script/coverage
+de398d0fa59449fe7f2bf99367a58390c9f149fd;;	- ./script/format
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	after_success:
+c191e5bce96b97325e2d7149d40cc3a540ce2fa4;;	- $HOME/gopath/bin/goveralls -service=travis-ci -coverprofile=cover.out

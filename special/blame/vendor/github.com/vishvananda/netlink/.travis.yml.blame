@@ -1,0 +1,3 @@
+a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/vishvananda/netlink/.travis.yml[Godeps/_workspace/src/github.com/vishvananda/netlink/.travis.yml][vendor/github.com/vishvananda/netlink/.travis.yml];	language: go
+a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/vishvananda/netlink/.travis.yml[Godeps/_workspace/src/github.com/vishvananda/netlink/.travis.yml][vendor/github.com/vishvananda/netlink/.travis.yml];	install:
+0c5dd9820ab0d5fbd666e5b7baa1504a9febc6aa;;	      - go get github.com/vishvananda/netns

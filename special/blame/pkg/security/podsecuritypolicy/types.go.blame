@@ -1,0 +1,70 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+35fbd54b35b58b3ac95a0f0410ab62b8905746c3;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package podsecuritypolicy
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation/field"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/extensions"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/apparmor"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/capabilities"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/group"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/seccomp"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/selinux"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/sysctl"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/security/podsecuritypolicy/user"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Provider provides the implementation to generate a new security
+0000000000000000000000000000000000000000;;	// context based on constraints or validate an existing security context against constraints.
+0000000000000000000000000000000000000000;;	type Provider interface {
+0000000000000000000000000000000000000000;;		// Create a PodSecurityContext based on the given constraints. Also returns an updated set
+0000000000000000000000000000000000000000;;		// of Pod annotations for alpha feature support.
+0000000000000000000000000000000000000000;;		CreatePodSecurityContext(pod *api.Pod) (*api.PodSecurityContext, map[string]string, error)
+0000000000000000000000000000000000000000;;		// Create a container SecurityContext based on the given constraints. Also returns an updated set
+0000000000000000000000000000000000000000;;		// of Pod annotations for alpha feature support.
+0000000000000000000000000000000000000000;;		CreateContainerSecurityContext(pod *api.Pod, container *api.Container) (*api.SecurityContext, map[string]string, error)
+0000000000000000000000000000000000000000;;		// Ensure a pod's SecurityContext is in compliance with the given constraints.
+0000000000000000000000000000000000000000;;		ValidatePodSecurityContext(pod *api.Pod, fldPath *field.Path) field.ErrorList
+0000000000000000000000000000000000000000;;		// Ensure a container's SecurityContext is in compliance with the given constraints
+0000000000000000000000000000000000000000;;		ValidateContainerSecurityContext(pod *api.Pod, container *api.Container, fldPath *field.Path) field.ErrorList
+0000000000000000000000000000000000000000;;		// Get the name of the PSP that this provider was initialized with.
+0000000000000000000000000000000000000000;;		GetPSPName() string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// StrategyFactory abstracts how the strategies are created from the provider so that you may
+0000000000000000000000000000000000000000;;	// implement your own custom strategies that may pull information from other resources as necessary.
+0000000000000000000000000000000000000000;;	// For example, if you would like to populate the strategies with values from namespace annotations
+0000000000000000000000000000000000000000;;	// you may create a factory with a client that can pull the namespace and populate the appropriate
+0000000000000000000000000000000000000000;;	// values.
+0000000000000000000000000000000000000000;;	type StrategyFactory interface {
+0000000000000000000000000000000000000000;;		// CreateStrategies creates the strategies that a provider will use.  The namespace argument
+0000000000000000000000000000000000000000;;		// should be the namespace of the object being checked (the pod's namespace).
+0000000000000000000000000000000000000000;;		CreateStrategies(psp *extensions.PodSecurityPolicy, namespace string) (*ProviderStrategies, error)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ProviderStrategies is a holder for all strategies that the provider requires to be populated.
+0000000000000000000000000000000000000000;;	type ProviderStrategies struct {
+0000000000000000000000000000000000000000;;		RunAsUserStrategy         user.RunAsUserStrategy
+0000000000000000000000000000000000000000;;		SELinuxStrategy           selinux.SELinuxStrategy
+0000000000000000000000000000000000000000;;		AppArmorStrategy          apparmor.Strategy
+0000000000000000000000000000000000000000;;		FSGroupStrategy           group.GroupStrategy
+0000000000000000000000000000000000000000;;		SupplementalGroupStrategy group.GroupStrategy
+0000000000000000000000000000000000000000;;		CapabilitiesStrategy      capabilities.Strategy
+0000000000000000000000000000000000000000;;		SysctlsStrategy           sysctl.SysctlsStrategy
+0000000000000000000000000000000000000000;;		SeccompStrategy           seccomp.Strategy
+0000000000000000000000000000000000000000;;	}

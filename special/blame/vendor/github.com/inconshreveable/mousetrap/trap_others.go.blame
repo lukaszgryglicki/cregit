@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000;;	// +build !windows
+e9f59de9ed6d7861afb265b2d9f70141da10e884;Godeps/_workspace/src/github.com/inconshreveable/mousetrap/trap_others.go[Godeps/_workspace/src/github.com/inconshreveable/mousetrap/trap_others.go][vendor/github.com/inconshreveable/mousetrap/trap_others.go];	
+0000000000000000000000000000000000000000;;	package mousetrap
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// StartedByExplorer returns true if the program was invoked by the user
+0000000000000000000000000000000000000000;;	// double-clicking on the executable from explorer.exe
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// It is conservative and returns false if any of the internal calls fail.
+0000000000000000000000000000000000000000;;	// It does not guarantee that the program was run from a terminal. It only can tell you
+0000000000000000000000000000000000000000;;	// whether it was launched from explorer.exe
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// On non-Windows platforms, it always returns false.
+0000000000000000000000000000000000000000;;	func StartedByExplorer() bool {
+0000000000000000000000000000000000000000;;		return false
+0000000000000000000000000000000000000000;;	}

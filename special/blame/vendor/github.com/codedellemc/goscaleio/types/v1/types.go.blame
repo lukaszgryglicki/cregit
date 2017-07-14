@@ -1,0 +1,388 @@
+0000000000000000000000000000000000000000;;	package goscaleio
+035d8c1abe71a2fddb25ce05367578ce9dfeca59;;	
+0000000000000000000000000000000000000000;;	type Error struct {
+0000000000000000000000000000000000000000;;		Message                 string `xml:"message,attr"`
+0000000000000000000000000000000000000000;;		MajorErrorCode          int    `xml:"majorErrorCode,attr"`
+0000000000000000000000000000000000000000;;		MinorErrorCode          string `xml:"minorErrorCode,attr"`
+0000000000000000000000000000000000000000;;		VendorSpecificErrorCode string `xml:"vendorSpecificErrorCode,attr,omitempty"`
+0000000000000000000000000000000000000000;;		StackTrace              string `xml:"stackTrace,attr,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// type session struct {
+0000000000000000000000000000000000000000;;	// 	Link []*types.Link `xml:"Link"`
+0000000000000000000000000000000000000000;;	// }
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type System struct {
+0000000000000000000000000000000000000000;;		MdmMode                               string   `json:"mdmMode"`
+0000000000000000000000000000000000000000;;		MdmClusterState                       string   `json:"mdmClusterState"`
+0000000000000000000000000000000000000000;;		SecondaryMdmActorIPList               []string `json:"secondaryMdmActorIpList"`
+0000000000000000000000000000000000000000;;		InstallID                             string   `json:"installId"`
+0000000000000000000000000000000000000000;;		PrimaryActorIPList                    []string `json:"primaryMdmActorIpList"`
+0000000000000000000000000000000000000000;;		SystemVersionName                     string   `json:"systemVersionName"`
+0000000000000000000000000000000000000000;;		CapacityAlertHighThresholdPercent     int      `json:"capacityAlertHighThresholdPercent"`
+0000000000000000000000000000000000000000;;		CapacityAlertCriticalThresholdPercent int      `json:"capacityAlertCriticalThresholdPercent"`
+0000000000000000000000000000000000000000;;		RemoteReadOnlyLimitState              bool     `json:"remoteReadOnlyLimitState"`
+0000000000000000000000000000000000000000;;		PrimaryMdmActorPort                   int      `json:"primaryMdmActorPort"`
+0000000000000000000000000000000000000000;;		SecondaryMdmActorPort                 int      `json:"secondaryMdmActorPort"`
+0000000000000000000000000000000000000000;;		TiebreakerMdmActorPort                int      `json:"tiebreakerMdmActorPort"`
+0000000000000000000000000000000000000000;;		MdmManagementPort                     int      `json:"mdmManagementPort"`
+0000000000000000000000000000000000000000;;		TiebreakerMdmIPList                   []string `json:"tiebreakerMdmIpList"`
+0000000000000000000000000000000000000000;;		MdmManagementIPList                   []string `json:"mdmManagementIPList"`
+0000000000000000000000000000000000000000;;		DefaultIsVolumeObfuscated             bool     `json:"defaultIsVolumeObfuscated"`
+0000000000000000000000000000000000000000;;		RestrictedSdcModeEnabled              bool     `json:"restrictedSdcModeEnabled"`
+0000000000000000000000000000000000000000;;		Swid                                  string   `json:"swid"`
+0000000000000000000000000000000000000000;;		DaysInstalled                         int      `json:"daysInstalled"`
+0000000000000000000000000000000000000000;;		MaxCapacityInGb                       string   `json:"maxCapacityInGb"`
+0000000000000000000000000000000000000000;;		CapacityTimeLeftInDays                string   `json:"capacityTimeLeftInDays"`
+0000000000000000000000000000000000000000;;		EnterpriseFeaturesEnabled             bool     `json:"enterpriseFeaturesEnabled"`
+0000000000000000000000000000000000000000;;		IsInitialLicense                      bool     `json:"isInitialLicense"`
+0000000000000000000000000000000000000000;;		Name                                  string   `json:"name"`
+0000000000000000000000000000000000000000;;		ID                                    string   `json:"id"`
+0000000000000000000000000000000000000000;;		Links                                 []*Link  `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Link struct {
+0000000000000000000000000000000000000000;;		Rel  string `json:"rel"`
+0000000000000000000000000000000000000000;;		HREF string `json:"href"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type BWC struct {
+0000000000000000000000000000000000000000;;		TotalWeightInKb int `json:"totalWeightInKb"`
+0000000000000000000000000000000000000000;;		NumOccured      int `json:"numOccured"`
+0000000000000000000000000000000000000000;;		NumSeconds      int `json:"numSeconds"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Statistics struct {
+0000000000000000000000000000000000000000;;		PrimaryReadFromDevBwc                    BWC `json:"primaryReadFromDevBwc"`
+0000000000000000000000000000000000000000;;		NumOfStoragePools                        int `json:"numOfStoragePools"`
+0000000000000000000000000000000000000000;;		ProtectedCapacityInKb                    int `json:"protectedCapacityInKb"`
+0000000000000000000000000000000000000000;;		MovingCapacityInKb                       int `json:"movingCapacityInKb"`
+0000000000000000000000000000000000000000;;		SnapCapacityInUseOccupiedInKb            int `json:"snapCapacityInUseOccupiedInKb"`
+0000000000000000000000000000000000000000;;		SnapCapacityInUseInKb                    int `json:"snapCapacityInUseInKb"`
+0000000000000000000000000000000000000000;;		ActiveFwdRebuildCapacityInKb             int `json:"activeFwdRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		DegradedHealthyVacInKb                   int `json:"degradedHealthyVacInKb"`
+0000000000000000000000000000000000000000;;		ActiveMovingRebalanceJobs                int `json:"activeMovingRebalanceJobs"`
+0000000000000000000000000000000000000000;;		TotalReadBwc                             BWC `json:"totalReadBwc"`
+0000000000000000000000000000000000000000;;		MaxCapacityInKb                          int `json:"maxCapacityInKb"`
+0000000000000000000000000000000000000000;;		PendingBckRebuildCapacityInKb            int `json:"pendingBckRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		ActiveMovingOutFwdRebuildJobs            int `json:"activeMovingOutFwdRebuildJobs"`
+0000000000000000000000000000000000000000;;		CapacityLimitInKb                        int `json:"capacityLimitInKb"`
+0000000000000000000000000000000000000000;;		SecondaryVacInKb                         int `json:"secondaryVacInKb"`
+0000000000000000000000000000000000000000;;		PendingFwdRebuildCapacityInKb            int `json:"pendingFwdRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		ThinCapacityInUseInKb                    int `json:"thinCapacityInUseInKb"`
+0000000000000000000000000000000000000000;;		AtRestCapacityInKb                       int `json:"atRestCapacityInKb"`
+0000000000000000000000000000000000000000;;		ActiveMovingInBckRebuildJobs             int `json:"activeMovingInBckRebuildJobs"`
+0000000000000000000000000000000000000000;;		DegradedHealthyCapacityInKb              int `json:"degradedHealthyCapacityInKb"`
+0000000000000000000000000000000000000000;;		NumOfScsiInitiators                      int `json:"numOfScsiInitiators"`
+0000000000000000000000000000000000000000;;		NumOfUnmappedVolumes                     int `json:"numOfUnmappedVolumes"`
+0000000000000000000000000000000000000000;;		FailedCapacityInKb                       int `json:"failedCapacityInKb"`
+0000000000000000000000000000000000000000;;		SecondaryReadFromDevBwc                  BWC `json:"secondaryReadFromDevBwc"`
+0000000000000000000000000000000000000000;;		NumOfVolumes                             int `json:"numOfVolumes"`
+0000000000000000000000000000000000000000;;		SecondaryWriteBwc                        BWC `json:"secondaryWriteBwc"`
+0000000000000000000000000000000000000000;;		ActiveBckRebuildCapacityInKb             int `json:"activeBckRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		FailedVacInKb                            int `json:"failedVacInKb"`
+0000000000000000000000000000000000000000;;		PendingMovingCapacityInKb                int `json:"pendingMovingCapacityInKb"`
+0000000000000000000000000000000000000000;;		ActiveMovingInRebalanceJobs              int `json:"activeMovingInRebalanceJobs"`
+0000000000000000000000000000000000000000;;		PendingMovingInRebalanceJobs             int `json:"pendingMovingInRebalanceJobs"`
+0000000000000000000000000000000000000000;;		BckRebuildReadBwc                        BWC `json:"bckRebuildReadBwc"`
+0000000000000000000000000000000000000000;;		DegradedFailedVacInKb                    int `json:"degradedFailedVacInKb"`
+0000000000000000000000000000000000000000;;		NumOfSnapshots                           int `json:"numOfSnapshots"`
+0000000000000000000000000000000000000000;;		RebalanceCapacityInKb                    int `json:"rebalanceCapacityInKb"`
+0000000000000000000000000000000000000000;;		fwdRebuildReadBwc                        BWC `json:"fwdRebuildReadBwc"`
+0000000000000000000000000000000000000000;;		NumOfSdc                                 int `json:"numOfSdc"`
+0000000000000000000000000000000000000000;;		ActiveMovingInFwdRebuildJobs             int `json:"activeMovingInFwdRebuildJobs"`
+0000000000000000000000000000000000000000;;		NumOfVtrees                              int `json:"numOfVtrees"`
+0000000000000000000000000000000000000000;;		ThickCapacityInUseInKb                   int `json:"thickCapacityInUseInKb"`
+0000000000000000000000000000000000000000;;		ProtectedVacInKb                         int `json:"protectedVacInKb"`
+0000000000000000000000000000000000000000;;		PendingMovingInBckRebuildJobs            int `json:"pendingMovingInBckRebuildJobs"`
+0000000000000000000000000000000000000000;;		CapacityAvailableForVolumeAllocationInKb int `json:"capacityAvailableForVolumeAllocationInKb"`
+0000000000000000000000000000000000000000;;		PendingRebalanceCapacityInKb             int `json:"pendingRebalanceCapacityInKb"`
+0000000000000000000000000000000000000000;;		PendingMovingRebalanceJobs               int `json:"pendingMovingRebalanceJobs"`
+0000000000000000000000000000000000000000;;		NumOfProtectionDomains                   int `json:"numOfProtectionDomains"`
+0000000000000000000000000000000000000000;;		NumOfSds                                 int `json:"numOfSds"`
+0000000000000000000000000000000000000000;;		CapacityInUseInKb                        int `json:"capacityInUseInKb"`
+0000000000000000000000000000000000000000;;		BckRebuildWriteBwc                       BWC `json:"bckRebuildWriteBwc"`
+0000000000000000000000000000000000000000;;		DegradedFailedCapacityInKb               int `json:"degradedFailedCapacityInKb"`
+0000000000000000000000000000000000000000;;		NumOfThinBaseVolumes                     int `json:"numOfThinBaseVolumes"`
+0000000000000000000000000000000000000000;;		PendingMovingOutFwdRebuildJobs           int `json:"pendingMovingOutFwdRebuildJobs"`
+0000000000000000000000000000000000000000;;		SecondaryReadBwc                         BWC `json:"secondaryReadBwc"`
+0000000000000000000000000000000000000000;;		PendingMovingOutBckRebuildJobs           int `json:"pendingMovingOutBckRebuildJobs"`
+0000000000000000000000000000000000000000;;		RebalanceWriteBwc                        BWC `json:"rebalanceWriteBwc"`
+0000000000000000000000000000000000000000;;		PrimaryReadBwc                           BWC `json:"primaryReadBwc"`
+0000000000000000000000000000000000000000;;		NumOfVolumesInDeletion                   int `json:"numOfVolumesInDeletion"`
+0000000000000000000000000000000000000000;;		NumOfDevices                             int `json:"numOfDevices"`
+0000000000000000000000000000000000000000;;		RebalanceReadBwc                         BWC `json:"rebalanceReadBwc"`
+0000000000000000000000000000000000000000;;		InUseVacInKb                             int `json:"inUseVacInKb"`
+0000000000000000000000000000000000000000;;		UnreachableUnusedCapacityInKb            int `json:"unreachableUnusedCapacityInKb"`
+0000000000000000000000000000000000000000;;		TotalWriteBwc                            BWC `json:"totalWriteBwc"`
+0000000000000000000000000000000000000000;;		SpareCapacityInKb                        int `json:"spareCapacityInKb"`
+0000000000000000000000000000000000000000;;		ActiveMovingOutBckRebuildJobs            int `json:"activeMovingOutBckRebuildJobs"`
+0000000000000000000000000000000000000000;;		PrimaryVacInKb                           int `json:"primaryVacInKb"`
+0000000000000000000000000000000000000000;;		NumOfThickBaseVolumes                    int `json:"numOfThickBaseVolumes"`
+0000000000000000000000000000000000000000;;		BckRebuildCapacityInKb                   int `json:"bckRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		NumOfMappedToAllVolumes                  int `json:"numOfMappedToAllVolumes"`
+0000000000000000000000000000000000000000;;		ActiveMovingCapacityInKb                 int `json:"activeMovingCapacityInKb"`
+0000000000000000000000000000000000000000;;		PendingMovingInFwdRebuildJobs            int `json:"pendingMovingInFwdRebuildJobs"`
+0000000000000000000000000000000000000000;;		ActiveRebalanceCapacityInKb              int `json:"activeRebalanceCapacityInKb"`
+0000000000000000000000000000000000000000;;		RmcacheSizeInKb                          int `json:"rmcacheSizeInKb"`
+0000000000000000000000000000000000000000;;		FwdRebuildCapacityInKb                   int `json:"fwdRebuildCapacityInKb"`
+0000000000000000000000000000000000000000;;		FwdRebuildWriteBwc                       BWC `json:"fwdRebuildWriteBwc"`
+0000000000000000000000000000000000000000;;		PrimaryWriteBwc                          BWC `json:"primaryWriteBwc"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type User struct {
+0000000000000000000000000000000000000000;;		SystemID              string  `json:"systemId"`
+0000000000000000000000000000000000000000;;		UserRole              string  `json:"userRole"`
+0000000000000000000000000000000000000000;;		PasswordChangeRequire bool    `json:"passwordChangeRequired"`
+0000000000000000000000000000000000000000;;		Name                  string  `json:"name"`
+0000000000000000000000000000000000000000;;		ID                    string  `json:"id"`
+0000000000000000000000000000000000000000;;		Links                 []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ScsiInitiator struct {
+0000000000000000000000000000000000000000;;		Name     string  `json:"name"`
+0000000000000000000000000000000000000000;;		IQN      string  `json:"iqn"`
+0000000000000000000000000000000000000000;;		SystemID string  `json:"systemID"`
+0000000000000000000000000000000000000000;;		Links    []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ProtectionDomain struct {
+0000000000000000000000000000000000000000;;		SystemID                          string  `json:"systemId"`
+0000000000000000000000000000000000000000;;		RebuildNetworkThrottlingInKbps    int     `json:"rebuildNetworkThrottlingInKbps"`
+0000000000000000000000000000000000000000;;		RebalanceNetworkThrottlingInKbps  int     `json:"rebalanceNetworkThrottlingInKbps"`
+0000000000000000000000000000000000000000;;		OverallIoNetworkThrottlingInKbps  int     `json:"overallIoNetworkThrottlingInKbps"`
+0000000000000000000000000000000000000000;;		OverallIoNetworkThrottlingEnabled bool    `json:"overallIoNetworkThrottlingEnabled"`
+0000000000000000000000000000000000000000;;		RebuildNetworkThrottlingEnabled   bool    `json:"rebuildNetworkThrottlingEnabled"`
+0000000000000000000000000000000000000000;;		RebalanceNetworkThrottlingEnabled bool    `json:"rebalanceNetworkThrottlingEnabled"`
+0000000000000000000000000000000000000000;;		ProtectionDomainState             string  `json:"protectionDomainState"`
+0000000000000000000000000000000000000000;;		Name                              string  `json:"name"`
+0000000000000000000000000000000000000000;;		ID                                string  `json:"id"`
+0000000000000000000000000000000000000000;;		Links                             []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ProtectionDomainParam struct {
+0000000000000000000000000000000000000000;;		Name string `json:"name"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type ProtectionDomainResp struct {
+0000000000000000000000000000000000000000;;		ID string `json:"id"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Sdc struct {
+0000000000000000000000000000000000000000;;		SystemID           string  `json:"systemId"`
+0000000000000000000000000000000000000000;;		SdcApproved        bool    `json:"sdcApproved"`
+0000000000000000000000000000000000000000;;		SdcIp              string  `json:"SdcIp"`
+0000000000000000000000000000000000000000;;		OnVmWare           bool    `json:"onVmWare"`
+0000000000000000000000000000000000000000;;		SdcGuid            string  `json:"sdcGuid"`
+0000000000000000000000000000000000000000;;		MdmConnectionState string  `json:"mdmConnectionState"`
+0000000000000000000000000000000000000000;;		Name               string  `json:"name"`
+0000000000000000000000000000000000000000;;		ID                 string  `json:"id"`
+0000000000000000000000000000000000000000;;		Links              []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SdsIp struct {
+0000000000000000000000000000000000000000;;		IP   string `json:"ip"`
+0000000000000000000000000000000000000000;;		Role string `json:"role"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SdsIpList struct {
+0000000000000000000000000000000000000000;;		SdsIP SdsIp `json:"SdsIp"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Sds struct {
+0000000000000000000000000000000000000000;;		ID                           string       `json:"id"`
+0000000000000000000000000000000000000000;;		Name                         string       `json:"name,omitempty"`
+0000000000000000000000000000000000000000;;		ProtectionDomainID           string       `json:"protectionDomainId"`
+0000000000000000000000000000000000000000;;		IPList                       []*SdsIpList `json:"ipList"`
+0000000000000000000000000000000000000000;;		Port                         int          `json:"port,omitempty"`
+0000000000000000000000000000000000000000;;		SdsState                     string       `json:"sdsState"`
+0000000000000000000000000000000000000000;;		MembershipState              string       `json:"membershipState"`
+0000000000000000000000000000000000000000;;		MdmConnectionState           string       `json:"mdmConnectionState"`
+0000000000000000000000000000000000000000;;		DrlMode                      string       `json:"drlMode,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheEnabled               bool         `json:"rmcacheEnabled,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheSizeInKb              int          `json:"rmcacheSizeInKb,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheFrozen                bool         `json:"rmcacheFrozen,omitempty"`
+0000000000000000000000000000000000000000;;		IsOnVMware                   bool         `json:"isOnVmWare,omitempty"`
+0000000000000000000000000000000000000000;;		FaultSetID                   string       `json:"faultSetId,omitempty"`
+0000000000000000000000000000000000000000;;		NumOfIoBuffers               int          `json:"numOfIoBuffers,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheMemoryAllocationState string       `json:"RmcacheMemoryAllocationState,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type DeviceInfo struct {
+0000000000000000000000000000000000000000;;		DevicePath    string `json:"devicePath"`
+0000000000000000000000000000000000000000;;		StoragePoolID string `json:"storagePoolId"`
+0000000000000000000000000000000000000000;;		DeviceName    string `json:"deviceName,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SdsParam struct {
+0000000000000000000000000000000000000000;;		Name               string        `json:"name,omitempty"`
+0000000000000000000000000000000000000000;;		IPList             []*SdsIpList  `json:"sdsIpList"`
+0000000000000000000000000000000000000000;;		Port               int           `json:"sdsPort,omitempty"`
+0000000000000000000000000000000000000000;;		DrlMode            string        `json:"drlMode,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheEnabled     bool          `json:"rmcacheEnabled,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheSizeInKb    int           `json:"rmcacheSizeInKb,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheFrozen      bool          `json:"rmcacheFrozen,omitempty"`
+0000000000000000000000000000000000000000;;		ProtectionDomainID string        `json:"protectionDomainId"`
+0000000000000000000000000000000000000000;;		FaultSetID         string        `json:"faultSetId,omitempty"`
+0000000000000000000000000000000000000000;;		NumOfIoBuffers     int           `json:"numOfIoBuffers,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceInfoList     []*DeviceInfo `json:"deviceInfoList,omitempty"`
+0000000000000000000000000000000000000000;;		ForceClean         bool          `json:"forceClean,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceTestTimeSecs int           `json:"deviceTestTimeSecs ,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceTestMode     string        `json:"deviceTestMode,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SdsResp struct {
+0000000000000000000000000000000000000000;;		ID string `json:"id"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Device struct {
+0000000000000000000000000000000000000000;;		ID                     string `json:"id,omitempty"`
+0000000000000000000000000000000000000000;;		Name                   string `json:"name,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceCurrentPathname  string `json:"deviceCurrentPathname"`
+0000000000000000000000000000000000000000;;		DeviceOriginalPathname string `json:"deviceOriginalPathname,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceState            string `json:"deviceState,omitempty"`
+0000000000000000000000000000000000000000;;		ErrorState             string `json:"errorState,omitempty"`
+0000000000000000000000000000000000000000;;		CapacityLimitInKb      int    `json:"capacityLimitInKb,omitempty"`
+0000000000000000000000000000000000000000;;		MaxCapacityInKb        int    `json:"maxCapacityInKb,omitempty"`
+0000000000000000000000000000000000000000;;		StoragePoolID          string `json:"storagePoolId"`
+0000000000000000000000000000000000000000;;		SdsID                  string `json:"sdsId"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type DeviceParam struct {
+0000000000000000000000000000000000000000;;		Name                  string `json:"name,omitempty"`
+0000000000000000000000000000000000000000;;		DeviceCurrentPathname string `json:"deviceCurrentPathname"`
+0000000000000000000000000000000000000000;;		CapacityLimitInKb     int    `json:"capacityLimitInKb,omitempty"`
+0000000000000000000000000000000000000000;;		StoragePoolID         string `json:"storagePoolId"`
+0000000000000000000000000000000000000000;;		SdsID                 string `json:"sdsId"`
+0000000000000000000000000000000000000000;;		TestTimeSecs          int    `json:"testTimeSecs,omitempty"`
+0000000000000000000000000000000000000000;;		TestMode              string `json:"testMode,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type DeviceResp struct {
+0000000000000000000000000000000000000000;;		ID string `json:"id"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type StoragePool struct {
+0000000000000000000000000000000000000000;;		ProtectionDomainID                               string  `json:"protectionDomainId"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityPolicy                        string  `json:"rebalanceIoPriorityPolicy"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityPolicy                          string  `json:"rebuildIoPriorityPolicy"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityBwLimitPerDeviceInKbps          int     `json:"rebuildIoPriorityBwLimitPerDeviceInKbps"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityNumOfConcurrentIosPerDevice     int     `json:"rebuildIoPriorityNumOfConcurrentIosPerDevice"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityNumOfConcurrentIosPerDevice   int     `json:"rebalanceIoPriorityNumOfConcurrentIosPerDevice"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityBwLimitPerDeviceInKbps        int     `json:"rebalanceIoPriorityBwLimitPerDeviceInKbps"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityAppIopsPerDeviceThreshold       int     `json:"rebuildIoPriorityAppIopsPerDeviceThreshold"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityAppIopsPerDeviceThreshold     int     `json:"rebalanceIoPriorityAppIopsPerDeviceThreshold"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityAppBwPerDeviceThresholdInKbps   int     `json:"rebuildIoPriorityAppBwPerDeviceThresholdInKbps"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityAppBwPerDeviceThresholdInKbps int     `json:"rebalanceIoPriorityAppBwPerDeviceThresholdInKbps"`
+0000000000000000000000000000000000000000;;		RebuildioPriorityQuietPeriodInMsec               int     `json:"rebuildIoPriorityQuietPeriodInMsec"`
+0000000000000000000000000000000000000000;;		RebalanceioPriorityQuietPeriodInMsec             int     `json:"rebalanceIoPriorityQuietPeriodInMsec"`
+0000000000000000000000000000000000000000;;		ZeroPaddingEnabled                               bool    `json:"zeroPaddingEnabled"`
+0000000000000000000000000000000000000000;;		UseRmcache                                       bool    `json:"useRmcache"`
+0000000000000000000000000000000000000000;;		SparePercentage                                  int     `json:"sparePercentage"`
+0000000000000000000000000000000000000000;;		RmCacheWriteHandlingMode                         string  `json:"rmcacheWriteHandlingMode"`
+0000000000000000000000000000000000000000;;		RebuildEnabled                                   bool    `json:"rebuildEnabled"`
+0000000000000000000000000000000000000000;;		RebalanceEnabled                                 bool    `json:"rebalanceEnabled"`
+0000000000000000000000000000000000000000;;		NumofParallelRebuildRebalanceJobsPerDevice       int     `json:"numOfParallelRebuildRebalanceJobsPerDevice"`
+0000000000000000000000000000000000000000;;		Name                                             string  `json:"name"`
+0000000000000000000000000000000000000000;;		ID                                               string  `json:"id"`
+0000000000000000000000000000000000000000;;		Links                                            []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type StoragePoolParam struct {
+0000000000000000000000000000000000000000;;		Name                     string `json:"name"`
+0000000000000000000000000000000000000000;;		SparePercentage          int    `json:"sparePercentage,omitempty"`
+0000000000000000000000000000000000000000;;		RebuildEnabled           bool   `json:"rebuildEnabled,omitempty"`
+0000000000000000000000000000000000000000;;		RebalanceEnabled         bool   `json:"rebalanceEnabled,omitempty"`
+0000000000000000000000000000000000000000;;		ProtectionDomainID       string `json:"protectionDomainId"`
+0000000000000000000000000000000000000000;;		ZeroPaddingEnabled       bool   `json:"zeroPaddingEnabled,omitempty"`
+0000000000000000000000000000000000000000;;		UseRmcache               bool   `json:"useRmcache,omitempty"`
+0000000000000000000000000000000000000000;;		RmcacheWriteHandlingMode string `json:"rmcacheWriteHandlingMode,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type StoragePoolResp struct {
+0000000000000000000000000000000000000000;;		ID string `json:"id"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type MappedSdcInfo struct {
+0000000000000000000000000000000000000000;;		SdcID         string `json:"sdcId"`
+0000000000000000000000000000000000000000;;		SdcIP         string `json:"sdcIp"`
+0000000000000000000000000000000000000000;;		LimitIops     int    `json:"limitIops"`
+0000000000000000000000000000000000000000;;		LimitBwInMbps int    `json:"limitBwInMbps"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Volume struct {
+0000000000000000000000000000000000000000;;		StoragePoolID           string           `json:"storagePoolId"`
+0000000000000000000000000000000000000000;;		UseRmCache              bool             `json:"useRmcache"`
+0000000000000000000000000000000000000000;;		MappingToAllSdcsEnabled bool             `json:"mappingToAllSdcsEnabled"`
+0000000000000000000000000000000000000000;;		MappedSdcInfo           []*MappedSdcInfo `json:"mappedSdcInfo"`
+0000000000000000000000000000000000000000;;		IsObfuscated            bool             `json:"isObfuscated"`
+0000000000000000000000000000000000000000;;		VolumeType              string           `json:"volumeType"`
+0000000000000000000000000000000000000000;;		ConsistencyGroupID      string           `json:"consistencyGroupId"`
+0000000000000000000000000000000000000000;;		VTreeID                 string           `json:"vtreeId"`
+0000000000000000000000000000000000000000;;		AncestorVolumeID        string           `json:"ancestorVolumeId"`
+0000000000000000000000000000000000000000;;		MappedScsiInitiatorInfo string           `json:"mappedScsiInitiatorInfo"`
+0000000000000000000000000000000000000000;;		SizeInKb                int              `json:"sizeInKb"`
+0000000000000000000000000000000000000000;;		CreationTime            int              `json:"creationTime"`
+0000000000000000000000000000000000000000;;		Name                    string           `json:"name"`
+0000000000000000000000000000000000000000;;		ID                      string           `json:"id"`
+0000000000000000000000000000000000000000;;		Links                   []*Link          `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VolumeParam struct {
+0000000000000000000000000000000000000000;;		ProtectionDomainID string `json:"protectionDomainId,omitempty"`
+0000000000000000000000000000000000000000;;		StoragePoolID      string `json:"storagePoolId,omitempty"`
+0000000000000000000000000000000000000000;;		UseRmCache         string `json:"useRmcache,omitempty"`
+0000000000000000000000000000000000000000;;		VolumeType         string `json:"volumeType,omitempty"`
+0000000000000000000000000000000000000000;;		VolumeSizeInKb     string `json:"volumeSizeInKb,omitempty"`
+0000000000000000000000000000000000000000;;		Name               string `json:"name,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VolumeResp struct {
+0000000000000000000000000000000000000000;;		ID string `json:"id"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VolumeQeryIdByKeyParam struct {
+0000000000000000000000000000000000000000;;		Name string `json:"name"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VolumeQeryBySelectedIdsParam struct {
+0000000000000000000000000000000000000000;;		IDs []string `json:"ids"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type MapVolumeSdcParam struct {
+0000000000000000000000000000000000000000;;		SdcID                 string `json:"sdcId,omitempty"`
+0000000000000000000000000000000000000000;;		AllowMultipleMappings string `json:"allowMultipleMappings,omitempty"`
+0000000000000000000000000000000000000000;;		AllSdcs               string `json:"allSdcs,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type UnmapVolumeSdcParam struct {
+0000000000000000000000000000000000000000;;		SdcID                string `json:"sdcId,omitempty"`
+0000000000000000000000000000000000000000;;		IgnoreScsiInitiators string `json:"ignoreScsiInitiators,omitempty"`
+0000000000000000000000000000000000000000;;		AllSdcs              string `json:"allSdcs,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SnapshotDef struct {
+0000000000000000000000000000000000000000;;		VolumeID     string `json:"volumeId,omitempty"`
+0000000000000000000000000000000000000000;;		SnapshotName string `json:"snapshotName,omitempty"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SnapshotVolumesParam struct {
+0000000000000000000000000000000000000000;;		SnapshotDefs []*SnapshotDef `json:"snapshotDefs"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type SnapshotVolumesResp struct {
+0000000000000000000000000000000000000000;;		VolumeIDList    []string `json:"volumeIdList"`
+0000000000000000000000000000000000000000;;		SnapshotGroupID string   `json:"snapshotGroupId"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type VTree struct {
+0000000000000000000000000000000000000000;;		ID            string  `json:"id"`
+0000000000000000000000000000000000000000;;		Name          string  `json:"name"`
+0000000000000000000000000000000000000000;;		BaseVolumeID  string  `json:"baseVolumeId"`
+0000000000000000000000000000000000000000;;		StoragePoolID string  `json:"storagePoolId"`
+0000000000000000000000000000000000000000;;		Links         []*Link `json:"links"`
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type RemoveVolumeParam struct {
+0000000000000000000000000000000000000000;;		RemoveMode string `json:"removeMode"`
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,134 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2014 The Kubernetes Authors.
+6354d801ba762b470b0a911872638a5cbb9385a4;pkg/api/rest/delete.go[pkg/api/rest/delete.go][staging/src/k8s.io/apiserver/pkg/registry/rest/delete.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package rest
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/errors"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime/schema"
+0000000000000000000000000000000000000000;;		genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RESTDeleteStrategy defines deletion behavior on an object that follows Kubernetes
+0000000000000000000000000000000000000000;;	// API conventions.
+0000000000000000000000000000000000000000;;	type RESTDeleteStrategy interface {
+0000000000000000000000000000000000000000;;		runtime.ObjectTyper
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type GarbageCollectionPolicy string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		DeleteDependents GarbageCollectionPolicy = "DeleteDependents"
+0000000000000000000000000000000000000000;;		OrphanDependents GarbageCollectionPolicy = "OrphanDependents"
+0000000000000000000000000000000000000000;;		// Unsupported means that the resource knows that it cannot be GC'd, so the finalizers
+0000000000000000000000000000000000000000;;		// should never be set in storage.
+0000000000000000000000000000000000000000;;		Unsupported GarbageCollectionPolicy = "Unsupported"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GarbageCollectionDeleteStrategy must be implemented by the registry that wants to
+0000000000000000000000000000000000000000;;	// orphan dependents by default.
+0000000000000000000000000000000000000000;;	type GarbageCollectionDeleteStrategy interface {
+0000000000000000000000000000000000000000;;		// DefaultGarbageCollectionPolicy returns the default garbage collection behavior.
+0000000000000000000000000000000000000000;;		DefaultGarbageCollectionPolicy() GarbageCollectionPolicy
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// RESTGracefulDeleteStrategy must be implemented by the registry that supports
+0000000000000000000000000000000000000000;;	// graceful deletion.
+0000000000000000000000000000000000000000;;	type RESTGracefulDeleteStrategy interface {
+0000000000000000000000000000000000000000;;		// CheckGracefulDelete should return true if the object can be gracefully deleted and set
+0000000000000000000000000000000000000000;;		// any default values on the DeleteOptions.
+0000000000000000000000000000000000000000;;		CheckGracefulDelete(ctx genericapirequest.Context, obj runtime.Object, options *metav1.DeleteOptions) bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// BeforeDelete tests whether the object can be gracefully deleted. If graceful is set the object
+0000000000000000000000000000000000000000;;	// should be gracefully deleted, if gracefulPending is set the object has already been gracefully deleted
+0000000000000000000000000000000000000000;;	// (and the provided grace period is longer than the time to deletion), and an error is returned if the
+0000000000000000000000000000000000000000;;	// condition cannot be checked or the gracePeriodSeconds is invalid. The options argument may be updated with
+0000000000000000000000000000000000000000;;	// default values if graceful is true. Second place where we set deletionTimestamp is pkg/registry/generic/registry/store.go
+0000000000000000000000000000000000000000;;	// this function is responsible for setting deletionTimestamp during gracefulDeletion, other one for cascading deletions.
+0000000000000000000000000000000000000000;;	func BeforeDelete(strategy RESTDeleteStrategy, ctx genericapirequest.Context, obj runtime.Object, options *metav1.DeleteOptions) (graceful, gracefulPending bool, err error) {
+0000000000000000000000000000000000000000;;		objectMeta, gvk, kerr := objectMetaAndKind(strategy, obj)
+0000000000000000000000000000000000000000;;		if kerr != nil {
+0000000000000000000000000000000000000000;;			return false, false, kerr
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if errs := validation.ValidateDeleteOptions(options); len(errs) > 0 {
+0000000000000000000000000000000000000000;;			return false, false, errors.NewInvalid(schema.GroupKind{}, "", errs)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// Checking the Preconditions here to fail early. They'll be enforced later on when we actually do the deletion, too.
+0000000000000000000000000000000000000000;;		if options.Preconditions != nil && options.Preconditions.UID != nil && *options.Preconditions.UID != objectMeta.GetUID() {
+0000000000000000000000000000000000000000;;			return false, false, errors.NewConflict(schema.GroupResource{Group: gvk.Group, Resource: gvk.Kind}, objectMeta.GetName(), fmt.Errorf("the UID in the precondition (%s) does not match the UID in record (%s). The object might have been deleted and then recreated", *options.Preconditions.UID, objectMeta.GetUID()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		gracefulStrategy, ok := strategy.(RESTGracefulDeleteStrategy)
+0000000000000000000000000000000000000000;;		if !ok {
+0000000000000000000000000000000000000000;;			// If we're not deleting gracefully there's no point in updating Generation, as we won't update
+0000000000000000000000000000000000000000;;			// the obcject before deleting it.
+0000000000000000000000000000000000000000;;			return false, false, nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// if the object is already being deleted, no need to update generation.
+0000000000000000000000000000000000000000;;		if objectMeta.GetDeletionTimestamp() != nil {
+0000000000000000000000000000000000000000;;			// if we are already being deleted, we may only shorten the deletion grace period
+0000000000000000000000000000000000000000;;			// this means the object was gracefully deleted previously but deletionGracePeriodSeconds was not set,
+0000000000000000000000000000000000000000;;			// so we force deletion immediately
+0000000000000000000000000000000000000000;;			// IMPORTANT:
+0000000000000000000000000000000000000000;;			// The deletion operation happens in two phases.
+0000000000000000000000000000000000000000;;			// 1. Update to set DeletionGracePeriodSeconds and DeletionTimestamp
+0000000000000000000000000000000000000000;;			// 2. Delete the object from storage.
+0000000000000000000000000000000000000000;;			// If the update succeeds, but the delete fails (network error, internal storage error, etc.),
+0000000000000000000000000000000000000000;;			// a resource was previously left in a state that was non-recoverable.  We
+0000000000000000000000000000000000000000;;			// check if the existing stored resource has a grace period as 0 and if so
+0000000000000000000000000000000000000000;;			// attempt to delete immediately in order to recover from this scenario.
+0000000000000000000000000000000000000000;;			if objectMeta.GetDeletionGracePeriodSeconds() == nil || *objectMeta.GetDeletionGracePeriodSeconds() == 0 {
+0000000000000000000000000000000000000000;;				return false, false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			// only a shorter grace period may be provided by a user
+0000000000000000000000000000000000000000;;			if options.GracePeriodSeconds != nil {
+0000000000000000000000000000000000000000;;				period := int64(*options.GracePeriodSeconds)
+0000000000000000000000000000000000000000;;				if period >= *objectMeta.GetDeletionGracePeriodSeconds() {
+0000000000000000000000000000000000000000;;					return false, true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				newDeletionTimestamp := metav1.NewTime(
+0000000000000000000000000000000000000000;;					objectMeta.GetDeletionTimestamp().Add(-time.Second * time.Duration(*objectMeta.GetDeletionGracePeriodSeconds())).
+0000000000000000000000000000000000000000;;						Add(time.Second * time.Duration(*options.GracePeriodSeconds)))
+0000000000000000000000000000000000000000;;				objectMeta.SetDeletionTimestamp(&newDeletionTimestamp)
+0000000000000000000000000000000000000000;;				objectMeta.SetDeletionGracePeriodSeconds(&period)
+0000000000000000000000000000000000000000;;				return true, false, nil
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			// graceful deletion is pending, do nothing
+0000000000000000000000000000000000000000;;			options.GracePeriodSeconds = objectMeta.GetDeletionGracePeriodSeconds()
+0000000000000000000000000000000000000000;;			return false, true, nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if !gracefulStrategy.CheckGracefulDelete(ctx, obj, options) {
+0000000000000000000000000000000000000000;;			return false, false, nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		now := metav1.NewTime(metav1.Now().Add(time.Second * time.Duration(*options.GracePeriodSeconds)))
+0000000000000000000000000000000000000000;;		objectMeta.SetDeletionTimestamp(&now)
+0000000000000000000000000000000000000000;;		objectMeta.SetDeletionGracePeriodSeconds(options.GracePeriodSeconds)
+0000000000000000000000000000000000000000;;		// If it's the first graceful deletion we are going to set the DeletionTimestamp to non-nil.
+0000000000000000000000000000000000000000;;		// Controllers of the object that's being deleted shouldn't take any nontrivial actions, hence its behavior changes.
+0000000000000000000000000000000000000000;;		// Thus we need to bump object's Generation (if set). This handles generation bump during graceful deletion.
+0000000000000000000000000000000000000000;;		// The bump for objects that don't support graceful deletion is handled in pkg/registry/generic/registry/store.go.
+0000000000000000000000000000000000000000;;		if objectMeta.GetGeneration() > 0 {
+0000000000000000000000000000000000000000;;			objectMeta.SetGeneration(objectMeta.GetGeneration() + 1)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return true, false, nil
+0000000000000000000000000000000000000000;;	}

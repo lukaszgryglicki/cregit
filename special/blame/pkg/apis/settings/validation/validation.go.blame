@@ -1,0 +1,68 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+4f464f4f557a394d8000d8a173a77452fc579f35;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package validation
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation/field"
+0000000000000000000000000000000000000000;;		apivalidation "k8s.io/kubernetes/pkg/api/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/settings"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodPresetName can be used to check whether the given PodPreset name is valid.
+0000000000000000000000000000000000000000;;	// Prefix indicates this name will be used as part of generation, in which case
+0000000000000000000000000000000000000000;;	// trailing dashes are allowed.
+0000000000000000000000000000000000000000;;	func ValidatePodPresetName(name string, prefix bool) []string {
+0000000000000000000000000000000000000000;;		// TODO: Validate that there's name for the suffix inserted by the pods.
+0000000000000000000000000000000000000000;;		// Currently this is just "-index". In the future we may allow a user
+0000000000000000000000000000000000000000;;		// specified list of suffixes and we need  to validate the longest one.
+0000000000000000000000000000000000000000;;		return apivalidation.NameIsDNSSubdomain(name, prefix)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodPresetSpec tests if required fields in the PodPreset spec are set.
+0000000000000000000000000000000000000000;;	func ValidatePodPresetSpec(spec *settings.PodPresetSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(&spec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.Env == nil && spec.EnvFrom == nil && spec.VolumeMounts == nil && spec.Volumes == nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("volumes", "env", "envFrom", "volumeMounts"), "must specify at least one"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		volumes, vErrs := apivalidation.ValidateVolumes(spec.Volumes, fldPath.Child("volumes"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, vErrs...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateEnv(spec.Env, fldPath.Child("env"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateEnvFrom(spec.EnvFrom, fldPath.Child("envFrom"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateVolumeMounts(spec.VolumeMounts, volumes, fldPath.Child("volumeMounts"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodPreset validates a PodPreset.
+0000000000000000000000000000000000000000;;	func ValidatePodPreset(pip *settings.PodPreset) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&pip.ObjectMeta, true, ValidatePodPresetName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodPresetSpec(&pip.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidatePodPresetUpdate tests if required fields in the PodPreset are set.
+0000000000000000000000000000000000000000;;	func ValidatePodPresetUpdate(pip, oldPip *settings.PodPreset) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&pip.ObjectMeta, &oldPip.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidatePodPresetSpec(&pip.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,236 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+39b62f2813d48afd46a977ed5aa48d4cc226d406;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package validation
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"github.com/robfig/cron"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/labels"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/validation/field"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		apivalidation "k8s.io/kubernetes/pkg/api/validation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/batch"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TODO: generalize for other controller objects that will follow the same pattern, such as ReplicaSet and DaemonSet, and
+0000000000000000000000000000000000000000;;	// move to new location.  Replace batch.Job with an interface.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// ValidateGeneratedSelector validates that the generated selector on a controller object match the controller object
+0000000000000000000000000000000000000000;;	// metadata, and the labels on the pod template are as generated.
+0000000000000000000000000000000000000000;;	func ValidateGeneratedSelector(obj *batch.Job) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if obj.Spec.ManualSelector != nil && *obj.Spec.ManualSelector {
+0000000000000000000000000000000000000000;;			return allErrs
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if obj.Spec.Selector == nil {
+0000000000000000000000000000000000000000;;			return allErrs // This case should already have been checked in caller.  No need for more errors.
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// If somehow uid was unset then we would get "controller-uid=" as the selector
+0000000000000000000000000000000000000000;;		// which is bad.
+0000000000000000000000000000000000000000;;		if obj.ObjectMeta.UID == "" {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(field.NewPath("metadata").Child("uid"), ""))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// If selector generation was requested, then expected labels must be
+0000000000000000000000000000000000000000;;		// present on pod template, and must match job's uid and name.  The
+0000000000000000000000000000000000000000;;		// generated (not-manual) selectors/labels ensure no overlap with other
+0000000000000000000000000000000000000000;;		// controllers.  The manual mode allows orphaning, adoption,
+0000000000000000000000000000000000000000;;		// backward-compatibility, and experimentation with new
+0000000000000000000000000000000000000000;;		// labeling/selection schemes.  Automatic selector generation should
+0000000000000000000000000000000000000000;;		// have placed certain labels on the pod, but this could have failed if
+0000000000000000000000000000000000000000;;		// the user added coflicting labels.  Validate that the expected
+0000000000000000000000000000000000000000;;		// generated ones are there.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateHasLabel(obj.Spec.Template.ObjectMeta, field.NewPath("spec").Child("template").Child("metadata"), "controller-uid", string(obj.UID))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateHasLabel(obj.Spec.Template.ObjectMeta, field.NewPath("spec").Child("template").Child("metadata"), "job-name", string(obj.Name))...)
+0000000000000000000000000000000000000000;;		expectedLabels := make(map[string]string)
+0000000000000000000000000000000000000000;;		expectedLabels["controller-uid"] = string(obj.UID)
+0000000000000000000000000000000000000000;;		expectedLabels["job-name"] = string(obj.Name)
+0000000000000000000000000000000000000000;;		// Whether manually or automatically generated, the selector of the job must match the pods it will produce.
+0000000000000000000000000000000000000000;;		if selector, err := metav1.LabelSelectorAsSelector(obj.Spec.Selector); err == nil {
+0000000000000000000000000000000000000000;;			if !selector.Matches(labels.Set(expectedLabels)) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("selector"), obj.Spec.Selector, "`selector` not auto-generated"))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJob(job *batch.Job) field.ErrorList {
+0000000000000000000000000000000000000000;;		// Jobs and rcs have the same name validation
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&job.ObjectMeta, true, apivalidation.ValidateReplicationControllerName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateGeneratedSelector(job)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobSpec(&job.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobSpec(spec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := validateJobSpec(spec, fldPath)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.Selector == nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("selector"), ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, unversionedvalidation.ValidateLabelSelector(spec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Whether manually or automatically generated, the selector of the job must match the pods it will produce.
+0000000000000000000000000000000000000000;;		if selector, err := metav1.LabelSelectorAsSelector(spec.Selector); err == nil {
+0000000000000000000000000000000000000000;;			labels := labels.Set(spec.Template.Labels)
+0000000000000000000000000000000000000000;;			if !selector.Matches(labels) {
+0000000000000000000000000000000000000000;;				allErrs = append(allErrs, field.Invalid(fldPath.Child("template", "metadata", "labels"), spec.Template.Labels, "`selector` does not match template `labels`"))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateJobSpec(spec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.Parallelism != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.Parallelism), fldPath.Child("parallelism"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.Completions != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.Completions), fldPath.Child("completions"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.ActiveDeadlineSeconds != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.ActiveDeadlineSeconds), fldPath.Child("activeDeadlineSeconds"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidatePodTemplateSpec(&spec.Template, fldPath.Child("template"))...)
+0000000000000000000000000000000000000000;;		if spec.Template.Spec.RestartPolicy != api.RestartPolicyOnFailure &&
+0000000000000000000000000000000000000000;;			spec.Template.Spec.RestartPolicy != api.RestartPolicyNever {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("template", "spec", "restartPolicy"),
+0000000000000000000000000000000000000000;;				spec.Template.Spec.RestartPolicy, []string{string(api.RestartPolicyOnFailure), string(api.RestartPolicyNever)}))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobStatus(status *batch.JobStatus, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.Active), fldPath.Child("active"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.Succeeded), fldPath.Child("succeeded"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(status.Failed), fldPath.Child("failed"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobUpdate(job, oldJob *batch.Job) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&job.ObjectMeta, &oldJob.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobSpecUpdate(job.Spec, oldJob.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobUpdateStatus(job, oldJob *batch.Job) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMetaUpdate(&job.ObjectMeta, &oldJob.ObjectMeta, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobStatusUpdate(job.Status, oldJob.Status)...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobSpecUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobSpec(&spec, fldPath)...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.Completions, oldSpec.Completions, fldPath.Child("completions"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.Selector, oldSpec.Selector, fldPath.Child("selector"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.Template, oldSpec.Template, fldPath.Child("template"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobStatusUpdate(status, oldStatus batch.JobStatus) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobStatus(&status, field.NewPath("status"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateCronJob(scheduledJob *batch.CronJob) field.ErrorList {
+0000000000000000000000000000000000000000;;		// CronJobs and rcs have the same name validation
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&scheduledJob.ObjectMeta, true, apivalidation.ValidateReplicationControllerName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateCronJobSpec(&scheduledJob.Spec, field.NewPath("spec"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateCronJobSpec(spec *batch.CronJobSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if len(spec.Schedule) == 0 {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath.Child("schedule"), ""))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, validateScheduleFormat(spec.Schedule, fldPath.Child("schedule"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.StartingDeadlineSeconds != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.StartingDeadlineSeconds), fldPath.Child("startingDeadlineSeconds"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, validateConcurrencyPolicy(&spec.ConcurrencyPolicy, fldPath.Child("concurrencyPolicy"))...)
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobTemplateSpec(&spec.JobTemplate, fldPath.Child("jobTemplate"))...)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if spec.SuccessfulJobsHistoryLimit != nil {
+0000000000000000000000000000000000000000;;			// zero is a valid SuccessfulJobsHistoryLimit
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.SuccessfulJobsHistoryLimit), fldPath.Child("successfulJobsHistoryLimit"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.FailedJobsHistoryLimit != nil {
+0000000000000000000000000000000000000000;;			// zero is a valid SuccessfulJobsHistoryLimit
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, apivalidation.ValidateNonnegativeField(int64(*spec.FailedJobsHistoryLimit), fldPath.Child("failedJobsHistoryLimit"))...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateConcurrencyPolicy(concurrencyPolicy *batch.ConcurrencyPolicy, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		switch *concurrencyPolicy {
+0000000000000000000000000000000000000000;;		case batch.AllowConcurrent, batch.ForbidConcurrent, batch.ReplaceConcurrent:
+0000000000000000000000000000000000000000;;			break
+0000000000000000000000000000000000000000;;		case "":
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Required(fldPath, ""))
+0000000000000000000000000000000000000000;;		default:
+0000000000000000000000000000000000000000;;			validValues := []string{string(batch.AllowConcurrent), string(batch.ForbidConcurrent), string(batch.ReplaceConcurrent)}
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath, *concurrencyPolicy, validValues))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func validateScheduleFormat(schedule string, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := field.ErrorList{}
+0000000000000000000000000000000000000000;;		if _, err := cron.ParseStandard(schedule); err != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath, schedule, err.Error()))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobTemplate(job *batch.JobTemplate) field.ErrorList {
+0000000000000000000000000000000000000000;;		// this method should be identical to ValidateJob
+0000000000000000000000000000000000000000;;		allErrs := apivalidation.ValidateObjectMeta(&job.ObjectMeta, true, apivalidation.ValidateReplicationControllerName, field.NewPath("metadata"))
+0000000000000000000000000000000000000000;;		allErrs = append(allErrs, ValidateJobTemplateSpec(&job.Template, field.NewPath("template"))...)
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func ValidateJobTemplateSpec(spec *batch.JobTemplateSpec, fldPath *field.Path) field.ErrorList {
+0000000000000000000000000000000000000000;;		allErrs := validateJobSpec(&spec.Spec, fldPath.Child("spec"))
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// jobtemplate will always have the selector automatically generated
+0000000000000000000000000000000000000000;;		if spec.Spec.Selector != nil {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.Invalid(fldPath.Child("spec", "selector"), spec.Spec.Selector, "`selector` will be auto-generated"))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if spec.Spec.ManualSelector != nil && *spec.Spec.ManualSelector {
+0000000000000000000000000000000000000000;;			allErrs = append(allErrs, field.NotSupported(fldPath.Child("spec", "manualSelector"), spec.Spec.ManualSelector, []string{"nil", "false"}))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return allErrs
+0000000000000000000000000000000000000000;;	}

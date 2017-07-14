@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000;;	// +build !linux,!freebsd
+d130243057bea8ebcfa3fdfcb8c3aeaf4ca246bf;Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces_windows.go[Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces_windows.go][vendor/github.com/opencontainers/runc/libcontainer/configs/namespaces_unsupported.go];	
+0000000000000000000000000000000000000000;;	package configs
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Namespace defines configuration for each namespace.  It specifies an
+0000000000000000000000000000000000000000;;	// alternate path that is able to be joined via setns.
+0000000000000000000000000000000000000000;;	type Namespace struct {
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,25 @@
+0000000000000000000000000000000000000000;;	// Copyright 2015 The appc Authors
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	// you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	// You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	//     http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	// distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	// See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	// limitations under the License.
+8d973c48ce204bda083f5a578278a9cd3743f879;Godeps/_workspace/src/github.com/appc/spec/schema/doc.go[Godeps/_workspace/src/github.com/appc/spec/schema/doc.go][vendor/github.com/appc/spec/schema/doc.go];	
+0000000000000000000000000000000000000000;;	// Package schema provides definitions for the JSON schema of the different
+0000000000000000000000000000000000000000;;	// manifests in the App Container Specification. The manifests are canonically
+0000000000000000000000000000000000000000;;	// represented in their respective structs:
+0000000000000000000000000000000000000000;;	//   - `ImageManifest`
+0000000000000000000000000000000000000000;;	//   - `PodManifest`
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Validation is performed through serialization: if a blob of JSON data will
+0000000000000000000000000000000000000000;;	// unmarshal to one of the *Manifests, it is considered a valid implementation
+0000000000000000000000000000000000000000;;	// of the standard. Similarly, if a constructed *Manifest struct marshals
+0000000000000000000000000000000000000000;;	// successfully to JSON, it must be valid.
+0000000000000000000000000000000000000000;;	package schema

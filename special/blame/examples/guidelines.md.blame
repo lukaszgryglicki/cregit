@@ -1,0 +1,88 @@
+0000000000000000000000000000000000000000;;	# Example Guidelines
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## An Example Is
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	An example demonstrates running an application/framework/workload on
+0000000000000000000000000000000000000000;;	Kubernetes in a meaningful way. It is educational and informative.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Examples are not:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Full app deployments, ready to use, with no explanation. These
+0000000000000000000000000000000000000000;;	  belong to [Helm charts](https://github.com/kubernetes/charts).
+0000000000000000000000000000000000000000;;	* Simple toys to show how to use a Kubernetes feature. These belong in
+0000000000000000000000000000000000000000;;	  the [user guide](https://kubernetes.io/docs/user-guide/).
+0000000000000000000000000000000000000000;;	* Demos that follow a script to show a Kubernetes feature in
+0000000000000000000000000000000000000000;;	  action. Example: killing a node to demonstrate controller
+0000000000000000000000000000000000000000;;	  self-healing.
+0000000000000000000000000000000000000000;;	* A tutorial which guides the user through multiple progressively more
+0000000000000000000000000000000000000000;;	  complex deployments to arrive at the final solution. An example
+0000000000000000000000000000000000000000;;	  should just demonstrate how to setup the correct deployment
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## An Example Includes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Up front
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Has a "this is what you'll learn" section.
+0000000000000000000000000000000000000000;;	* Has a Table of Contents.
+0000000000000000000000000000000000000000;;	* Has a section that brings up the app in the fewest number of
+0000000000000000000000000000000000000000;;	  commands (TL;DR / quickstart), without cloning the repo (kubectl
+0000000000000000000000000000000000000000;;	  apply -f http://...).
+0000000000000000000000000000000000000000;;	* Points to documentation of prerequisites.
+0000000000000000000000000000000000000000;;	  * [Create a cluster](https://kubernetes.io/docs/getting-started-guides/) (e.g., single-node docker).
+0000000000000000000000000000000000000000;;	  * [Setup kubectl](https://kubernetes.io/docs/user-guide/prereqs.md).
+0000000000000000000000000000000000000000;;	  * etc.
+0000000000000000000000000000000000000000;;	* Should specify which release of Kubernetes is required and any other
+0000000000000000000000000000000000000000;;	  prerequisites, such as DNS, a cloudprovider with PV provisioning, a
+0000000000000000000000000000000000000000;;	  cloudprovider with external load balancers, etc.
+0000000000000000000000000000000000000000;;	  * Point to general documentation about alternatives for those
+0000000000000000000000000000000000000000;;	    mechanisms rather than present the alternatives in each example.
+0000000000000000000000000000000000000000;;	  * Tries to balance between using using new features, and being
+0000000000000000000000000000000000000000;;	    compatible across environments.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Throughout
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Should point to documentation on first mention:
+0000000000000000000000000000000000000000;;	  [kubectl](https://kubernetes.io/docs/user-guide/kubectl-overview.md),
+0000000000000000000000000000000000000000;;	  [pods](https://kubernetes.io/docs/user-guide/pods.md),
+0000000000000000000000000000000000000000;;	  [services](https://kubernetes.io/docs/user-guide/services.md),
+0000000000000000000000000000000000000000;;	  [deployments](https://kubernetes.io/docs/user-guide/deployments.md),
+0000000000000000000000000000000000000000;;	  [replication controllers](https://kubernetes.io/docs/user-guide/replication-controller.md),
+0000000000000000000000000000000000000000;;	  [jobs](https://kubernetes.io/docs/user-guide/jobs.md),
+0000000000000000000000000000000000000000;;	  [labels](https://kubernetes.io/docs/user-guide/labels.md),
+0000000000000000000000000000000000000000;;	  [persistent volumes](https://kubernetes.io/docs/user-guide/persistent-volumes.md),
+0000000000000000000000000000000000000000;;	  etc.
+0000000000000000000000000000000000000000;;	* Most examples should be cloudprovider-independent (e.g., using PVCs, not PDs).
+0000000000000000000000000000000000000000;;	  * Other examples with cloudprovider-specific bits could be somewhere else.
+0000000000000000000000000000000000000000;;	* Actually show the app working -- console output, and or screenshots.
+0000000000000000000000000000000000000000;;	  * Ascii animations and screencasts are recommended.
+0000000000000000000000000000000000000000;;	* Follows [config best practices](https://kubernetes.io/docs/user-guide/config-best-practices.md).
+0000000000000000000000000000000000000000;;	* Shouldn't duplicate the [thorough walk-through](https://kubernetes.io/docs/user-guide/#thorough-walkthrough).
+0000000000000000000000000000000000000000;;	* Docker images are pre-built, and source is contained in a subfolder.
+0000000000000000000000000000000000000000;;	  * Source is the Dockerfile and any custom files needed beyond the
+0000000000000000000000000000000000000000;;	    upstream app being packaged.
+0000000000000000000000000000000000000000;;	  * Images are pushed to `gcr.io/google-samples`. Contact @jeffmendoza
+0000000000000000000000000000000000000000;;	    to have an image pushed
+0000000000000000000000000000000000000000;;	  * Images are tagged with a version (not latest) that is referenced
+0000000000000000000000000000000000000000;;	    in the example config.
+0000000000000000000000000000000000000000;;	* Only use the code highlighting types
+0000000000000000000000000000000000000000;;	  [supported by Rouge](https://github.com/jneen/rouge/wiki/list-of-supported-languages-and-lexers),
+0000000000000000000000000000000000000000;;	  as this is what GitHub Pages uses.
+0000000000000000000000000000000000000000;;	* Commands to be copied use the `shell` syntax highlighting type, and
+0000000000000000000000000000000000000000;;	  do not include any kind of prompt.
+0000000000000000000000000000000000000000;;	* Example output is in a separate block quote to distinguish it from
+0000000000000000000000000000000000000000;;	  the command (which doesn't have a prompt).
+0000000000000000000000000000000000000000;;	* When providing an example command or config for which the user is
+0000000000000000000000000000000000000000;;	  expected to substitute text with something specific to them, use
+0000000000000000000000000000000000000000;;	  angle brackets: `<IDENTIFIER>` for the text to be substituted.
+0000000000000000000000000000000000000000;;	* Use `kubectl` instead of `cluster\kubectl.sh` for example cli
+0000000000000000000000000000000000000000;;	  commands.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### At the end
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Should have a section suggesting what to look at next, both in terms
+0000000000000000000000000000000000000000;;	  of "additional resources" and "what example to look at next".
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	<!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
+0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/examples/guidelines.md?pixel)]()
+0000000000000000000000000000000000000000;;	<!-- END MUNGE: GENERATED_ANALYTICS -->

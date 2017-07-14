@@ -1,0 +1,2 @@
+0000000000000000000000000000000000000000;;	* Add all the tests from xyproto/db/db_test.go
+0000000000000000000000000000000000000000;;	* Conform to the IHost interface in xyproto/db/interface.go

@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000;;	# procfs
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This procfs package provides functions to retrieve system, kernel and process
+0000000000000000000000000000000000000000;;	metrics from the pseudo-filesystem proc.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	*WARNING*: This package is a work in progress. Its API may still break in
+0000000000000000000000000000000000000000;;	backwards-incompatible ways without warnings. Use it at your own risk.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![GoDoc](https://godoc.org/github.com/prometheus/procfs?status.png)](https://godoc.org/github.com/prometheus/procfs)
+0000000000000000000000000000000000000000;;	[![Build Status](https://travis-ci.org/prometheus/procfs.svg?branch=master)](https://travis-ci.org/prometheus/procfs)
+0000000000000000000000000000000000000000;;	[![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/procfs)](https://goreportcard.com/report/github.com/prometheus/procfs)

@@ -1,0 +1,74 @@
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## On Pull Requests
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Before you start a PR there needs to be a Github issue and a discussion about it
+0000000000000000000000000000000000000000;;	  on that issue with a core contributor, even if it's just a 'SGTM'.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- A PR's description must reference the issue it closes with a `For <ISSUE NUMBER>` (e.g. For #293).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- A PR's description must contain link(s) to the line(s) in the OpenStack
+0000000000000000000000000000000000000000;;	  source code (on Github) that prove(s) the PR code to be valid. Links to documentation
+0000000000000000000000000000000000000000;;	  are not good enough. The link(s) should be to a non-`master` branch. For example,
+0000000000000000000000000000000000000000;;	  a pull request implementing the creation of a Neutron v2 subnet might put the
+0000000000000000000000000000000000000000;;	  following link in the description:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	  https://github.com/openstack/neutron/blob/stable/mitaka/neutron/api/v2/attributes.py#L749
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	  From that link, a reviewer (or user) can verify the fields in the request/response
+0000000000000000000000000000000000000000;;	  objects in the PR.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- A PR that is in-progress should have `[wip]` in front of the PR's title. When
+0000000000000000000000000000000000000000;;	  ready for review, remove the `[wip]` and ping a core contributor with an `@`.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Forcing PRs to be small can have the effect of users submitting PRs in a hierarchical chain, with
+0000000000000000000000000000000000000000;;	  one depending on the next. If a PR depends on another one, it should have a [Pending #PRNUM]
+0000000000000000000000000000000000000000;;	  prefix in the PR title. In addition, it will be the PR submitter's responsibility to remove the
+0000000000000000000000000000000000000000;;	  [Pending #PRNUM] tag once the PR has been updated with the merged, dependent PR. That will
+0000000000000000000000000000000000000000;;	  let reviewers know it is ready to review.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- A PR should be small. Even if you intend on implementing an entire
+0000000000000000000000000000000000000000;;	  service, a PR should only be one route of that service
+0000000000000000000000000000000000000000;;	  (e.g. create server or get server, but not both).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Unless explicitly asked, do not squash commits in the middle of a review; only
+0000000000000000000000000000000000000000;;	  append. It makes it difficult for the reviewer to see what's changed from one
+0000000000000000000000000000000000000000;;	  review to the next.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## On Code
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- In re design: follow as closely as is reasonable the code already in the library.
+0000000000000000000000000000000000000000;;	  Most operations (e.g. create, delete) admit the same design.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Unit tests and acceptance (integration) tests must be written to cover each PR.
+0000000000000000000000000000000000000000;;	  Tests for operations with several options (e.g. list, create) should include all
+0000000000000000000000000000000000000000;;	  the options in the tests. This will allow users to verify an operation on their
+0000000000000000000000000000000000000000;;	  own infrastructure and see an example of usage.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- If in doubt, ask in-line on the PR.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### File Structure
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- The following should be used in most cases:
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	  - `requests.go`: contains all the functions that make HTTP requests and the
+0000000000000000000000000000000000000000;;	    types associated with the HTTP request (parameters for URL, body, etc)
+0000000000000000000000000000000000000000;;	  - `results.go`: contains all the response objects and their methods
+0000000000000000000000000000000000000000;;	  - `urls.go`: contains the endpoints to which the requests are made
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	### Naming
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- For methods on a type in `results.go`, the receiver should be named `r` and the
+0000000000000000000000000000000000000000;;	  variable into which it will be unmarshalled `s`.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Functions in `requests.go`, with the exception of functions that return a
+0000000000000000000000000000000000000000;;	  `pagination.Pager`, should be named returns of the name `r`.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Functions in `requests.go` that accept request bodies should accept as their
+0000000000000000000000000000000000000000;;	  last parameter an `interface` named `<Action>OptsBuilder` (eg `CreateOptsBuilder`).
+0000000000000000000000000000000000000000;;	  This `interface` should have at the least a method named `To<Resource><Action>Map`
+0000000000000000000000000000000000000000;;	  (eg `ToPortCreateMap`).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	- Functions in `requests.go` that accept query strings should accept as their
+0000000000000000000000000000000000000000;;	  last parameter an `interface` named `<Action>OptsBuilder` (eg `ListOptsBuilder`).
+0000000000000000000000000000000000000000;;	  This `interface` should have at the least a method named `To<Resource><Action>Query`
+0000000000000000000000000000000000000000;;	  (eg `ToServerListQuery`).

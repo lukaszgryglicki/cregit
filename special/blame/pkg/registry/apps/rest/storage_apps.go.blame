@@ -1,0 +1,72 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+d3caf1c70cae2a2b3c683a179a3ee90f4f0c21a6;pkg/master/storage_apps.go[pkg/master/storage_apps.go][pkg/registry/apps/rest/storage_apps.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package rest
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		appsapiv1beta1 "k8s.io/api/apps/v1beta1"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/generic"
+0000000000000000000000000000000000000000;;		"k8s.io/apiserver/pkg/registry/rest"
+0000000000000000000000000000000000000000;;		genericapiserver "k8s.io/apiserver/pkg/server"
+0000000000000000000000000000000000000000;;		serverstorage "k8s.io/apiserver/pkg/server/storage"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/apps"
+0000000000000000000000000000000000000000;;		controllerrevisionsstore "k8s.io/kubernetes/pkg/registry/apps/controllerrevision/storage"
+0000000000000000000000000000000000000000;;		statefulsetstore "k8s.io/kubernetes/pkg/registry/apps/statefulset/storage"
+0000000000000000000000000000000000000000;;		deploymentstore "k8s.io/kubernetes/pkg/registry/extensions/deployment/storage"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type RESTStorageProvider struct{}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, bool) {
+0000000000000000000000000000000000000000;;		apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apps.GroupName, api.Registry, api.Scheme, api.ParameterCodec, api.Codecs)
+0000000000000000000000000000000000000000;;		// If you add a version here, be sure to add an entry in `k8s.io/kubernetes/cmd/kube-apiserver/app/aggregator.go with specific priorities.
+0000000000000000000000000000000000000000;;		// TODO refactor the plumbing to provide the information in the APIGroupInfo
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.AnyResourcesForVersionEnabled(appsapiv1beta1.SchemeGroupVersion) {
+0000000000000000000000000000000000000000;;			apiGroupInfo.VersionedResourcesStorageMap[appsapiv1beta1.SchemeGroupVersion.Version] = p.v1beta1Storage(apiResourceConfigSource, restOptionsGetter)
+0000000000000000000000000000000000000000;;			apiGroupInfo.GroupMeta.GroupVersion = appsapiv1beta1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return apiGroupInfo, true
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
+0000000000000000000000000000000000000000;;		version := appsapiv1beta1.SchemeGroupVersion
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		storage := map[string]rest.Storage{}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("deployments")) {
+0000000000000000000000000000000000000000;;			deploymentStorage := deploymentstore.NewStorage(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["deployments"] = deploymentStorage.Deployment
+0000000000000000000000000000000000000000;;			storage["deployments/status"] = deploymentStorage.Status
+0000000000000000000000000000000000000000;;			storage["deployments/rollback"] = deploymentStorage.Rollback
+0000000000000000000000000000000000000000;;			storage["deployments/scale"] = deploymentStorage.Scale
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("statefulsets")) {
+0000000000000000000000000000000000000000;;			statefulsetStorage, statefulsetStatusStorage := statefulsetstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["statefulsets"] = statefulsetStorage
+0000000000000000000000000000000000000000;;			storage["statefulsets/status"] = statefulsetStatusStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if apiResourceConfigSource.ResourceEnabled(version.WithResource("controllerrevisions")) {
+0000000000000000000000000000000000000000;;			historyStorage := controllerrevisionsstore.NewREST(restOptionsGetter)
+0000000000000000000000000000000000000000;;			storage["controllerrevisions"] = historyStorage
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return storage
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (p RESTStorageProvider) GroupName() string {
+0000000000000000000000000000000000000000;;		return apps.GroupName
+0000000000000000000000000000000000000000;;	}

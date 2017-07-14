@@ -1,0 +1,16 @@
+0000000000000000000000000000000000000000;;	// Copyright 2016 The etcd Authors
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	// you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	// You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	//     http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	// distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	// See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	// limitations under the License.
+5da4772d7eee0df4a5bf872fd32f72643fc2e5c9;Godeps/_workspace/src/github.com/coreos/etcd/discovery/doc.go[Godeps/_workspace/src/github.com/coreos/etcd/discovery/doc.go][vendor/github.com/coreos/etcd/lease/leasehttp/doc.go];	
+0000000000000000000000000000000000000000;;	// Package leasehttp serves lease renewals made through HTTP requests.
+0000000000000000000000000000000000000000;;	package leasehttp

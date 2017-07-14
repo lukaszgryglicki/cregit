@@ -1,0 +1,17 @@
+0000000000000000000000000000000000000000;;	package corehandlers
+b5a369483575c99a3598125e51d2fb065a91c6de;Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/aws/param_validator.go[Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/aws/param_validator.go][vendor/github.com/aws/aws-sdk-go/aws/corehandlers/param_validator.go];	
+0000000000000000000000000000000000000000;;	import "github.com/aws/aws-sdk-go/aws/request"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ValidateParametersHandler is a request handler to validate the input parameters.
+0000000000000000000000000000000000000000;;	// Validating parameters only has meaning if done prior to the request being sent.
+0000000000000000000000000000000000000000;;	var ValidateParametersHandler = request.NamedHandler{Name: "core.ValidateParametersHandler", Fn: func(r *request.Request) {
+0000000000000000000000000000000000000000;;		if !r.ParamsFilled() {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if v, ok := r.Params.(request.Validator); ok {
+0000000000000000000000000000000000000000;;			if err := v.Validate(); err != nil {
+0000000000000000000000000000000000000000;;				r.Error = err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}}

@@ -1,0 +1,72 @@
+0000000000000000000000000000000000000000;;	package tokens
+54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/errors.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/errors.go][vendor/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/errors.go];	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"errors"
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func unacceptedAttributeErr(attribute string) error {
+0000000000000000000000000000000000000000;;		return fmt.Errorf("The base Identity V3 API does not accept authentication by %s", attribute)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func redundantWithTokenErr(attribute string) error {
+0000000000000000000000000000000000000000;;		return fmt.Errorf("%s may not be provided when authenticating with a TokenID", attribute)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func redundantWithUserID(attribute string) error {
+0000000000000000000000000000000000000000;;		return fmt.Errorf("%s may not be provided when authenticating with a UserID", attribute)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		// ErrAPIKeyProvided indicates that an APIKey was provided but can't be used.
+0000000000000000000000000000000000000000;;		ErrAPIKeyProvided = unacceptedAttributeErr("APIKey")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrTenantIDProvided indicates that a TenantID was provided but can't be used.
+0000000000000000000000000000000000000000;;		ErrTenantIDProvided = unacceptedAttributeErr("TenantID")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrTenantNameProvided indicates that a TenantName was provided but can't be used.
+0000000000000000000000000000000000000000;;		ErrTenantNameProvided = unacceptedAttributeErr("TenantName")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrUsernameWithToken indicates that a Username was provided, but token authentication is being used instead.
+0000000000000000000000000000000000000000;;		ErrUsernameWithToken = redundantWithTokenErr("Username")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrUserIDWithToken indicates that a UserID was provided, but token authentication is being used instead.
+0000000000000000000000000000000000000000;;		ErrUserIDWithToken = redundantWithTokenErr("UserID")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrDomainIDWithToken indicates that a DomainID was provided, but token authentication is being used instead.
+0000000000000000000000000000000000000000;;		ErrDomainIDWithToken = redundantWithTokenErr("DomainID")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrDomainNameWithToken indicates that a DomainName was provided, but token authentication is being used instead.s
+0000000000000000000000000000000000000000;;		ErrDomainNameWithToken = redundantWithTokenErr("DomainName")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrUsernameOrUserID indicates that neither username nor userID are specified, or both are at once.
+0000000000000000000000000000000000000000;;		ErrUsernameOrUserID = errors.New("Exactly one of Username and UserID must be provided for password authentication")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrDomainIDWithUserID indicates that a DomainID was provided, but unnecessary because a UserID is being used.
+0000000000000000000000000000000000000000;;		ErrDomainIDWithUserID = redundantWithUserID("DomainID")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrDomainNameWithUserID indicates that a DomainName was provided, but unnecessary because a UserID is being used.
+0000000000000000000000000000000000000000;;		ErrDomainNameWithUserID = redundantWithUserID("DomainName")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrDomainIDOrDomainName indicates that a username was provided, but no domain to scope it.
+0000000000000000000000000000000000000000;;		// It may also indicate that both a DomainID and a DomainName were provided at once.
+0000000000000000000000000000000000000000;;		ErrDomainIDOrDomainName = errors.New("You must provide exactly one of DomainID or DomainName to authenticate by Username")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrMissingPassword indicates that no password and no token were provided and no token is available.
+0000000000000000000000000000000000000000;;		ErrMissingPassword = errors.New("You must provide a password or a token to authenticate")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrScopeDomainIDOrDomainName indicates that a domain ID or Name was required in a Scope, but not present.
+0000000000000000000000000000000000000000;;		ErrScopeDomainIDOrDomainName = errors.New("You must provide exactly one of DomainID or DomainName in a Scope with ProjectName")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrScopeProjectIDOrProjectName indicates that both a ProjectID and a ProjectName were provided in a Scope.
+0000000000000000000000000000000000000000;;		ErrScopeProjectIDOrProjectName = errors.New("You must provide at most one of ProjectID or ProjectName in a Scope")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrScopeProjectIDAlone indicates that a ProjectID was provided with other constraints in a Scope.
+0000000000000000000000000000000000000000;;		ErrScopeProjectIDAlone = errors.New("ProjectID must be supplied alone in a Scope")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrScopeDomainName indicates that a DomainName was provided alone in a Scope.
+0000000000000000000000000000000000000000;;		ErrScopeDomainName = errors.New("DomainName must be supplied with a ProjectName or ProjectID in a Scope.")
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ErrScopeEmpty indicates that no credentials were provided in a Scope.
+0000000000000000000000000000000000000000;;		ErrScopeEmpty = errors.New("You must provide either a Project or Domain in a Scope")
+0000000000000000000000000000000000000000;;	)

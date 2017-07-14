@@ -1,0 +1,9 @@
+0000000000000000000000000000000000000000;;	// +build arm64
+109a839bd4c9e0cbbe2806f0dd5c99d7d6bd911b;Godeps/_workspace/src/github.com/boltdb/bolt/bolt_arm64.go[Godeps/_workspace/src/github.com/boltdb/bolt/bolt_arm64.go][vendor/github.com/boltdb/bolt/bolt_arm64.go];	
+0000000000000000000000000000000000000000;;	package bolt
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// maxMapSize represents the largest mmap size supported by Bolt.
+0000000000000000000000000000000000000000;;	const maxMapSize = 0xFFFFFFFFFFFF // 256TB
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// maxAllocSize is the size used when creating array pointers.
+0000000000000000000000000000000000000000;;	const maxAllocSize = 0x7FFFFFFF

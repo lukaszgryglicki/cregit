@@ -1,0 +1,57 @@
+0000000000000000000000000000000000000000;;	package goproxy
+d1fe717eabb388da4fbd9a76bce087a5ce94de70;Godeps/_workspace/src/github.com/elazarl/goproxy/actions.go[Godeps/_workspace/src/github.com/elazarl/goproxy/actions.go][vendor/github.com/elazarl/goproxy/actions.go];	
+0000000000000000000000000000000000000000;;	import "net/http"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ReqHandler will "tamper" with the request coming to the proxy server
+0000000000000000000000000000000000000000;;	// If Handle returns req,nil the proxy will send the returned request
+0000000000000000000000000000000000000000;;	// to the destination server. If it returns nil,resp the proxy will
+0000000000000000000000000000000000000000;;	// skip sending any requests, and will simply return the response `resp`
+0000000000000000000000000000000000000000;;	// to the client.
+0000000000000000000000000000000000000000;;	type ReqHandler interface {
+0000000000000000000000000000000000000000;;		Handle(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A wrapper that would convert a function to a ReqHandler interface type
+0000000000000000000000000000000000000000;;	type FuncReqHandler func(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// FuncReqHandler.Handle(req,ctx) <=> FuncReqHandler(req,ctx)
+0000000000000000000000000000000000000000;;	func (f FuncReqHandler) Handle(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response) {
+0000000000000000000000000000000000000000;;		return f(req, ctx)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// after the proxy have sent the request to the destination server, it will
+0000000000000000000000000000000000000000;;	// "filter" the response through the RespHandlers it has.
+0000000000000000000000000000000000000000;;	// The proxy server will send to the client the response returned by the RespHandler.
+0000000000000000000000000000000000000000;;	// In case of error, resp will be nil, and ctx.RoundTrip.Error will contain the error
+0000000000000000000000000000000000000000;;	type RespHandler interface {
+0000000000000000000000000000000000000000;;		Handle(resp *http.Response, ctx *ProxyCtx) *http.Response
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A wrapper that would convert a function to a RespHandler interface type
+0000000000000000000000000000000000000000;;	type FuncRespHandler func(resp *http.Response, ctx *ProxyCtx) *http.Response
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// FuncRespHandler.Handle(req,ctx) <=> FuncRespHandler(req,ctx)
+0000000000000000000000000000000000000000;;	func (f FuncRespHandler) Handle(resp *http.Response, ctx *ProxyCtx) *http.Response {
+0000000000000000000000000000000000000000;;		return f(resp, ctx)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// When a client send a CONNECT request to a host, the request is filtered through
+0000000000000000000000000000000000000000;;	// all the HttpsHandlers the proxy has, and if one returns true, the connection is
+0000000000000000000000000000000000000000;;	// sniffed using Man in the Middle attack.
+0000000000000000000000000000000000000000;;	// That is, the proxy will create a TLS connection with the client, another TLS
+0000000000000000000000000000000000000000;;	// connection with the destination the client wished to connect to, and would
+0000000000000000000000000000000000000000;;	// send back and forth all messages from the server to the client and vice versa.
+0000000000000000000000000000000000000000;;	// The request and responses sent in this Man In the Middle channel are filtered
+0000000000000000000000000000000000000000;;	// through the usual flow (request and response filtered through the ReqHandlers
+0000000000000000000000000000000000000000;;	// and RespHandlers)
+0000000000000000000000000000000000000000;;	type HttpsHandler interface {
+0000000000000000000000000000000000000000;;		HandleConnect(req string, ctx *ProxyCtx) (*ConnectAction, string)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// A wrapper that would convert a function to a HttpsHandler interface type
+0000000000000000000000000000000000000000;;	type FuncHttpsHandler func(host string, ctx *ProxyCtx) (*ConnectAction, string)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// FuncHttpsHandler should implement the RespHandler interface
+0000000000000000000000000000000000000000;;	func (f FuncHttpsHandler) HandleConnect(host string, ctx *ProxyCtx) (*ConnectAction, string) {
+0000000000000000000000000000000000000000;;		return f(host, ctx)
+0000000000000000000000000000000000000000;;	}

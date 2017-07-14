@@ -1,0 +1,18 @@
+0000000000000000000000000000000000000000;;	// Copyright 2011 The Go Authors. All rights reserved.
+0000000000000000000000000000000000000000;;	// Use of this source code is governed by a BSD-style
+0000000000000000000000000000000000000000;;	// license that can be found in the LICENSE file.
+d05faf3fd63586437e38382c48fa03d7bd30de0c;Godeps/_workspace/src/golang.org/x/crypto/ssh/doc.go[Godeps/_workspace/src/golang.org/x/crypto/ssh/doc.go][vendor/golang.org/x/crypto/ssh/doc.go];	
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Package ssh implements an SSH client and server.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	SSH is a transport security protocol, an authentication protocol and a
+0000000000000000000000000000000000000000;;	family of application protocols. The most typical application level
+0000000000000000000000000000000000000000;;	protocol is a remote shell and this is specifically implemented.  However,
+0000000000000000000000000000000000000000;;	the multiplexed nature of SSH is exposed to users that wish to support
+0000000000000000000000000000000000000000;;	others.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	References:
+0000000000000000000000000000000000000000;;	  [PROTOCOL.certkeys]: http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.certkeys?rev=HEAD
+0000000000000000000000000000000000000000;;	  [SSH-PARAMETERS]:    http://www.iana.org/assignments/ssh-parameters/ssh-parameters.xml#ssh-parameters-1
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	package ssh

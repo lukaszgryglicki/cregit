@@ -1,0 +1,12 @@
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	sudo: false
+a828df98d7349ecfe3ed32b7f78f77950d641e60;;	
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	language: go
+a828df98d7349ecfe3ed32b7f78f77950d641e60;;	
+a828df98d7349ecfe3ed32b7f78f77950d641e60;;	go:
+45473432028991b8b23cc5822fe045d9b6a279d6;;	   - 1.7
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	before_install:
+a828df98d7349ecfe3ed32b7f78f77950d641e60;;	  - make vendor
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	script:
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml[Godeps/_workspace/src/github.com/vmware/govmomi/.travis.yml][vendor/github.com/vmware/govmomi/.travis.yml];	  - make check test

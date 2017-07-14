@@ -1,0 +1,45 @@
+0000000000000000000000000000000000000000;;	// Copyright 2015 The etcd Authors
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	// you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	// You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	//     http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	// distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	// See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	// limitations under the License.
+5da4772d7eee0df4a5bf872fd32f72643fc2e5c9;Godeps/_workspace/src/github.com/coreos/etcd/etcdserver/errors.go[Godeps/_workspace/src/github.com/coreos/etcd/etcdserver/errors.go][vendor/github.com/coreos/etcd/etcdserver/errors.go];	
+0000000000000000000000000000000000000000;;	package etcdserver
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"errors"
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		ErrUnknownMethod              = errors.New("etcdserver: unknown method")
+0000000000000000000000000000000000000000;;		ErrStopped                    = errors.New("etcdserver: server stopped")
+0000000000000000000000000000000000000000;;		ErrCanceled                   = errors.New("etcdserver: request cancelled")
+0000000000000000000000000000000000000000;;		ErrTimeout                    = errors.New("etcdserver: request timed out")
+0000000000000000000000000000000000000000;;		ErrTimeoutDueToLeaderFail     = errors.New("etcdserver: request timed out, possibly due to previous leader failure")
+0000000000000000000000000000000000000000;;		ErrTimeoutDueToConnectionLost = errors.New("etcdserver: request timed out, possibly due to connection lost")
+0000000000000000000000000000000000000000;;		ErrTimeoutLeaderTransfer      = errors.New("etcdserver: request timed out, leader transfer took too long")
+0000000000000000000000000000000000000000;;		ErrNotEnoughStartedMembers    = errors.New("etcdserver: re-configuration failed due to not enough started members")
+0000000000000000000000000000000000000000;;		ErrNoLeader                   = errors.New("etcdserver: no leader")
+0000000000000000000000000000000000000000;;		ErrRequestTooLarge            = errors.New("etcdserver: request is too large")
+0000000000000000000000000000000000000000;;		ErrNoSpace                    = errors.New("etcdserver: no space")
+0000000000000000000000000000000000000000;;		ErrTooManyRequests            = errors.New("etcdserver: too many requests")
+0000000000000000000000000000000000000000;;		ErrUnhealthy                  = errors.New("etcdserver: unhealthy cluster")
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type DiscoveryError struct {
+0000000000000000000000000000000000000000;;		Op  string
+0000000000000000000000000000000000000000;;		Err error
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (e DiscoveryError) Error() string {
+0000000000000000000000000000000000000000;;		return fmt.Sprintf("failed to %s discovery cluster (%v)", e.Op, e.Err)
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,29 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright (c) 2015 VMware, Inc. All Rights Reserved.
+7dd1f486ff5c2ccadc83b845ee9a4cebfa98c85d;Godeps/_workspace/src/github.com/vmware/govmomi/vim25/doc.go[Godeps/_workspace/src/github.com/vmware/govmomi/vim25/doc.go][vendor/github.com/vmware/govmomi/vim25/doc.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Package vim25 provides a minimal client implementation to use with other
+0000000000000000000000000000000000000000;;	packages in the vim25 tree. The code in this package intentionally does not
+0000000000000000000000000000000000000000;;	take any dependendies outside the vim25 tree.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	The client implementation in this package embeds the soap.Client structure.
+0000000000000000000000000000000000000000;;	Additionally, it stores the value of the session's ServiceContent object. This
+0000000000000000000000000000000000000000;;	object stores references to a variety of subsystems, such as the root property
+0000000000000000000000000000000000000000;;	collector, the session manager, and the search index. The client is fully
+0000000000000000000000000000000000000000;;	functional after serialization and deserialization, without the need for
+0000000000000000000000000000000000000000;;	additional requests for initialization.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	package vim25

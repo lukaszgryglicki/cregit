@@ -1,0 +1,740 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+2658a2f48ffb6662773205f666aabde6c4262192;;	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Package operationexecutor implements interfaces that enable execution of
+0000000000000000000000000000000000000000;;	// attach, detach, mount, and unmount operations with a
+0000000000000000000000000000000000000000;;	// nestedpendingoperations so that more than one operation is never triggered
+0000000000000000000000000000000000000000;;	// on the same volume for the same pod.
+0000000000000000000000000000000000000000;;	package operationexecutor
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/golang/glog"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/api/core/v1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/types"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/util/mount"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/volume"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/volume/util/nestedpendingoperations"
+0000000000000000000000000000000000000000;;		volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/volume/util/volumehelper"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// OperationExecutor defines a set of operations for attaching, detaching,
+0000000000000000000000000000000000000000;;	// mounting, or unmounting a volume that are executed with a NewNestedPendingOperations which
+0000000000000000000000000000000000000000;;	// prevents more than one operation from being triggered on the same volume.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// These operations should be idempotent (for example, AttachVolume should
+0000000000000000000000000000000000000000;;	// still succeed if the volume is already attached to the node, etc.). However,
+0000000000000000000000000000000000000000;;	// they depend on the volume plugins to implement this behavior.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Once an operation completes successfully, the actualStateOfWorld is updated
+0000000000000000000000000000000000000000;;	// to indicate the volume is attached/detached/mounted/unmounted.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// If the OperationExecutor fails to start the operation because, for example,
+0000000000000000000000000000000000000000;;	// an operation with the same UniqueVolumeName is already pending, a non-nil
+0000000000000000000000000000000000000000;;	// error is returned.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Once the operation is started, since it is executed asynchronously,
+0000000000000000000000000000000000000000;;	// errors are simply logged and the goroutine is terminated without updating
+0000000000000000000000000000000000000000;;	// actualStateOfWorld (callers are responsible for retrying as needed).
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// Some of these operations may result in calls to the API server; callers are
+0000000000000000000000000000000000000000;;	// responsible for rate limiting on errors.
+0000000000000000000000000000000000000000;;	type OperationExecutor interface {
+0000000000000000000000000000000000000000;;		// AttachVolume attaches the volume to the node specified in volumeToAttach.
+0000000000000000000000000000000000000000;;		// It then updates the actual state of the world to reflect that.
+0000000000000000000000000000000000000000;;		AttachVolume(volumeToAttach VolumeToAttach, actualStateOfWorld ActualStateOfWorldAttacherUpdater) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VerifyVolumesAreAttachedPerNode verifies the given list of volumes to see whether they are still attached to the node.
+0000000000000000000000000000000000000000;;		// If any volume is not attached right now, it will update the actual state of the world to reflect that.
+0000000000000000000000000000000000000000;;		// Note that this operation could be operated concurrently with other attach/detach operations.
+0000000000000000000000000000000000000000;;		// In theory (but very unlikely in practise), race condition among these operations might mark volume as detached
+0000000000000000000000000000000000000000;;		// even if it is attached. But reconciler can correct this in a short period of time.
+0000000000000000000000000000000000000000;;		VerifyVolumesAreAttachedPerNode(AttachedVolumes []AttachedVolume, nodeName types.NodeName, actualStateOfWorld ActualStateOfWorldAttacherUpdater) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VerifyVolumesAreAttached verifies volumes being used in entire cluster and if they are still attached to the node
+0000000000000000000000000000000000000000;;		// If any volume is not attached right now, it will update actual state of world to reflect that.
+0000000000000000000000000000000000000000;;		VerifyVolumesAreAttached(volumesToVerify map[types.NodeName][]AttachedVolume, actualStateOfWorld ActualStateOfWorldAttacherUpdater)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// DetachVolume detaches the volume from the node specified in
+0000000000000000000000000000000000000000;;		// volumeToDetach, and updates the actual state of the world to reflect
+0000000000000000000000000000000000000000;;		// that. If verifySafeToDetach is set, a call is made to the fetch the node
+0000000000000000000000000000000000000000;;		// object and it is used to verify that the volume does not exist in Node's
+0000000000000000000000000000000000000000;;		// Status.VolumesInUse list (operation fails with error if it is).
+0000000000000000000000000000000000000000;;		DetachVolume(volumeToDetach AttachedVolume, verifySafeToDetach bool, actualStateOfWorld ActualStateOfWorldAttacherUpdater) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// MountVolume mounts the volume to the pod specified in volumeToMount.
+0000000000000000000000000000000000000000;;		// Specifically it will:
+0000000000000000000000000000000000000000;;		// * Wait for the device to finish attaching (for attachable volumes only).
+0000000000000000000000000000000000000000;;		// * Mount device to global mount path (for attachable volumes only).
+0000000000000000000000000000000000000000;;		// * Update actual state of world to reflect volume is globally mounted (for
+0000000000000000000000000000000000000000;;		//   attachable volumes only).
+0000000000000000000000000000000000000000;;		// * Mount the volume to the pod specific path.
+0000000000000000000000000000000000000000;;		// * Update actual state of world to reflect volume is mounted to the pod
+0000000000000000000000000000000000000000;;		//   path.
+0000000000000000000000000000000000000000;;		// The parameter "isRemount" is informational and used to adjust logging
+0000000000000000000000000000000000000000;;		// verbosity. An initial mount is more log-worthy than a remount, for
+0000000000000000000000000000000000000000;;		// example.
+0000000000000000000000000000000000000000;;		MountVolume(waitForAttachTimeout time.Duration, volumeToMount VolumeToMount, actualStateOfWorld ActualStateOfWorldMounterUpdater, isRemount bool) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// UnmountVolume unmounts the volume from the pod specified in
+0000000000000000000000000000000000000000;;		// volumeToUnmount and updates the actual state of the world to reflect that.
+0000000000000000000000000000000000000000;;		UnmountVolume(volumeToUnmount MountedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// UnmountDevice unmounts the volumes global mount path from the device (for
+0000000000000000000000000000000000000000;;		// attachable volumes only, freeing it for detach. It then updates the
+0000000000000000000000000000000000000000;;		// actual state of the world to reflect that.
+0000000000000000000000000000000000000000;;		UnmountDevice(deviceToDetach AttachedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater, mounter mount.Interface) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VerifyControllerAttachedVolume checks if the specified volume is present
+0000000000000000000000000000000000000000;;		// in the specified nodes AttachedVolumes Status field. It uses kubeClient
+0000000000000000000000000000000000000000;;		// to fetch the node object.
+0000000000000000000000000000000000000000;;		// If the volume is found, the actual state of the world is updated to mark
+0000000000000000000000000000000000000000;;		// the volume as attached.
+0000000000000000000000000000000000000000;;		// If the volume does not implement the attacher interface, it is assumed to
+0000000000000000000000000000000000000000;;		// be attached and the actual state of the world is updated accordingly.
+0000000000000000000000000000000000000000;;		// If the volume is not found or there is an error (fetching the node
+0000000000000000000000000000000000000000;;		// object, for example) then an error is returned which triggers exponential
+0000000000000000000000000000000000000000;;		// back off on retries.
+0000000000000000000000000000000000000000;;		VerifyControllerAttachedVolume(volumeToMount VolumeToMount, nodeName types.NodeName, actualStateOfWorld ActualStateOfWorldAttacherUpdater) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// IsOperationPending returns true if an operation for the given volumeName and podName is pending,
+0000000000000000000000000000000000000000;;		// otherwise it returns false
+0000000000000000000000000000000000000000;;		IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NewOperationExecutor returns a new instance of OperationExecutor.
+0000000000000000000000000000000000000000;;	func NewOperationExecutor(
+0000000000000000000000000000000000000000;;		operationGenerator OperationGenerator) OperationExecutor {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return &operationExecutor{
+0000000000000000000000000000000000000000;;			pendingOperations: nestedpendingoperations.NewNestedPendingOperations(
+0000000000000000000000000000000000000000;;				true /* exponentialBackOffOnError */),
+0000000000000000000000000000000000000000;;			operationGenerator: operationGenerator,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ActualStateOfWorldMounterUpdater defines a set of operations updating the actual
+0000000000000000000000000000000000000000;;	// state of the world cache after successful mount/unmount.
+0000000000000000000000000000000000000000;;	type ActualStateOfWorldMounterUpdater interface {
+0000000000000000000000000000000000000000;;		// Marks the specified volume as mounted to the specified pod
+0000000000000000000000000000000000000000;;		MarkVolumeAsMounted(podName volumetypes.UniquePodName, podUID types.UID, volumeName v1.UniqueVolumeName, mounter volume.Mounter, outerVolumeSpecName string, volumeGidValue string) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Marks the specified volume as unmounted from the specified pod
+0000000000000000000000000000000000000000;;		MarkVolumeAsUnmounted(podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Marks the specified volume as having been globally mounted.
+0000000000000000000000000000000000000000;;		MarkDeviceAsMounted(volumeName v1.UniqueVolumeName) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Marks the specified volume as having its global mount unmounted.
+0000000000000000000000000000000000000000;;		MarkDeviceAsUnmounted(volumeName v1.UniqueVolumeName) error
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// ActualStateOfWorldAttacherUpdater defines a set of operations updating the
+0000000000000000000000000000000000000000;;	// actual state of the world cache after successful attach/detach/mount/unmount.
+0000000000000000000000000000000000000000;;	type ActualStateOfWorldAttacherUpdater interface {
+0000000000000000000000000000000000000000;;		// Marks the specified volume as attached to the specified node.  If the
+0000000000000000000000000000000000000000;;		// volume name is supplied, that volume name will be used.  If not, the
+0000000000000000000000000000000000000000;;		// volume name is computed using the result from querying the plugin.
+0000000000000000000000000000000000000000;;		//
+0000000000000000000000000000000000000000;;		// TODO: in the future, we should be able to remove the volumeName
+0000000000000000000000000000000000000000;;		// argument to this method -- since it is used only for attachable
+0000000000000000000000000000000000000000;;		// volumes.  See issue 29695.
+0000000000000000000000000000000000000000;;		MarkVolumeAsAttached(volumeName v1.UniqueVolumeName, volumeSpec *volume.Spec, nodeName types.NodeName, devicePath string) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Marks the specified volume as detached from the specified node
+0000000000000000000000000000000000000000;;		MarkVolumeAsDetached(volumeName v1.UniqueVolumeName, nodeName types.NodeName)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Marks desire to detach the specified volume (remove the volume from the node's
+0000000000000000000000000000000000000000;;		// volumesToReportAsAttached list)
+0000000000000000000000000000000000000000;;		RemoveVolumeFromReportAsAttached(volumeName v1.UniqueVolumeName, nodeName types.NodeName) error
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Unmarks the desire to detach for the specified volume (add the volume back to
+0000000000000000000000000000000000000000;;		// the node's volumesToReportAsAttached list)
+0000000000000000000000000000000000000000;;		AddVolumeToReportAsAttached(volumeName v1.UniqueVolumeName, nodeName types.NodeName)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeLogger defines a set of operations for generating volume-related logging and error msgs
+0000000000000000000000000000000000000000;;	type VolumeLogger interface {
+0000000000000000000000000000000000000000;;		// Creates a detailed msg that can be used in logs
+0000000000000000000000000000000000000000;;		// The msg format follows the pattern "<prefixMsg> <volume details> <suffixMsg>",
+0000000000000000000000000000000000000000;;		// where each implementation provides the volume details
+0000000000000000000000000000000000000000;;		GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Creates a detailed error that can be used in logs.
+0000000000000000000000000000000000000000;;		// The msg format follows the pattern "<prefixMsg> <volume details>: <err> ",
+0000000000000000000000000000000000000000;;		GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Creates a simple msg that is user friendly and a detailed msg that can be used in logs
+0000000000000000000000000000000000000000;;		// The msg format follows the pattern "<prefixMsg> <volume details> <suffixMsg>",
+0000000000000000000000000000000000000000;;		// where each implementation provides the volume details
+0000000000000000000000000000000000000000;;		GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Creates a simple error that is user friendly and a detailed error that can be used in logs.
+0000000000000000000000000000000000000000;;		// The msg format follows the pattern "<prefixMsg> <volume details>: <err> ",
+0000000000000000000000000000000000000000;;		GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Generates an error string with the format ": <err>" if err exists
+0000000000000000000000000000000000000000;;	func errSuffix(err error) string {
+0000000000000000000000000000000000000000;;		errStr := ""
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			errStr = fmt.Sprintf(": %v", err)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return errStr
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Generate a detailed error msg for logs
+0000000000000000000000000000000000000000;;	func generateVolumeMsgDetailed(prefixMsg, suffixMsg, volumeName, details string) (detailedMsg string) {
+0000000000000000000000000000000000000000;;		return fmt.Sprintf("%v for volume %q %v %v", prefixMsg, volumeName, details, suffixMsg)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Generate a simplified error msg for events and a detailed error msg for logs
+0000000000000000000000000000000000000000;;	func generateVolumeMsg(prefixMsg, suffixMsg, volumeName, details string) (simpleMsg, detailedMsg string) {
+0000000000000000000000000000000000000000;;		simpleMsg = fmt.Sprintf("%v for volume %q %v", prefixMsg, volumeName, suffixMsg)
+0000000000000000000000000000000000000000;;		return simpleMsg, generateVolumeMsgDetailed(prefixMsg, suffixMsg, volumeName, details)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeToAttach represents a volume that should be attached to a node.
+0000000000000000000000000000000000000000;;	type VolumeToAttach struct {
+0000000000000000000000000000000000000000;;		// MultiAttachErrorReported indicates whether the multi-attach error has been reported for the given volume.
+0000000000000000000000000000000000000000;;		// It is used to to prevent reporting the error from being reported more than once for a given volume.
+0000000000000000000000000000000000000000;;		MultiAttachErrorReported bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeName is the unique identifier for the volume that should be
+0000000000000000000000000000000000000000;;		// attached.
+0000000000000000000000000000000000000000;;		VolumeName v1.UniqueVolumeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeSpec is a volume spec containing the specification for the volume
+0000000000000000000000000000000000000000;;		// that should be attached.
+0000000000000000000000000000000000000000;;		VolumeSpec *volume.Spec
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// NodeName is the identifier for the node that the volume should be
+0000000000000000000000000000000000000000;;		// attached to.
+0000000000000000000000000000000000000000;;		NodeName types.NodeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// scheduledPods is a map containing the set of pods that reference this
+0000000000000000000000000000000000000000;;		// volume and are scheduled to the underlying node. The key in the map is
+0000000000000000000000000000000000000000;;		// the name of the pod and the value is a pod object containing more
+0000000000000000000000000000000000000000;;		// information about the pod.
+0000000000000000000000000000000000000000;;		ScheduledPods []*v1.Pod
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsgDetailed returns detailed msgs for volumes to attach
+0000000000000000000000000000000000000000;;	func (volume *VolumeToAttach) GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) from node %q", volume.VolumeName, volume.NodeName)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsgDetailed(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsg returns simple and detailed msgs for volumes to attach
+0000000000000000000000000000000000000000;;	func (volume *VolumeToAttach) GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) from node %q", volume.VolumeName, volume.NodeName)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsg(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateErrorDetailed returns detailed errors for volumes to attach
+0000000000000000000000000000000000000000;;	func (volume *VolumeToAttach) GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error) {
+0000000000000000000000000000000000000000;;		return fmt.Errorf(volume.GenerateMsgDetailed(prefixMsg, errSuffix(err)))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateError returns simple and detailed errors for volumes to attach
+0000000000000000000000000000000000000000;;	func (volume *VolumeToAttach) GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error) {
+0000000000000000000000000000000000000000;;		simpleMsg, detailedMsg := volume.GenerateMsg(prefixMsg, errSuffix(err))
+0000000000000000000000000000000000000000;;		return fmt.Errorf(simpleMsg), fmt.Errorf(detailedMsg)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeToMount represents a volume that should be attached to this node and
+0000000000000000000000000000000000000000;;	// mounted to the PodName.
+0000000000000000000000000000000000000000;;	type VolumeToMount struct {
+0000000000000000000000000000000000000000;;		// VolumeName is the unique identifier for the volume that should be
+0000000000000000000000000000000000000000;;		// mounted.
+0000000000000000000000000000000000000000;;		VolumeName v1.UniqueVolumeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PodName is the unique identifier for the pod that the volume should be
+0000000000000000000000000000000000000000;;		// mounted to after it is attached.
+0000000000000000000000000000000000000000;;		PodName volumetypes.UniquePodName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeSpec is a volume spec containing the specification for the volume
+0000000000000000000000000000000000000000;;		// that should be mounted. Used to create NewMounter. Used to generate
+0000000000000000000000000000000000000000;;		// InnerVolumeSpecName.
+0000000000000000000000000000000000000000;;		VolumeSpec *volume.Spec
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// outerVolumeSpecName is the podSpec.Volume[x].Name of the volume. If the
+0000000000000000000000000000000000000000;;		// volume was referenced through a persistent volume claim, this contains
+0000000000000000000000000000000000000000;;		// the podSpec.Volume[x].Name of the persistent volume claim.
+0000000000000000000000000000000000000000;;		OuterVolumeSpecName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Pod to mount the volume to. Used to create NewMounter.
+0000000000000000000000000000000000000000;;		Pod *v1.Pod
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PluginIsAttachable indicates that the plugin for this volume implements
+0000000000000000000000000000000000000000;;		// the volume.Attacher interface
+0000000000000000000000000000000000000000;;		PluginIsAttachable bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeGidValue contains the value of the GID annotation, if present.
+0000000000000000000000000000000000000000;;		VolumeGidValue string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// DevicePath contains the path on the node where the volume is attached.
+0000000000000000000000000000000000000000;;		// For non-attachable volumes this is empty.
+0000000000000000000000000000000000000000;;		DevicePath string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// ReportedInUse indicates that the volume was successfully added to the
+0000000000000000000000000000000000000000;;		// VolumesInUse field in the node's status.
+0000000000000000000000000000000000000000;;		ReportedInUse bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsgDetailed returns detailed msgs for volumes to mount
+0000000000000000000000000000000000000000;;	func (volume *VolumeToMount) GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.Pod.Name, volume.Pod.UID)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsgDetailed(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsg returns simple and detailed msgs for volumes to mount
+0000000000000000000000000000000000000000;;	func (volume *VolumeToMount) GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.Pod.Name, volume.Pod.UID)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsg(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateErrorDetailed returns detailed errors for volumes to mount
+0000000000000000000000000000000000000000;;	func (volume *VolumeToMount) GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error) {
+0000000000000000000000000000000000000000;;		return fmt.Errorf(volume.GenerateMsgDetailed(prefixMsg, errSuffix(err)))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateError returns simple and detailed errors for volumes to mount
+0000000000000000000000000000000000000000;;	func (volume *VolumeToMount) GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error) {
+0000000000000000000000000000000000000000;;		simpleMsg, detailedMsg := volume.GenerateMsg(prefixMsg, errSuffix(err))
+0000000000000000000000000000000000000000;;		return fmt.Errorf(simpleMsg), fmt.Errorf(detailedMsg)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AttachedVolume represents a volume that is attached to a node.
+0000000000000000000000000000000000000000;;	type AttachedVolume struct {
+0000000000000000000000000000000000000000;;		// VolumeName is the unique identifier for the volume that is attached.
+0000000000000000000000000000000000000000;;		VolumeName v1.UniqueVolumeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeSpec is the volume spec containing the specification for the
+0000000000000000000000000000000000000000;;		// volume that is attached.
+0000000000000000000000000000000000000000;;		VolumeSpec *volume.Spec
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// NodeName is the identifier for the node that the volume is attached to.
+0000000000000000000000000000000000000000;;		NodeName types.NodeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PluginIsAttachable indicates that the plugin for this volume implements
+0000000000000000000000000000000000000000;;		// the volume.Attacher interface
+0000000000000000000000000000000000000000;;		PluginIsAttachable bool
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// DevicePath contains the path on the node where the volume is attached.
+0000000000000000000000000000000000000000;;		// For non-attachable volumes this is empty.
+0000000000000000000000000000000000000000;;		DevicePath string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsgDetailed returns detailed msgs for attached volumes
+0000000000000000000000000000000000000000;;	func (volume *AttachedVolume) GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) on node %q", volume.VolumeName, volume.NodeName)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsgDetailed(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsg returns simple and detailed msgs for attached volumes
+0000000000000000000000000000000000000000;;	func (volume *AttachedVolume) GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) on node %q", volume.VolumeName, volume.NodeName)
+0000000000000000000000000000000000000000;;		volumeSpecName := "nil"
+0000000000000000000000000000000000000000;;		if volume.VolumeSpec != nil {
+0000000000000000000000000000000000000000;;			volumeSpecName = volume.VolumeSpec.Name()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return generateVolumeMsg(prefixMsg, suffixMsg, volumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateErrorDetailed returns detailed errors for attached volumes
+0000000000000000000000000000000000000000;;	func (volume *AttachedVolume) GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error) {
+0000000000000000000000000000000000000000;;		return fmt.Errorf(volume.GenerateMsgDetailed(prefixMsg, errSuffix(err)))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateError returns simple and detailed errors for attached volumes
+0000000000000000000000000000000000000000;;	func (volume *AttachedVolume) GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error) {
+0000000000000000000000000000000000000000;;		simpleMsg, detailedMsg := volume.GenerateMsg(prefixMsg, errSuffix(err))
+0000000000000000000000000000000000000000;;		return fmt.Errorf(simpleMsg), fmt.Errorf(detailedMsg)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// MountedVolume represents a volume that has successfully been mounted to a pod.
+0000000000000000000000000000000000000000;;	type MountedVolume struct {
+0000000000000000000000000000000000000000;;		// PodName is the unique identifier of the pod mounted to.
+0000000000000000000000000000000000000000;;		PodName volumetypes.UniquePodName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeName is the unique identifier of the volume mounted to the pod.
+0000000000000000000000000000000000000000;;		VolumeName v1.UniqueVolumeName
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// InnerVolumeSpecName is the volume.Spec.Name() of the volume. If the
+0000000000000000000000000000000000000000;;		// volume was referenced through a persistent volume claims, this contains
+0000000000000000000000000000000000000000;;		// the name of the bound persistent volume object.
+0000000000000000000000000000000000000000;;		// It is the name that plugins use in their pod mount path, i.e.
+0000000000000000000000000000000000000000;;		// /var/lib/kubelet/pods/{podUID}/volumes/{escapeQualifiedPluginName}/{innerVolumeSpecName}/
+0000000000000000000000000000000000000000;;		// PVC example,
+0000000000000000000000000000000000000000;;		//   apiVersion: v1
+0000000000000000000000000000000000000000;;		//   kind: PersistentVolume
+0000000000000000000000000000000000000000;;		//   metadata:
+0000000000000000000000000000000000000000;;		//     name: pv0003				<- InnerVolumeSpecName
+0000000000000000000000000000000000000000;;		//   spec:
+0000000000000000000000000000000000000000;;		//     capacity:
+0000000000000000000000000000000000000000;;		//       storage: 5Gi
+0000000000000000000000000000000000000000;;		//     accessModes:
+0000000000000000000000000000000000000000;;		//       - ReadWriteOnce
+0000000000000000000000000000000000000000;;		//     persistentVolumeReclaimPolicy: Recycle
+0000000000000000000000000000000000000000;;		//     nfs:
+0000000000000000000000000000000000000000;;		//       path: /tmp
+0000000000000000000000000000000000000000;;		//       server: 172.17.0.2
+0000000000000000000000000000000000000000;;		// Non-PVC example:
+0000000000000000000000000000000000000000;;		//   apiVersion: v1
+0000000000000000000000000000000000000000;;		//   kind: Pod
+0000000000000000000000000000000000000000;;		//   metadata:
+0000000000000000000000000000000000000000;;		//     name: test-pd
+0000000000000000000000000000000000000000;;		//   spec:
+0000000000000000000000000000000000000000;;		//     containers:
+0000000000000000000000000000000000000000;;		//     - image: gcr.io/google_containers/test-webserver
+0000000000000000000000000000000000000000;;		//     	 name: test-container
+0000000000000000000000000000000000000000;;		//     	 volumeMounts:
+0000000000000000000000000000000000000000;;		//     	 - mountPath: /test-pd
+0000000000000000000000000000000000000000;;		//     	   name: test-volume
+0000000000000000000000000000000000000000;;		//     volumes:
+0000000000000000000000000000000000000000;;		//     - name: test-volume			<- InnerVolumeSpecName
+0000000000000000000000000000000000000000;;		//     	 gcePersistentDisk:
+0000000000000000000000000000000000000000;;		//     	   pdName: my-data-disk
+0000000000000000000000000000000000000000;;		//     	   fsType: ext4
+0000000000000000000000000000000000000000;;		InnerVolumeSpecName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// outerVolumeSpecName is the podSpec.Volume[x].Name of the volume. If the
+0000000000000000000000000000000000000000;;		// volume was referenced through a persistent volume claim, this contains
+0000000000000000000000000000000000000000;;		// the podSpec.Volume[x].Name of the persistent volume claim.
+0000000000000000000000000000000000000000;;		// PVC example:
+0000000000000000000000000000000000000000;;		//   kind: Pod
+0000000000000000000000000000000000000000;;		//   apiVersion: v1
+0000000000000000000000000000000000000000;;		//   metadata:
+0000000000000000000000000000000000000000;;		//     name: mypod
+0000000000000000000000000000000000000000;;		//   spec:
+0000000000000000000000000000000000000000;;		//     containers:
+0000000000000000000000000000000000000000;;		//       - name: myfrontend
+0000000000000000000000000000000000000000;;		//         image: dockerfile/nginx
+0000000000000000000000000000000000000000;;		//         volumeMounts:
+0000000000000000000000000000000000000000;;		//         - mountPath: "/var/www/html"
+0000000000000000000000000000000000000000;;		//           name: mypd
+0000000000000000000000000000000000000000;;		//     volumes:
+0000000000000000000000000000000000000000;;		//       - name: mypd				<- OuterVolumeSpecName
+0000000000000000000000000000000000000000;;		//         persistentVolumeClaim:
+0000000000000000000000000000000000000000;;		//           claimName: myclaim
+0000000000000000000000000000000000000000;;		// Non-PVC example:
+0000000000000000000000000000000000000000;;		//   apiVersion: v1
+0000000000000000000000000000000000000000;;		//   kind: Pod
+0000000000000000000000000000000000000000;;		//   metadata:
+0000000000000000000000000000000000000000;;		//     name: test-pd
+0000000000000000000000000000000000000000;;		//   spec:
+0000000000000000000000000000000000000000;;		//     containers:
+0000000000000000000000000000000000000000;;		//     - image: gcr.io/google_containers/test-webserver
+0000000000000000000000000000000000000000;;		//     	 name: test-container
+0000000000000000000000000000000000000000;;		//     	 volumeMounts:
+0000000000000000000000000000000000000000;;		//     	 - mountPath: /test-pd
+0000000000000000000000000000000000000000;;		//     	   name: test-volume
+0000000000000000000000000000000000000000;;		//     volumes:
+0000000000000000000000000000000000000000;;		//     - name: test-volume			<- OuterVolumeSpecName
+0000000000000000000000000000000000000000;;		//     	 gcePersistentDisk:
+0000000000000000000000000000000000000000;;		//     	   pdName: my-data-disk
+0000000000000000000000000000000000000000;;		//     	   fsType: ext4
+0000000000000000000000000000000000000000;;		OuterVolumeSpecName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PluginName is the "Unescaped Qualified" name of the volume plugin used to
+0000000000000000000000000000000000000000;;		// mount and unmount this volume. It can be used to fetch the volume plugin
+0000000000000000000000000000000000000000;;		// to unmount with, on demand. It is also the name that plugins use, though
+0000000000000000000000000000000000000000;;		// escaped, in their pod mount path, i.e.
+0000000000000000000000000000000000000000;;		// /var/lib/kubelet/pods/{podUID}/volumes/{escapeQualifiedPluginName}/{outerVolumeSpecName}/
+0000000000000000000000000000000000000000;;		PluginName string
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// PodUID is the UID of the pod mounted to. It is also the string used by
+0000000000000000000000000000000000000000;;		// plugins in their pod mount path, i.e.
+0000000000000000000000000000000000000000;;		// /var/lib/kubelet/pods/{podUID}/volumes/{escapeQualifiedPluginName}/{outerVolumeSpecName}/
+0000000000000000000000000000000000000000;;		PodUID types.UID
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Mounter is the volume mounter used to mount this volume. It is required
+0000000000000000000000000000000000000000;;		// by kubelet to create container.VolumeMap.
+0000000000000000000000000000000000000000;;		Mounter volume.Mounter
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// VolumeGidValue contains the value of the GID annotation, if present.
+0000000000000000000000000000000000000000;;		VolumeGidValue string
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsgDetailed returns detailed msgs for mounted volumes
+0000000000000000000000000000000000000000;;	func (volume *MountedVolume) GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.PodName, volume.PodUID)
+0000000000000000000000000000000000000000;;		return generateVolumeMsgDetailed(prefixMsg, suffixMsg, volume.OuterVolumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateMsg returns simple and detailed msgs for mounted volumes
+0000000000000000000000000000000000000000;;	func (volume *MountedVolume) GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string) {
+0000000000000000000000000000000000000000;;		detailedStr := fmt.Sprintf("(UniqueName: %q) pod %q (UID: %q)", volume.VolumeName, volume.PodName, volume.PodUID)
+0000000000000000000000000000000000000000;;		return generateVolumeMsg(prefixMsg, suffixMsg, volume.OuterVolumeSpecName, detailedStr)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateErrorDetailed returns simple and detailed errors for mounted volumes
+0000000000000000000000000000000000000000;;	func (volume *MountedVolume) GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error) {
+0000000000000000000000000000000000000000;;		return fmt.Errorf(volume.GenerateMsgDetailed(prefixMsg, errSuffix(err)))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GenerateError returns simple and detailed errors for mounted volumes
+0000000000000000000000000000000000000000;;	func (volume *MountedVolume) GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error) {
+0000000000000000000000000000000000000000;;		simpleMsg, detailedMsg := volume.GenerateMsg(prefixMsg, errSuffix(err))
+0000000000000000000000000000000000000000;;		return fmt.Errorf(simpleMsg), fmt.Errorf(detailedMsg)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type operationExecutor struct {
+0000000000000000000000000000000000000000;;		// pendingOperations keeps track of pending attach and detach operations so
+0000000000000000000000000000000000000000;;		// multiple operations are not started on the same volume
+0000000000000000000000000000000000000000;;		pendingOperations nestedpendingoperations.NestedPendingOperations
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// operationGenerator is an interface that provides implementations for
+0000000000000000000000000000000000000000;;		// generating volume function
+0000000000000000000000000000000000000000;;		operationGenerator OperationGenerator
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool {
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.IsOperationPending(volumeName, podName)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) AttachVolume(
+0000000000000000000000000000000000000000;;		volumeToAttach VolumeToAttach,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldAttacherUpdater) error {
+0000000000000000000000000000000000000000;;		attachFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateAttachVolumeFunc(volumeToAttach, actualStateOfWorld)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			volumeToAttach.VolumeName, "" /* podName */, attachFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) DetachVolume(
+0000000000000000000000000000000000000000;;		volumeToDetach AttachedVolume,
+0000000000000000000000000000000000000000;;		verifySafeToDetach bool,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldAttacherUpdater) error {
+0000000000000000000000000000000000000000;;		detachFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateDetachVolumeFunc(volumeToDetach, verifySafeToDetach, actualStateOfWorld)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			volumeToDetach.VolumeName, "" /* podName */, detachFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) VerifyVolumesAreAttached(
+0000000000000000000000000000000000000000;;		attachedVolumes map[types.NodeName][]AttachedVolume,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldAttacherUpdater) {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// A map of plugin names and nodes on which they exist with volumes they manage
+0000000000000000000000000000000000000000;;		bulkVerifyPluginsByNode := make(map[string]map[types.NodeName][]*volume.Spec)
+0000000000000000000000000000000000000000;;		volumeSpecMapByPlugin := make(map[string]map[*volume.Spec]v1.UniqueVolumeName)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for node, nodeAttachedVolumes := range attachedVolumes {
+0000000000000000000000000000000000000000;;			for _, volumeAttached := range nodeAttachedVolumes {
+0000000000000000000000000000000000000000;;				if volumeAttached.VolumeSpec == nil {
+0000000000000000000000000000000000000000;;					glog.Errorf("VerifyVolumesAreAttached: nil spec for volume %s", volumeAttached.VolumeName)
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				volumePlugin, err :=
+0000000000000000000000000000000000000000;;					oe.operationGenerator.GetVolumePluginMgr().FindPluginBySpec(volumeAttached.VolumeSpec)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if err != nil || volumePlugin == nil {
+0000000000000000000000000000000000000000;;					glog.Errorf(
+0000000000000000000000000000000000000000;;						"VolumesAreAttached.FindPluginBySpec failed for volume %q (spec.Name: %q) on node %q with error: %v",
+0000000000000000000000000000000000000000;;						volumeAttached.VolumeName,
+0000000000000000000000000000000000000000;;						volumeAttached.VolumeSpec.Name(),
+0000000000000000000000000000000000000000;;						volumeAttached.NodeName,
+0000000000000000000000000000000000000000;;						err)
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				pluginName := volumePlugin.GetPluginName()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				if volumePlugin.SupportsBulkVolumeVerification() {
+0000000000000000000000000000000000000000;;					pluginNodes, pluginNodesExist := bulkVerifyPluginsByNode[pluginName]
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;					if !pluginNodesExist {
+0000000000000000000000000000000000000000;;						pluginNodes = make(map[types.NodeName][]*volume.Spec)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;					volumeSpecList, nodeExists := pluginNodes[node]
+0000000000000000000000000000000000000000;;					if !nodeExists {
+0000000000000000000000000000000000000000;;						volumeSpecList = []*volume.Spec{}
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					volumeSpecList = append(volumeSpecList, volumeAttached.VolumeSpec)
+0000000000000000000000000000000000000000;;					pluginNodes[node] = volumeSpecList
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;					bulkVerifyPluginsByNode[pluginName] = pluginNodes
+0000000000000000000000000000000000000000;;					volumeSpecMap, mapExists := volumeSpecMapByPlugin[pluginName]
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;					if !mapExists {
+0000000000000000000000000000000000000000;;						volumeSpecMap = make(map[*volume.Spec]v1.UniqueVolumeName)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					volumeSpecMap[volumeAttached.VolumeSpec] = volumeAttached.VolumeName
+0000000000000000000000000000000000000000;;					volumeSpecMapByPlugin[pluginName] = volumeSpecMap
+0000000000000000000000000000000000000000;;					continue
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				// If node doesn't support Bulk volume polling it is best to poll individually
+0000000000000000000000000000000000000000;;				nodeError := oe.VerifyVolumesAreAttachedPerNode(nodeAttachedVolumes, node, actualStateOfWorld)
+0000000000000000000000000000000000000000;;				if nodeError != nil {
+0000000000000000000000000000000000000000;;					glog.Errorf("BulkVerifyVolumes.VerifyVolumesAreAttached verifying volumes on node %q with %v", node, nodeError)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				break
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for pluginName, pluginNodeVolumes := range bulkVerifyPluginsByNode {
+0000000000000000000000000000000000000000;;			bulkVerifyVolumeFunc, err := oe.operationGenerator.GenerateBulkVolumeVerifyFunc(
+0000000000000000000000000000000000000000;;				pluginNodeVolumes,
+0000000000000000000000000000000000000000;;				pluginName,
+0000000000000000000000000000000000000000;;				volumeSpecMapByPlugin[pluginName],
+0000000000000000000000000000000000000000;;				actualStateOfWorld)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				glog.Errorf("BulkVerifyVolumes.GenerateBulkVolumeVerifyFunc error bulk verifying volumes for plugin %q with  %v", pluginName, err)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			// Ugly hack to ensure - we don't do parallel bulk polling of same volume plugin
+0000000000000000000000000000000000000000;;			uniquePluginName := v1.UniqueVolumeName(pluginName)
+0000000000000000000000000000000000000000;;			err = oe.pendingOperations.Run(uniquePluginName, "" /* Pod Name */, bulkVerifyVolumeFunc)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				glog.Errorf("BulkVerifyVolumes.Run Error bulk volume verification for plugin %q  with %v", pluginName, err)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) VerifyVolumesAreAttachedPerNode(
+0000000000000000000000000000000000000000;;		attachedVolumes []AttachedVolume,
+0000000000000000000000000000000000000000;;		nodeName types.NodeName,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldAttacherUpdater) error {
+0000000000000000000000000000000000000000;;		volumesAreAttachedFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateVolumesAreAttachedFunc(attachedVolumes, nodeName, actualStateOfWorld)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// Give an empty UniqueVolumeName so that this operation could be executed concurrently.
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run("" /* volumeName */, "" /* podName */, volumesAreAttachedFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) MountVolume(
+0000000000000000000000000000000000000000;;		waitForAttachTimeout time.Duration,
+0000000000000000000000000000000000000000;;		volumeToMount VolumeToMount,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldMounterUpdater,
+0000000000000000000000000000000000000000;;		isRemount bool) error {
+0000000000000000000000000000000000000000;;		mountFunc, err := oe.operationGenerator.GenerateMountVolumeFunc(
+0000000000000000000000000000000000000000;;			waitForAttachTimeout, volumeToMount, actualStateOfWorld, isRemount)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		podName := nestedpendingoperations.EmptyUniquePodName
+0000000000000000000000000000000000000000;;		// TODO: remove this -- not necessary
+0000000000000000000000000000000000000000;;		if !volumeToMount.PluginIsAttachable {
+0000000000000000000000000000000000000000;;			// Non-attachable volume plugins can execute mount for multiple pods
+0000000000000000000000000000000000000000;;			// referencing the same volume in parallel
+0000000000000000000000000000000000000000;;			podName = volumehelper.GetUniquePodName(volumeToMount.Pod)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			volumeToMount.VolumeName, podName, mountFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) UnmountVolume(
+0000000000000000000000000000000000000000;;		volumeToUnmount MountedVolume,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldMounterUpdater) error {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		unmountFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateUnmountVolumeFunc(volumeToUnmount, actualStateOfWorld)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// All volume plugins can execute mount for multiple pods referencing the
+0000000000000000000000000000000000000000;;		// same volume in parallel
+0000000000000000000000000000000000000000;;		podName := volumetypes.UniquePodName(volumeToUnmount.PodUID)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			volumeToUnmount.VolumeName, podName, unmountFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) UnmountDevice(
+0000000000000000000000000000000000000000;;		deviceToDetach AttachedVolume,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldMounterUpdater,
+0000000000000000000000000000000000000000;;		mounter mount.Interface) error {
+0000000000000000000000000000000000000000;;		unmountDeviceFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateUnmountDeviceFunc(deviceToDetach, actualStateOfWorld, mounter)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			deviceToDetach.VolumeName, "" /* podName */, unmountDeviceFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (oe *operationExecutor) VerifyControllerAttachedVolume(
+0000000000000000000000000000000000000000;;		volumeToMount VolumeToMount,
+0000000000000000000000000000000000000000;;		nodeName types.NodeName,
+0000000000000000000000000000000000000000;;		actualStateOfWorld ActualStateOfWorldAttacherUpdater) error {
+0000000000000000000000000000000000000000;;		verifyControllerAttachedVolumeFunc, err :=
+0000000000000000000000000000000000000000;;			oe.operationGenerator.GenerateVerifyControllerAttachedVolumeFunc(volumeToMount, nodeName, actualStateOfWorld)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return oe.pendingOperations.Run(
+0000000000000000000000000000000000000000;;			volumeToMount.VolumeName, "" /* podName */, verifyControllerAttachedVolumeFunc)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TODO: this is a workaround for the unmount device issue caused by gci mounter.
+0000000000000000000000000000000000000000;;	// In GCI cluster, if gci mounter is used for mounting, the container started by mounter
+0000000000000000000000000000000000000000;;	// script will cause additional mounts created in the container. Since these mounts are
+0000000000000000000000000000000000000000;;	// irrelavant to the original mounts, they should be not considered when checking the
+0000000000000000000000000000000000000000;;	// mount references. Current solution is to filter out those mount paths that contain
+0000000000000000000000000000000000000000;;	// the string of original mount path.
+0000000000000000000000000000000000000000;;	// Plan to work on better approach to solve this issue.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func hasMountRefs(mountPath string, mountRefs []string) bool {
+0000000000000000000000000000000000000000;;		count := 0
+0000000000000000000000000000000000000000;;		for _, ref := range mountRefs {
+0000000000000000000000000000000000000000;;			if !strings.Contains(ref, mountPath) {
+0000000000000000000000000000000000000000;;				count = count + 1
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return count > 0
+0000000000000000000000000000000000000000;;	}

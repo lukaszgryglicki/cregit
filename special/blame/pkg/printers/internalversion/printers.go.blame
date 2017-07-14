@@ -1,0 +1,1872 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2017 The Kubernetes Authors.
+109abe04daa011acab1be0d57acf1b4cc20aaf7d;pkg/kubectl/resource_printer.go[pkg/kubectl/resource_printer.go][pkg/printers/internalversion/printers.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package internalversion
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"bytes"
+0000000000000000000000000000000000000000;;		"fmt"
+0000000000000000000000000000000000000000;;		"io"
+0000000000000000000000000000000000000000;;		"net"
+0000000000000000000000000000000000000000;;		"sort"
+0000000000000000000000000000000000000000;;		"strconv"
+0000000000000000000000000000000000000000;;		"strings"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		batchv1 "k8s.io/api/batch/v1"
+0000000000000000000000000000000000000000;;		batchv2alpha1 "k8s.io/api/batch/v2alpha1"
+0000000000000000000000000000000000000000;;		apiv1 "k8s.io/api/core/v1"
+0000000000000000000000000000000000000000;;		extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/api/meta"
+0000000000000000000000000000000000000000;;		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+0000000000000000000000000000000000000000;;		metav1alpha1 "k8s.io/apimachinery/pkg/apis/meta/v1alpha1"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/labels"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/runtime"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/sets"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/federation/apis/federation"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api/events"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api/helper"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/apps"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/autoscaling"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/batch"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/certificates"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/extensions"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/networking"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/policy"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/rbac"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/apis/storage"
+0000000000000000000000000000000000000000;;		storageutil "k8s.io/kubernetes/pkg/apis/storage/util"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/controller"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/printers"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/util/node"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const loadBalancerWidth = 16
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NOTE: When adding a new resource type here, please update the list
+0000000000000000000000000000000000000000;;	// pkg/kubectl/cmd/get.go to reflect the new resource type.
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		serviceColumns                = []string{"NAME", "TYPE", "CLUSTER-IP", "EXTERNAL-IP", "PORT(S)", "AGE"}
+0000000000000000000000000000000000000000;;		serviceWideColumns            = []string{"SELECTOR"}
+0000000000000000000000000000000000000000;;		ingressColumns                = []string{"NAME", "HOSTS", "ADDRESS", "PORTS", "AGE"}
+0000000000000000000000000000000000000000;;		statefulSetColumns            = []string{"NAME", "DESIRED", "CURRENT", "AGE"}
+0000000000000000000000000000000000000000;;		endpointColumns               = []string{"NAME", "ENDPOINTS", "AGE"}
+0000000000000000000000000000000000000000;;		nodeColumns                   = []string{"NAME", "STATUS", "AGE", "VERSION"}
+0000000000000000000000000000000000000000;;		nodeWideColumns               = []string{"EXTERNAL-IP", "OS-IMAGE", "KERNEL-VERSION", "CONTAINER-RUNTIME"}
+0000000000000000000000000000000000000000;;		eventColumns                  = []string{"LASTSEEN", "FIRSTSEEN", "COUNT", "NAME", "KIND", "SUBOBJECT", "TYPE", "REASON", "SOURCE", "MESSAGE"}
+0000000000000000000000000000000000000000;;		namespaceColumns              = []string{"NAME", "STATUS", "AGE"}
+0000000000000000000000000000000000000000;;		secretColumns                 = []string{"NAME", "TYPE", "DATA", "AGE"}
+0000000000000000000000000000000000000000;;		serviceAccountColumns         = []string{"NAME", "SECRETS", "AGE"}
+0000000000000000000000000000000000000000;;		persistentVolumeColumns       = []string{"NAME", "CAPACITY", "ACCESSMODES", "RECLAIMPOLICY", "STATUS", "CLAIM", "STORAGECLASS", "REASON", "AGE"}
+0000000000000000000000000000000000000000;;		persistentVolumeClaimColumns  = []string{"NAME", "STATUS", "VOLUME", "CAPACITY", "ACCESSMODES", "STORAGECLASS", "AGE"}
+0000000000000000000000000000000000000000;;		componentStatusColumns        = []string{"NAME", "STATUS", "MESSAGE", "ERROR"}
+0000000000000000000000000000000000000000;;		thirdPartyResourceColumns     = []string{"NAME", "DESCRIPTION", "VERSION(S)"}
+0000000000000000000000000000000000000000;;		roleBindingColumns            = []string{"NAME", "AGE"}
+0000000000000000000000000000000000000000;;		roleBindingWideColumns        = []string{"ROLE", "USERS", "GROUPS", "SERVICEACCOUNTS"}
+0000000000000000000000000000000000000000;;		clusterRoleBindingColumns     = []string{"NAME", "AGE"}
+0000000000000000000000000000000000000000;;		clusterRoleBindingWideColumns = []string{"ROLE", "USERS", "GROUPS", "SERVICEACCOUNTS"}
+0000000000000000000000000000000000000000;;		storageClassColumns           = []string{"NAME", "PROVISIONER"}
+0000000000000000000000000000000000000000;;		statusColumns                 = []string{"STATUS", "REASON", "MESSAGE"}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		horizontalPodAutoscalerColumns   = []string{"NAME", "REFERENCE", "TARGETS", "MINPODS", "MAXPODS", "REPLICAS", "AGE"}
+0000000000000000000000000000000000000000;;		deploymentColumns                = []string{"NAME", "DESIRED", "CURRENT", "UP-TO-DATE", "AVAILABLE", "AGE"}
+0000000000000000000000000000000000000000;;		deploymentWideColumns            = []string{"CONTAINER(S)", "IMAGE(S)", "SELECTOR"}
+0000000000000000000000000000000000000000;;		configMapColumns                 = []string{"NAME", "DATA", "AGE"}
+0000000000000000000000000000000000000000;;		podSecurityPolicyColumns         = []string{"NAME", "PRIV", "CAPS", "SELINUX", "RUNASUSER", "FSGROUP", "SUPGROUP", "READONLYROOTFS", "VOLUMES"}
+0000000000000000000000000000000000000000;;		clusterColumns                   = []string{"NAME", "STATUS", "AGE"}
+0000000000000000000000000000000000000000;;		networkPolicyColumns             = []string{"NAME", "POD-SELECTOR", "AGE"}
+0000000000000000000000000000000000000000;;		certificateSigningRequestColumns = []string{"NAME", "AGE", "REQUESTOR", "CONDITION"}
+0000000000000000000000000000000000000000;;		podPresetColumns                 = []string{"NAME", "AGE"}
+0000000000000000000000000000000000000000;;		controllerRevisionColumns        = []string{"NAME", "CONTROLLER", "REVISION", "AGE"}
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddHandlers adds print handlers for default Kubernetes types dealing with internal versions.
+0000000000000000000000000000000000000000;;	// TODO: handle errors from Handler
+0000000000000000000000000000000000000000;;	func AddHandlers(h printers.PrintHandler) {
+0000000000000000000000000000000000000000;;		podColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Ready", Type: "string", Description: "The aggregate readiness state of this pod for accepting traffic."},
+0000000000000000000000000000000000000000;;			{Name: "Status", Type: "string", Description: "The aggregate status of the containers in this pod."},
+0000000000000000000000000000000000000000;;			{Name: "Restarts", Type: "integer", Description: "The number of times the containers in this pod have been restarted."},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "IP", Type: "string", Priority: 1, Description: apiv1.PodStatus{}.SwaggerDoc()["podIP"]},
+0000000000000000000000000000000000000000;;			{Name: "Node", Type: "string", Priority: 1, Description: apiv1.PodSpec{}.SwaggerDoc()["nodeName"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(podColumnDefinitions, printPodList)
+0000000000000000000000000000000000000000;;		h.TableHandler(podColumnDefinitions, printPod)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		podTemplateColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Pod Labels", Type: "string", Description: "The labels for the pod template."},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(podTemplateColumnDefinitions, printPodTemplate)
+0000000000000000000000000000000000000000;;		h.TableHandler(podTemplateColumnDefinitions, printPodTemplateList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		podDisruptionBudgetColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Min Available", Type: "string", Description: "The minimum number of pods that must be available."},
+0000000000000000000000000000000000000000;;			{Name: "Max Unavailable", Type: "string", Description: "The maximum number of pods that may be unavailable."},
+0000000000000000000000000000000000000000;;			{Name: "Allowed Disruptions", Type: "integer", Description: "Calculated number of pods that may be disrupted at this time."},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(podDisruptionBudgetColumnDefinitions, printPodDisruptionBudget)
+0000000000000000000000000000000000000000;;		h.TableHandler(podDisruptionBudgetColumnDefinitions, printPodDisruptionBudgetList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		replicationControllerColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Desired", Type: "integer", Description: apiv1.ReplicationControllerSpec{}.SwaggerDoc()["replicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Current", Type: "integer", Description: apiv1.ReplicationControllerStatus{}.SwaggerDoc()["replicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Ready", Type: "integer", Description: apiv1.ReplicationControllerStatus{}.SwaggerDoc()["readyReplicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Priority: 1, Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Priority: 1, Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Selector", Type: "string", Priority: 1, Description: apiv1.ReplicationControllerSpec{}.SwaggerDoc()["selector"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(replicationControllerColumnDefinitions, printReplicationController)
+0000000000000000000000000000000000000000;;		h.TableHandler(replicationControllerColumnDefinitions, printReplicationControllerList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		replicaSetColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Desired", Type: "integer", Description: extensionsv1beta1.ReplicaSetSpec{}.SwaggerDoc()["replicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Current", Type: "integer", Description: extensionsv1beta1.ReplicaSetStatus{}.SwaggerDoc()["replicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Ready", Type: "integer", Description: extensionsv1beta1.ReplicaSetStatus{}.SwaggerDoc()["readyReplicas"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Priority: 1, Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Priority: 1, Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Selector", Type: "string", Priority: 1, Description: extensionsv1beta1.ReplicaSetSpec{}.SwaggerDoc()["selector"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(replicaSetColumnDefinitions, printReplicaSet)
+0000000000000000000000000000000000000000;;		h.TableHandler(replicaSetColumnDefinitions, printReplicaSetList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		daemonSetColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Desired", Type: "integer", Description: extensionsv1beta1.DaemonSetStatus{}.SwaggerDoc()["desiredNumberScheduled"]},
+0000000000000000000000000000000000000000;;			{Name: "Current", Type: "integer", Description: extensionsv1beta1.DaemonSetStatus{}.SwaggerDoc()["currentNumberScheduled"]},
+0000000000000000000000000000000000000000;;			{Name: "Ready", Type: "integer", Description: extensionsv1beta1.DaemonSetStatus{}.SwaggerDoc()["numberReady"]},
+0000000000000000000000000000000000000000;;			{Name: "Up-to-date", Type: "integer", Description: extensionsv1beta1.DaemonSetStatus{}.SwaggerDoc()["updatedNumberScheduled"]},
+0000000000000000000000000000000000000000;;			{Name: "Available", Type: "integer", Description: extensionsv1beta1.DaemonSetStatus{}.SwaggerDoc()["numberAvailable"]},
+0000000000000000000000000000000000000000;;			{Name: "Node Selector", Type: "string", Description: apiv1.PodSpec{}.SwaggerDoc()["nodeSelector"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Priority: 1, Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Priority: 1, Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Selector", Type: "string", Priority: 1, Description: extensionsv1beta1.DaemonSetSpec{}.SwaggerDoc()["selector"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(daemonSetColumnDefinitions, printDaemonSet)
+0000000000000000000000000000000000000000;;		h.TableHandler(daemonSetColumnDefinitions, printDaemonSetList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		jobColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Desired", Type: "integer", Description: batchv1.JobSpec{}.SwaggerDoc()["completions"]},
+0000000000000000000000000000000000000000;;			{Name: "Successful", Type: "integer", Description: batchv1.JobStatus{}.SwaggerDoc()["succeeded"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Priority: 1, Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Priority: 1, Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Selector", Type: "string", Priority: 1, Description: batchv1.JobSpec{}.SwaggerDoc()["selector"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(jobColumnDefinitions, printJob)
+0000000000000000000000000000000000000000;;		h.TableHandler(jobColumnDefinitions, printJobList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		cronJobColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Schedule", Type: "string", Description: batchv2alpha1.CronJobSpec{}.SwaggerDoc()["schedule"]},
+0000000000000000000000000000000000000000;;			{Name: "Suspend", Type: "boolean", Description: batchv2alpha1.CronJobSpec{}.SwaggerDoc()["suspend"]},
+0000000000000000000000000000000000000000;;			{Name: "Active", Type: "integer", Description: batchv2alpha1.CronJobStatus{}.SwaggerDoc()["active"]},
+0000000000000000000000000000000000000000;;			{Name: "Last Schedule", Type: "string", Description: batchv2alpha1.CronJobStatus{}.SwaggerDoc()["lastScheduleTime"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;			{Name: "Containers", Type: "string", Priority: 1, Description: "Names of each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Images", Type: "string", Priority: 1, Description: "Images referenced by each container in the template."},
+0000000000000000000000000000000000000000;;			{Name: "Selector", Type: "string", Priority: 1, Description: batchv1.JobSpec{}.SwaggerDoc()["selector"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.TableHandler(cronJobColumnDefinitions, printCronJob)
+0000000000000000000000000000000000000000;;		h.TableHandler(cronJobColumnDefinitions, printCronJobList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		h.Handler(serviceColumns, serviceWideColumns, printService)
+0000000000000000000000000000000000000000;;		h.Handler(serviceColumns, serviceWideColumns, printServiceList)
+0000000000000000000000000000000000000000;;		h.Handler(ingressColumns, nil, printIngress)
+0000000000000000000000000000000000000000;;		h.Handler(ingressColumns, nil, printIngressList)
+0000000000000000000000000000000000000000;;		h.Handler(statefulSetColumns, nil, printStatefulSet)
+0000000000000000000000000000000000000000;;		h.Handler(statefulSetColumns, nil, printStatefulSetList)
+0000000000000000000000000000000000000000;;		h.Handler(endpointColumns, nil, printEndpoints)
+0000000000000000000000000000000000000000;;		h.Handler(endpointColumns, nil, printEndpointsList)
+0000000000000000000000000000000000000000;;		h.Handler(nodeColumns, nodeWideColumns, printNode)
+0000000000000000000000000000000000000000;;		h.Handler(nodeColumns, nodeWideColumns, printNodeList)
+0000000000000000000000000000000000000000;;		h.Handler(eventColumns, nil, printEvent)
+0000000000000000000000000000000000000000;;		h.Handler(eventColumns, nil, printEventList)
+0000000000000000000000000000000000000000;;		h.Handler(namespaceColumns, nil, printNamespace)
+0000000000000000000000000000000000000000;;		h.Handler(namespaceColumns, nil, printNamespaceList)
+0000000000000000000000000000000000000000;;		h.Handler(secretColumns, nil, printSecret)
+0000000000000000000000000000000000000000;;		h.Handler(secretColumns, nil, printSecretList)
+0000000000000000000000000000000000000000;;		h.Handler(serviceAccountColumns, nil, printServiceAccount)
+0000000000000000000000000000000000000000;;		h.Handler(serviceAccountColumns, nil, printServiceAccountList)
+0000000000000000000000000000000000000000;;		h.Handler(persistentVolumeClaimColumns, nil, printPersistentVolumeClaim)
+0000000000000000000000000000000000000000;;		h.Handler(persistentVolumeClaimColumns, nil, printPersistentVolumeClaimList)
+0000000000000000000000000000000000000000;;		h.Handler(persistentVolumeColumns, nil, printPersistentVolume)
+0000000000000000000000000000000000000000;;		h.Handler(persistentVolumeColumns, nil, printPersistentVolumeList)
+0000000000000000000000000000000000000000;;		h.Handler(componentStatusColumns, nil, printComponentStatus)
+0000000000000000000000000000000000000000;;		h.Handler(componentStatusColumns, nil, printComponentStatusList)
+0000000000000000000000000000000000000000;;		h.Handler(thirdPartyResourceColumns, nil, printThirdPartyResource)
+0000000000000000000000000000000000000000;;		h.Handler(thirdPartyResourceColumns, nil, printThirdPartyResourceList)
+0000000000000000000000000000000000000000;;		h.Handler(deploymentColumns, deploymentWideColumns, printDeployment)
+0000000000000000000000000000000000000000;;		h.Handler(deploymentColumns, deploymentWideColumns, printDeploymentList)
+0000000000000000000000000000000000000000;;		h.Handler(horizontalPodAutoscalerColumns, nil, printHorizontalPodAutoscaler)
+0000000000000000000000000000000000000000;;		h.Handler(horizontalPodAutoscalerColumns, nil, printHorizontalPodAutoscalerList)
+0000000000000000000000000000000000000000;;		h.Handler(configMapColumns, nil, printConfigMap)
+0000000000000000000000000000000000000000;;		h.Handler(configMapColumns, nil, printConfigMapList)
+0000000000000000000000000000000000000000;;		h.Handler(podSecurityPolicyColumns, nil, printPodSecurityPolicy)
+0000000000000000000000000000000000000000;;		h.Handler(podSecurityPolicyColumns, nil, printPodSecurityPolicyList)
+0000000000000000000000000000000000000000;;		h.Handler(clusterColumns, nil, printCluster)
+0000000000000000000000000000000000000000;;		h.Handler(clusterColumns, nil, printClusterList)
+0000000000000000000000000000000000000000;;		h.Handler(networkPolicyColumns, nil, printExtensionsNetworkPolicy)
+0000000000000000000000000000000000000000;;		h.Handler(networkPolicyColumns, nil, printExtensionsNetworkPolicyList)
+0000000000000000000000000000000000000000;;		h.Handler(networkPolicyColumns, nil, printNetworkPolicy)
+0000000000000000000000000000000000000000;;		h.Handler(networkPolicyColumns, nil, printNetworkPolicyList)
+0000000000000000000000000000000000000000;;		h.Handler(roleBindingColumns, roleBindingWideColumns, printRoleBinding)
+0000000000000000000000000000000000000000;;		h.Handler(roleBindingColumns, roleBindingWideColumns, printRoleBindingList)
+0000000000000000000000000000000000000000;;		h.Handler(clusterRoleBindingColumns, clusterRoleBindingWideColumns, printClusterRoleBinding)
+0000000000000000000000000000000000000000;;		h.Handler(clusterRoleBindingColumns, clusterRoleBindingWideColumns, printClusterRoleBindingList)
+0000000000000000000000000000000000000000;;		h.Handler(certificateSigningRequestColumns, nil, printCertificateSigningRequest)
+0000000000000000000000000000000000000000;;		h.Handler(certificateSigningRequestColumns, nil, printCertificateSigningRequestList)
+0000000000000000000000000000000000000000;;		h.Handler(storageClassColumns, nil, printStorageClass)
+0000000000000000000000000000000000000000;;		h.Handler(storageClassColumns, nil, printStorageClassList)
+0000000000000000000000000000000000000000;;		h.Handler(statusColumns, nil, printStatus)
+0000000000000000000000000000000000000000;;		h.Handler(controllerRevisionColumns, nil, printControllerRevision)
+0000000000000000000000000000000000000000;;		h.Handler(controllerRevisionColumns, nil, printControllerRevisionList)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		AddDefaultHandlers(h)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// AddDefaultHandlers adds handlers that can work with most Kubernetes objects.
+0000000000000000000000000000000000000000;;	func AddDefaultHandlers(h printers.PrintHandler) {
+0000000000000000000000000000000000000000;;		// types without defined columns
+0000000000000000000000000000000000000000;;		objectMetaColumnDefinitions := []metav1alpha1.TableColumnDefinition{
+0000000000000000000000000000000000000000;;			{Name: "Name", Type: "string", Format: "name", Description: metav1.ObjectMeta{}.SwaggerDoc()["name"]},
+0000000000000000000000000000000000000000;;			{Name: "Age", Type: "string", Description: metav1.ObjectMeta{}.SwaggerDoc()["creationTimestamp"]},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		h.DefaultTableHandler(objectMetaColumnDefinitions, printObjectMeta)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printObjectMeta(obj runtime.Object, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		if meta.IsListType(obj) {
+0000000000000000000000000000000000000000;;			rows := make([]metav1alpha1.TableRow, 0, 16)
+0000000000000000000000000000000000000000;;			err := meta.EachListItem(obj, func(obj runtime.Object) error {
+0000000000000000000000000000000000000000;;				nestedRows, err := printObjectMeta(obj, options)
+0000000000000000000000000000000000000000;;				if err != nil {
+0000000000000000000000000000000000000000;;					return err
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				rows = append(rows, nestedRows...)
+0000000000000000000000000000000000000000;;				return nil
+0000000000000000000000000000000000000000;;			})
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return rows, nil
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, 1)
+0000000000000000000000000000000000000000;;		m, err := meta.Accessor(obj)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, m.GetName(), translateTimestamp(m.GetCreationTimestamp()))
+0000000000000000000000000000000000000000;;		rows = append(rows, row)
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Pass ports=nil for all ports.
+0000000000000000000000000000000000000000;;	func formatEndpoints(endpoints *api.Endpoints, ports sets.String) string {
+0000000000000000000000000000000000000000;;		if len(endpoints.Subsets) == 0 {
+0000000000000000000000000000000000000000;;			return "<none>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		list := []string{}
+0000000000000000000000000000000000000000;;		max := 3
+0000000000000000000000000000000000000000;;		more := false
+0000000000000000000000000000000000000000;;		count := 0
+0000000000000000000000000000000000000000;;		for i := range endpoints.Subsets {
+0000000000000000000000000000000000000000;;			ss := &endpoints.Subsets[i]
+0000000000000000000000000000000000000000;;			for i := range ss.Ports {
+0000000000000000000000000000000000000000;;				port := &ss.Ports[i]
+0000000000000000000000000000000000000000;;				if ports == nil || ports.Has(port.Name) {
+0000000000000000000000000000000000000000;;					for i := range ss.Addresses {
+0000000000000000000000000000000000000000;;						if len(list) == max {
+0000000000000000000000000000000000000000;;							more = true
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						addr := &ss.Addresses[i]
+0000000000000000000000000000000000000000;;						if !more {
+0000000000000000000000000000000000000000;;							hostPort := net.JoinHostPort(addr.IP, strconv.Itoa(int(port.Port)))
+0000000000000000000000000000000000000000;;							list = append(list, hostPort)
+0000000000000000000000000000000000000000;;						}
+0000000000000000000000000000000000000000;;						count++
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		ret := strings.Join(list, ",")
+0000000000000000000000000000000000000000;;		if more {
+0000000000000000000000000000000000000000;;			return fmt.Sprintf("%s + %d more...", ret, count-max)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// translateTimestamp returns the elapsed time since timestamp in
+0000000000000000000000000000000000000000;;	// human-readable approximation.
+0000000000000000000000000000000000000000;;	func translateTimestamp(timestamp metav1.Time) string {
+0000000000000000000000000000000000000000;;		if timestamp.IsZero() {
+0000000000000000000000000000000000000000;;			return "<unknown>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return printers.ShortHumanDuration(time.Now().Sub(timestamp.Time))
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	var (
+0000000000000000000000000000000000000000;;		podSuccessConditions = []metav1alpha1.TableRowCondition{{Type: metav1alpha1.RowCompleted, Status: metav1alpha1.ConditionTrue, Reason: string(api.PodSucceeded), Message: "The pod has completed successfully."}}
+0000000000000000000000000000000000000000;;		podFailedConditions  = []metav1alpha1.TableRowCondition{{Type: metav1alpha1.RowCompleted, Status: metav1alpha1.ConditionTrue, Reason: string(api.PodFailed), Message: "The pod failed."}}
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodList(podList *api.PodList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(podList.Items))
+0000000000000000000000000000000000000000;;		for i := range podList.Items {
+0000000000000000000000000000000000000000;;			r, err := printPod(&podList.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPod(pod *api.Pod, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		restarts := 0
+0000000000000000000000000000000000000000;;		totalContainers := len(pod.Spec.Containers)
+0000000000000000000000000000000000000000;;		readyContainers := 0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		reason := string(pod.Status.Phase)
+0000000000000000000000000000000000000000;;		if pod.Status.Reason != "" {
+0000000000000000000000000000000000000000;;			reason = pod.Status.Reason
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: pod},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		switch pod.Status.Phase {
+0000000000000000000000000000000000000000;;		case api.PodSucceeded:
+0000000000000000000000000000000000000000;;			row.Conditions = podSuccessConditions
+0000000000000000000000000000000000000000;;		case api.PodFailed:
+0000000000000000000000000000000000000000;;			row.Conditions = podFailedConditions
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		initializing := false
+0000000000000000000000000000000000000000;;		for i := range pod.Status.InitContainerStatuses {
+0000000000000000000000000000000000000000;;			container := pod.Status.InitContainerStatuses[i]
+0000000000000000000000000000000000000000;;			restarts += int(container.RestartCount)
+0000000000000000000000000000000000000000;;			switch {
+0000000000000000000000000000000000000000;;			case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
+0000000000000000000000000000000000000000;;				continue
+0000000000000000000000000000000000000000;;			case container.State.Terminated != nil:
+0000000000000000000000000000000000000000;;				// initialization is failed
+0000000000000000000000000000000000000000;;				if len(container.State.Terminated.Reason) == 0 {
+0000000000000000000000000000000000000000;;					if container.State.Terminated.Signal != 0 {
+0000000000000000000000000000000000000000;;						reason = fmt.Sprintf("Init:Signal:%d", container.State.Terminated.Signal)
+0000000000000000000000000000000000000000;;					} else {
+0000000000000000000000000000000000000000;;						reason = fmt.Sprintf("Init:ExitCode:%d", container.State.Terminated.ExitCode)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				} else {
+0000000000000000000000000000000000000000;;					reason = "Init:" + container.State.Terminated.Reason
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				initializing = true
+0000000000000000000000000000000000000000;;			case container.State.Waiting != nil && len(container.State.Waiting.Reason) > 0 && container.State.Waiting.Reason != "PodInitializing":
+0000000000000000000000000000000000000000;;				reason = "Init:" + container.State.Waiting.Reason
+0000000000000000000000000000000000000000;;				initializing = true
+0000000000000000000000000000000000000000;;			default:
+0000000000000000000000000000000000000000;;				reason = fmt.Sprintf("Init:%d/%d", i, len(pod.Spec.InitContainers))
+0000000000000000000000000000000000000000;;				initializing = true
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			break
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if !initializing {
+0000000000000000000000000000000000000000;;			restarts = 0
+0000000000000000000000000000000000000000;;			for i := len(pod.Status.ContainerStatuses) - 1; i >= 0; i-- {
+0000000000000000000000000000000000000000;;				container := pod.Status.ContainerStatuses[i]
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				restarts += int(container.RestartCount)
+0000000000000000000000000000000000000000;;				if container.State.Waiting != nil && container.State.Waiting.Reason != "" {
+0000000000000000000000000000000000000000;;					reason = container.State.Waiting.Reason
+0000000000000000000000000000000000000000;;				} else if container.State.Terminated != nil && container.State.Terminated.Reason != "" {
+0000000000000000000000000000000000000000;;					reason = container.State.Terminated.Reason
+0000000000000000000000000000000000000000;;				} else if container.State.Terminated != nil && container.State.Terminated.Reason == "" {
+0000000000000000000000000000000000000000;;					if container.State.Terminated.Signal != 0 {
+0000000000000000000000000000000000000000;;						reason = fmt.Sprintf("Signal:%d", container.State.Terminated.Signal)
+0000000000000000000000000000000000000000;;					} else {
+0000000000000000000000000000000000000000;;						reason = fmt.Sprintf("ExitCode:%d", container.State.Terminated.ExitCode)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;				} else if container.Ready && container.State.Running != nil {
+0000000000000000000000000000000000000000;;					readyContainers++
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if pod.DeletionTimestamp != nil && pod.Status.Reason == node.NodeUnreachablePodReason {
+0000000000000000000000000000000000000000;;			reason = "Unknown"
+0000000000000000000000000000000000000000;;		} else if pod.DeletionTimestamp != nil {
+0000000000000000000000000000000000000000;;			reason = "Terminating"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, pod.Name, fmt.Sprintf("%d/%d", readyContainers, totalContainers), reason, restarts, translateTimestamp(pod.CreationTimestamp))
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			nodeName := pod.Spec.NodeName
+0000000000000000000000000000000000000000;;			podIP := pod.Status.PodIP
+0000000000000000000000000000000000000000;;			if podIP == "" {
+0000000000000000000000000000000000000000;;				podIP = "<none>"
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if nodeName == "" {
+0000000000000000000000000000000000000000;;				nodeName = "<none>"
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, podIP, nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodTemplate(obj *api.PodTemplate, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		names, images := layoutContainerCells(obj.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, names, images, labels.FormatLabels(obj.Template.Labels))
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodTemplateList(list *api.PodTemplateList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printPodTemplate(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodDisruptionBudget(obj *policy.PodDisruptionBudget, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		var minAvailable string
+0000000000000000000000000000000000000000;;		var maxUnavailable string
+0000000000000000000000000000000000000000;;		if obj.Spec.MinAvailable != nil {
+0000000000000000000000000000000000000000;;			minAvailable = obj.Spec.MinAvailable.String()
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			minAvailable = "N/A"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if obj.Spec.MaxUnavailable != nil {
+0000000000000000000000000000000000000000;;			maxUnavailable = obj.Spec.MaxUnavailable.String()
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			maxUnavailable = "N/A"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, minAvailable, maxUnavailable, obj.Status.PodDisruptionsAllowed, translateTimestamp(obj.CreationTimestamp))
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodDisruptionBudgetList(list *policy.PodDisruptionBudgetList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printPodDisruptionBudget(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// TODO(AdoHe): try to put wide output in a single method
+0000000000000000000000000000000000000000;;	func printReplicationController(obj *api.ReplicationController, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		desiredReplicas := obj.Spec.Replicas
+0000000000000000000000000000000000000000;;		currentReplicas := obj.Status.Replicas
+0000000000000000000000000000000000000000;;		readyReplicas := obj.Status.ReadyReplicas
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, desiredReplicas, currentReplicas, readyReplicas, translateTimestamp(obj.CreationTimestamp))
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			names, images := layoutContainerCells(obj.Spec.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, names, images, labels.FormatLabels(obj.Spec.Selector))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printReplicationControllerList(list *api.ReplicationControllerList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printReplicationController(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printReplicaSet(obj *extensions.ReplicaSet, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		desiredReplicas := obj.Spec.Replicas
+0000000000000000000000000000000000000000;;		currentReplicas := obj.Status.Replicas
+0000000000000000000000000000000000000000;;		readyReplicas := obj.Status.ReadyReplicas
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, desiredReplicas, currentReplicas, readyReplicas, translateTimestamp(obj.CreationTimestamp))
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			names, images := layoutContainerCells(obj.Spec.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, names, images, metav1.FormatLabelSelector(obj.Spec.Selector))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printReplicaSetList(list *extensions.ReplicaSetList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printReplicaSet(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printCluster(c *federation.Cluster, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, c.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		var statuses []string
+0000000000000000000000000000000000000000;;		for _, condition := range c.Status.Conditions {
+0000000000000000000000000000000000000000;;			if condition.Status == api.ConditionTrue {
+0000000000000000000000000000000000000000;;				statuses = append(statuses, string(condition.Type))
+0000000000000000000000000000000000000000;;			} else {
+0000000000000000000000000000000000000000;;				statuses = append(statuses, "Not"+string(condition.Type))
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(statuses) == 0 {
+0000000000000000000000000000000000000000;;			statuses = append(statuses, "Unknown")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			strings.Join(statuses, ","),
+0000000000000000000000000000000000000000;;			translateTimestamp(c.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	func printClusterList(list *federation.ClusterList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, rs := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printCluster(&rs, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printJob(obj *batch.Job, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		var completions string
+0000000000000000000000000000000000000000;;		if obj.Spec.Completions != nil {
+0000000000000000000000000000000000000000;;			completions = strconv.Itoa(int(*obj.Spec.Completions))
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			completions = "<none>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, completions, obj.Status.Succeeded, translateTimestamp(obj.CreationTimestamp))
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			names, images := layoutContainerCells(obj.Spec.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, names, images, metav1.FormatLabelSelector(obj.Spec.Selector))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printJobList(list *batch.JobList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printJob(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printCronJob(obj *batch.CronJob, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		lastScheduleTime := "<none>"
+0000000000000000000000000000000000000000;;		if obj.Status.LastScheduleTime != nil {
+0000000000000000000000000000000000000000;;			lastScheduleTime = obj.Status.LastScheduleTime.Time.Format(time.RFC1123Z)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, obj.Spec.Schedule, printBoolPtr(obj.Spec.Suspend), len(obj.Status.Active), lastScheduleTime)
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			names, images := layoutContainerCells(obj.Spec.JobTemplate.Spec.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, names, images, metav1.FormatLabelSelector(obj.Spec.JobTemplate.Spec.Selector))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printCronJobList(list *batch.CronJobList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printCronJob(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// loadBalancerStatusStringer behaves mostly like a string interface and converts the given status to a string.
+0000000000000000000000000000000000000000;;	// `wide` indicates whether the returned value is meant for --o=wide output. If not, it's clipped to 16 bytes.
+0000000000000000000000000000000000000000;;	func loadBalancerStatusStringer(s api.LoadBalancerStatus, wide bool) string {
+0000000000000000000000000000000000000000;;		ingress := s.Ingress
+0000000000000000000000000000000000000000;;		result := []string{}
+0000000000000000000000000000000000000000;;		for i := range ingress {
+0000000000000000000000000000000000000000;;			if ingress[i].IP != "" {
+0000000000000000000000000000000000000000;;				result = append(result, ingress[i].IP)
+0000000000000000000000000000000000000000;;			} else if ingress[i].Hostname != "" {
+0000000000000000000000000000000000000000;;				result = append(result, ingress[i].Hostname)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		r := strings.Join(result, ",")
+0000000000000000000000000000000000000000;;		if !wide && len(r) > loadBalancerWidth {
+0000000000000000000000000000000000000000;;			r = r[0:(loadBalancerWidth-3)] + "..."
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return r
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func getServiceExternalIP(svc *api.Service, wide bool) string {
+0000000000000000000000000000000000000000;;		switch svc.Spec.Type {
+0000000000000000000000000000000000000000;;		case api.ServiceTypeClusterIP:
+0000000000000000000000000000000000000000;;			if len(svc.Spec.ExternalIPs) > 0 {
+0000000000000000000000000000000000000000;;				return strings.Join(svc.Spec.ExternalIPs, ",")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return "<none>"
+0000000000000000000000000000000000000000;;		case api.ServiceTypeNodePort:
+0000000000000000000000000000000000000000;;			if len(svc.Spec.ExternalIPs) > 0 {
+0000000000000000000000000000000000000000;;				return strings.Join(svc.Spec.ExternalIPs, ",")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return "<none>"
+0000000000000000000000000000000000000000;;		case api.ServiceTypeLoadBalancer:
+0000000000000000000000000000000000000000;;			lbIps := loadBalancerStatusStringer(svc.Status.LoadBalancer, wide)
+0000000000000000000000000000000000000000;;			if len(svc.Spec.ExternalIPs) > 0 {
+0000000000000000000000000000000000000000;;				results := []string{}
+0000000000000000000000000000000000000000;;				if len(lbIps) > 0 {
+0000000000000000000000000000000000000000;;					results = append(results, strings.Split(lbIps, ",")...)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				results = append(results, svc.Spec.ExternalIPs...)
+0000000000000000000000000000000000000000;;				return strings.Join(results, ",")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if len(lbIps) > 0 {
+0000000000000000000000000000000000000000;;				return lbIps
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			return "<pending>"
+0000000000000000000000000000000000000000;;		case api.ServiceTypeExternalName:
+0000000000000000000000000000000000000000;;			return svc.Spec.ExternalName
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return "<unknown>"
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func makePortString(ports []api.ServicePort) string {
+0000000000000000000000000000000000000000;;		pieces := make([]string, len(ports))
+0000000000000000000000000000000000000000;;		for ix := range ports {
+0000000000000000000000000000000000000000;;			port := &ports[ix]
+0000000000000000000000000000000000000000;;			pieces[ix] = fmt.Sprintf("%d/%s", port.Port, port.Protocol)
+0000000000000000000000000000000000000000;;			if port.NodePort > 0 {
+0000000000000000000000000000000000000000;;				pieces[ix] = fmt.Sprintf("%d:%d/%s", port.Port, port.NodePort, port.Protocol)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return strings.Join(pieces, ",")
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printService(svc *api.Service, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, svc.Name, options.WithKind)
+0000000000000000000000000000000000000000;;		namespace := svc.Namespace
+0000000000000000000000000000000000000000;;		svcType := svc.Spec.Type
+0000000000000000000000000000000000000000;;		internalIP := svc.Spec.ClusterIP
+0000000000000000000000000000000000000000;;		if len(internalIP) == 0 {
+0000000000000000000000000000000000000000;;			internalIP = "<none>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		externalIP := getServiceExternalIP(svc, options.Wide)
+0000000000000000000000000000000000000000;;		svcPorts := makePortString(svc.Spec.Ports)
+0000000000000000000000000000000000000000;;		if len(svcPorts) == 0 {
+0000000000000000000000000000000000000000;;			svcPorts = "<none>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			string(svcType),
+0000000000000000000000000000000000000000;;			internalIP,
+0000000000000000000000000000000000000000;;			externalIP,
+0000000000000000000000000000000000000000;;			svcPorts,
+0000000000000000000000000000000000000000;;			translateTimestamp(svc.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s", labels.FormatLabels(svc.Spec.Selector)); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(svc.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, svc.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printServiceList(list *api.ServiceList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, svc := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printService(&svc, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// backendStringer behaves just like a string interface and converts the given backend to a string.
+0000000000000000000000000000000000000000;;	func backendStringer(backend *extensions.IngressBackend) string {
+0000000000000000000000000000000000000000;;		if backend == nil {
+0000000000000000000000000000000000000000;;			return ""
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return fmt.Sprintf("%v:%v", backend.ServiceName, backend.ServicePort.String())
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func formatHosts(rules []extensions.IngressRule) string {
+0000000000000000000000000000000000000000;;		list := []string{}
+0000000000000000000000000000000000000000;;		max := 3
+0000000000000000000000000000000000000000;;		more := false
+0000000000000000000000000000000000000000;;		for _, rule := range rules {
+0000000000000000000000000000000000000000;;			if len(list) == max {
+0000000000000000000000000000000000000000;;				more = true
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if !more && len(rule.Host) != 0 {
+0000000000000000000000000000000000000000;;				list = append(list, rule.Host)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(list) == 0 {
+0000000000000000000000000000000000000000;;			return "*"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		ret := strings.Join(list, ",")
+0000000000000000000000000000000000000000;;		if more {
+0000000000000000000000000000000000000000;;			return fmt.Sprintf("%s + %d more...", ret, len(rules)-max)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func formatPorts(tls []extensions.IngressTLS) string {
+0000000000000000000000000000000000000000;;		if len(tls) != 0 {
+0000000000000000000000000000000000000000;;			return "80, 443"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return "80"
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printIngress(ingress *extensions.Ingress, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, ingress.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := ingress.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			formatHosts(ingress.Spec.Rules),
+0000000000000000000000000000000000000000;;			loadBalancerStatusStringer(ingress.Status.LoadBalancer, options.Wide),
+0000000000000000000000000000000000000000;;			formatPorts(ingress.Spec.TLS),
+0000000000000000000000000000000000000000;;			translateTimestamp(ingress.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(ingress.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, ingress.Labels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printIngressList(ingressList *extensions.IngressList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, ingress := range ingressList.Items {
+0000000000000000000000000000000000000000;;			if err := printIngress(&ingress, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printStatefulSet(ps *apps.StatefulSet, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, ps.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := ps.Namespace
+0000000000000000000000000000000000000000;;		containers := ps.Spec.Template.Spec.Containers
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		desiredReplicas := ps.Spec.Replicas
+0000000000000000000000000000000000000000;;		currentReplicas := ps.Status.Replicas
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%d\t%d\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			desiredReplicas,
+0000000000000000000000000000000000000000;;			currentReplicas,
+0000000000000000000000000000000000000000;;			translateTimestamp(ps.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			if err := layoutContainers(containers, w); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s", metav1.FormatLabelSelector(ps.Spec.Selector)); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(ps.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, ps.Labels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printStatefulSetList(statefulSetList *apps.StatefulSetList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, ps := range statefulSetList.Items {
+0000000000000000000000000000000000000000;;			if err := printStatefulSet(&ps, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printDaemonSet(obj *extensions.DaemonSet, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		row := metav1alpha1.TableRow{
+0000000000000000000000000000000000000000;;			Object: runtime.RawExtension{Object: obj},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		desiredScheduled := obj.Status.DesiredNumberScheduled
+0000000000000000000000000000000000000000;;		currentScheduled := obj.Status.CurrentNumberScheduled
+0000000000000000000000000000000000000000;;		numberReady := obj.Status.NumberReady
+0000000000000000000000000000000000000000;;		numberUpdated := obj.Status.UpdatedNumberScheduled
+0000000000000000000000000000000000000000;;		numberAvailable := obj.Status.NumberAvailable
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		row.Cells = append(row.Cells, obj.Name, desiredScheduled, currentScheduled, numberReady, numberUpdated, numberAvailable, labels.FormatLabels(obj.Spec.Template.Spec.NodeSelector), translateTimestamp(obj.CreationTimestamp))
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			names, images := layoutContainerCells(obj.Spec.Template.Spec.Containers)
+0000000000000000000000000000000000000000;;			row.Cells = append(row.Cells, names, images, metav1.FormatLabelSelector(obj.Spec.Selector))
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return []metav1alpha1.TableRow{row}, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printDaemonSetList(list *extensions.DaemonSetList, options printers.PrintOptions) ([]metav1alpha1.TableRow, error) {
+0000000000000000000000000000000000000000;;		rows := make([]metav1alpha1.TableRow, 0, len(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			r, err := printDaemonSet(&list.Items[i], options)
+0000000000000000000000000000000000000000;;			if err != nil {
+0000000000000000000000000000000000000000;;				return nil, err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			rows = append(rows, r...)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return rows, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printEndpoints(endpoints *api.Endpoints, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, endpoints.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := endpoints.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s", name, formatEndpoints(endpoints, nil), translateTimestamp(endpoints.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(endpoints.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, endpoints.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printEndpointsList(list *api.EndpointsList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printEndpoints(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNamespace(item *api.Namespace, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, item.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("namespace is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s", name, item.Status.Phase, translateTimestamp(item.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(item.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, item.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNamespaceList(list *api.NamespaceList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printNamespace(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printSecret(item *api.Secret, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, item.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := item.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%v\t%s", name, item.Type, len(item.Data), translateTimestamp(item.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(item.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, item.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printSecretList(list *api.SecretList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printSecret(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printServiceAccount(item *api.ServiceAccount, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, item.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := item.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%d\t%s", name, len(item.Secrets), translateTimestamp(item.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(item.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, item.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printServiceAccountList(list *api.ServiceAccountList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printServiceAccount(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNode(node *api.Node, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, node.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("node is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		conditionMap := make(map[api.NodeConditionType]*api.NodeCondition)
+0000000000000000000000000000000000000000;;		NodeAllConditions := []api.NodeConditionType{api.NodeReady}
+0000000000000000000000000000000000000000;;		for i := range node.Status.Conditions {
+0000000000000000000000000000000000000000;;			cond := node.Status.Conditions[i]
+0000000000000000000000000000000000000000;;			conditionMap[cond.Type] = &cond
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		var status []string
+0000000000000000000000000000000000000000;;		for _, validCondition := range NodeAllConditions {
+0000000000000000000000000000000000000000;;			if condition, ok := conditionMap[validCondition]; ok {
+0000000000000000000000000000000000000000;;				if condition.Status == api.ConditionTrue {
+0000000000000000000000000000000000000000;;					status = append(status, string(condition.Type))
+0000000000000000000000000000000000000000;;				} else {
+0000000000000000000000000000000000000000;;					status = append(status, "Not"+string(condition.Type))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(status) == 0 {
+0000000000000000000000000000000000000000;;			status = append(status, "Unknown")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if node.Spec.Unschedulable {
+0000000000000000000000000000000000000000;;			status = append(status, "SchedulingDisabled")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s", name, strings.Join(status, ","), translateTimestamp(node.CreationTimestamp), node.Status.NodeInfo.KubeletVersion); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			osImage, kernelVersion, crVersion := node.Status.NodeInfo.OSImage, node.Status.NodeInfo.KernelVersion, node.Status.NodeInfo.ContainerRuntimeVersion
+0000000000000000000000000000000000000000;;			if osImage == "" {
+0000000000000000000000000000000000000000;;				osImage = "<unknown>"
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if kernelVersion == "" {
+0000000000000000000000000000000000000000;;				kernelVersion = "<unknown>"
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if crVersion == "" {
+0000000000000000000000000000000000000000;;				crVersion = "<unknown>"
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s\t%s\t%s\t%s", getNodeExternalIP(node), osImage, kernelVersion, crVersion); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		// Display caller specify column labels first.
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(node.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, node.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Returns first external ip of the node or "<none>" if none is found.
+0000000000000000000000000000000000000000;;	func getNodeExternalIP(node *api.Node) string {
+0000000000000000000000000000000000000000;;		for _, address := range node.Status.Addresses {
+0000000000000000000000000000000000000000;;			if address.Type == api.NodeExternalIP {
+0000000000000000000000000000000000000000;;				return address.Address
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return "<none>"
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNodeList(list *api.NodeList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, node := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printNode(&node, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPersistentVolume(pv *api.PersistentVolume, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, pv.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("persistentVolume is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		claimRefUID := ""
+0000000000000000000000000000000000000000;;		if pv.Spec.ClaimRef != nil {
+0000000000000000000000000000000000000000;;			claimRefUID += pv.Spec.ClaimRef.Namespace
+0000000000000000000000000000000000000000;;			claimRefUID += "/"
+0000000000000000000000000000000000000000;;			claimRefUID += pv.Spec.ClaimRef.Name
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		modesStr := helper.GetAccessModesAsString(pv.Spec.AccessModes)
+0000000000000000000000000000000000000000;;		reclaimPolicyStr := string(pv.Spec.PersistentVolumeReclaimPolicy)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		aQty := pv.Spec.Capacity[api.ResourceStorage]
+0000000000000000000000000000000000000000;;		aSize := aQty.String()
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			aSize, modesStr, reclaimPolicyStr,
+0000000000000000000000000000000000000000;;			pv.Status.Phase,
+0000000000000000000000000000000000000000;;			claimRefUID,
+0000000000000000000000000000000000000000;;			helper.GetPersistentVolumeClass(pv),
+0000000000000000000000000000000000000000;;			pv.Status.Reason,
+0000000000000000000000000000000000000000;;			translateTimestamp(pv.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(pv.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, pv.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPersistentVolumeList(list *api.PersistentVolumeList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, pv := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printPersistentVolume(&pv, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPersistentVolumeClaim(pvc *api.PersistentVolumeClaim, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, pvc.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := pvc.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		phase := pvc.Status.Phase
+0000000000000000000000000000000000000000;;		storage := pvc.Spec.Resources.Requests[api.ResourceStorage]
+0000000000000000000000000000000000000000;;		capacity := ""
+0000000000000000000000000000000000000000;;		accessModes := ""
+0000000000000000000000000000000000000000;;		if pvc.Spec.VolumeName != "" {
+0000000000000000000000000000000000000000;;			accessModes = helper.GetAccessModesAsString(pvc.Status.AccessModes)
+0000000000000000000000000000000000000000;;			storage = pvc.Status.Capacity[api.ResourceStorage]
+0000000000000000000000000000000000000000;;			capacity = storage.String()
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s", name, phase, pvc.Spec.VolumeName, capacity, accessModes, helper.GetPersistentVolumeClaimClass(pvc), translateTimestamp(pvc.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(pvc.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, pvc.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPersistentVolumeClaimList(list *api.PersistentVolumeClaimList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, psd := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printPersistentVolumeClaim(&psd, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printEvent(event *api.Event, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, event.InvolvedObject.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := event.Namespace
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// While watching event, we should print absolute time.
+0000000000000000000000000000000000000000;;		var FirstTimestamp, LastTimestamp string
+0000000000000000000000000000000000000000;;		if options.AbsoluteTimestamps {
+0000000000000000000000000000000000000000;;			FirstTimestamp = event.FirstTimestamp.String()
+0000000000000000000000000000000000000000;;			LastTimestamp = event.LastTimestamp.String()
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			FirstTimestamp = translateTimestamp(event.FirstTimestamp)
+0000000000000000000000000000000000000000;;			LastTimestamp = translateTimestamp(event.LastTimestamp)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(
+0000000000000000000000000000000000000000;;			w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
+0000000000000000000000000000000000000000;;			LastTimestamp,
+0000000000000000000000000000000000000000;;			FirstTimestamp,
+0000000000000000000000000000000000000000;;			event.Count,
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			event.InvolvedObject.Kind,
+0000000000000000000000000000000000000000;;			event.InvolvedObject.FieldPath,
+0000000000000000000000000000000000000000;;			event.Type,
+0000000000000000000000000000000000000000;;			event.Reason,
+0000000000000000000000000000000000000000;;			formatEventSource(event.Source),
+0000000000000000000000000000000000000000;;			event.Message,
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(event.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, event.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Sorts and prints the EventList in a human-friendly format.
+0000000000000000000000000000000000000000;;	func printEventList(list *api.EventList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		sort.Sort(events.SortableEvents(list.Items))
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printEvent(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printRoleBinding(roleBinding *rbac.RoleBinding, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		meta := roleBinding.ObjectMeta
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, meta.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", meta.Namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(
+0000000000000000000000000000000000000000;;			w, "%s\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			translateTimestamp(meta.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			roleRef := fmt.Sprintf("%s/%s", roleBinding.RoleRef.Kind, roleBinding.RoleRef.Name)
+0000000000000000000000000000000000000000;;			users, groups, sas, _ := rbac.SubjectsStrings(roleBinding.Subjects)
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s\t%v\t%v\t%v",
+0000000000000000000000000000000000000000;;				roleRef,
+0000000000000000000000000000000000000000;;				strings.Join(users, ", "),
+0000000000000000000000000000000000000000;;				strings.Join(groups, ", "),
+0000000000000000000000000000000000000000;;				strings.Join(sas, ", "),
+0000000000000000000000000000000000000000;;			); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(meta.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, meta.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Prints the RoleBinding in a human-friendly format.
+0000000000000000000000000000000000000000;;	func printRoleBindingList(list *rbac.RoleBindingList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printRoleBinding(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printClusterRoleBinding(clusterRoleBinding *rbac.ClusterRoleBinding, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		meta := clusterRoleBinding.ObjectMeta
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, meta.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("clusterRoleBinding is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(
+0000000000000000000000000000000000000000;;			w, "%s\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			translateTimestamp(meta.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			roleRef := clusterRoleBinding.RoleRef.Name
+0000000000000000000000000000000000000000;;			users, groups, sas, _ := rbac.SubjectsStrings(clusterRoleBinding.Subjects)
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s\t%v\t%v\t%v",
+0000000000000000000000000000000000000000;;				roleRef,
+0000000000000000000000000000000000000000;;				strings.Join(users, ", "),
+0000000000000000000000000000000000000000;;				strings.Join(groups, ", "),
+0000000000000000000000000000000000000000;;				strings.Join(sas, ", "),
+0000000000000000000000000000000000000000;;			); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(meta.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, meta.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Prints the ClusterRoleBinding in a human-friendly format.
+0000000000000000000000000000000000000000;;	func printClusterRoleBindingList(list *rbac.ClusterRoleBindingList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printClusterRoleBinding(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printCertificateSigningRequest(csr *certificates.CertificateSigningRequest, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, csr.Name, options.WithKind)
+0000000000000000000000000000000000000000;;		meta := csr.ObjectMeta
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		status, err := extractCSRStatus(csr)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(
+0000000000000000000000000000000000000000;;			w, "%s\t%s\t%s\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			translateTimestamp(meta.CreationTimestamp),
+0000000000000000000000000000000000000000;;			csr.Spec.Username,
+0000000000000000000000000000000000000000;;			status,
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(meta.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err = fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, meta.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func extractCSRStatus(csr *certificates.CertificateSigningRequest) (string, error) {
+0000000000000000000000000000000000000000;;		var approved, denied bool
+0000000000000000000000000000000000000000;;		for _, c := range csr.Status.Conditions {
+0000000000000000000000000000000000000000;;			switch c.Type {
+0000000000000000000000000000000000000000;;			case certificates.CertificateApproved:
+0000000000000000000000000000000000000000;;				approved = true
+0000000000000000000000000000000000000000;;			case certificates.CertificateDenied:
+0000000000000000000000000000000000000000;;				denied = true
+0000000000000000000000000000000000000000;;			default:
+0000000000000000000000000000000000000000;;				return "", fmt.Errorf("unknown csr condition %q", c)
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		var status string
+0000000000000000000000000000000000000000;;		// must be in order of presidence
+0000000000000000000000000000000000000000;;		if denied {
+0000000000000000000000000000000000000000;;			status += "Denied"
+0000000000000000000000000000000000000000;;		} else if approved {
+0000000000000000000000000000000000000000;;			status += "Approved"
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			status += "Pending"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if len(csr.Status.Certificate) > 0 {
+0000000000000000000000000000000000000000;;			status += ",Issued"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return status, nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printCertificateSigningRequestList(list *certificates.CertificateSigningRequestList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printCertificateSigningRequest(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printComponentStatus(item *api.ComponentStatus, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, item.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("componentStatus is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		status := "Unknown"
+0000000000000000000000000000000000000000;;		message := ""
+0000000000000000000000000000000000000000;;		error := ""
+0000000000000000000000000000000000000000;;		for _, condition := range item.Conditions {
+0000000000000000000000000000000000000000;;			if condition.Type == api.ComponentHealthy {
+0000000000000000000000000000000000000000;;				if condition.Status == api.ConditionTrue {
+0000000000000000000000000000000000000000;;					status = "Healthy"
+0000000000000000000000000000000000000000;;				} else {
+0000000000000000000000000000000000000000;;					status = "Unhealthy"
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				message = condition.Message
+0000000000000000000000000000000000000000;;				error = condition.Error
+0000000000000000000000000000000000000000;;				break
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s", name, status, message, error); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(item.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, item.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printComponentStatusList(list *api.ComponentStatusList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printComponentStatus(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printThirdPartyResource(rsrc *extensions.ThirdPartyResource, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, rsrc.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		versions := make([]string, len(rsrc.Versions))
+0000000000000000000000000000000000000000;;		for ix := range rsrc.Versions {
+0000000000000000000000000000000000000000;;			version := &rsrc.Versions[ix]
+0000000000000000000000000000000000000000;;			versions[ix] = fmt.Sprintf("%s", version.Name)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		versionsString := strings.Join(versions, ",")
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", name, rsrc.Description, versionsString); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printThirdPartyResourceList(list *extensions.ThirdPartyResourceList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printThirdPartyResource(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func truncate(str string, maxLen int) string {
+0000000000000000000000000000000000000000;;		if len(str) > maxLen {
+0000000000000000000000000000000000000000;;			return str[0:maxLen] + "..."
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return str
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printDeployment(deployment *extensions.Deployment, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, deployment.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", deployment.Namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		desiredReplicas := deployment.Spec.Replicas
+0000000000000000000000000000000000000000;;		currentReplicas := deployment.Status.Replicas
+0000000000000000000000000000000000000000;;		updatedReplicas := deployment.Status.UpdatedReplicas
+0000000000000000000000000000000000000000;;		availableReplicas := deployment.Status.AvailableReplicas
+0000000000000000000000000000000000000000;;		age := translateTimestamp(deployment.CreationTimestamp)
+0000000000000000000000000000000000000000;;		containers := deployment.Spec.Template.Spec.Containers
+0000000000000000000000000000000000000000;;		selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			// this shouldn't happen if LabelSelector passed validation
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s", name, desiredReplicas, currentReplicas, updatedReplicas, availableReplicas, age); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if options.Wide {
+0000000000000000000000000000000000000000;;			if err := layoutContainers(containers, w); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "\t%s", selector.String()); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(deployment.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err = fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, deployment.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printDeploymentList(list *extensions.DeploymentList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printDeployment(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func formatHPAMetrics(specs []autoscaling.MetricSpec, statuses []autoscaling.MetricStatus) string {
+0000000000000000000000000000000000000000;;		if len(specs) == 0 {
+0000000000000000000000000000000000000000;;			return "<none>"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		list := []string{}
+0000000000000000000000000000000000000000;;		max := 2
+0000000000000000000000000000000000000000;;		more := false
+0000000000000000000000000000000000000000;;		count := 0
+0000000000000000000000000000000000000000;;		for i, spec := range specs {
+0000000000000000000000000000000000000000;;			switch spec.Type {
+0000000000000000000000000000000000000000;;			case autoscaling.PodsMetricSourceType:
+0000000000000000000000000000000000000000;;				current := "<unknown>"
+0000000000000000000000000000000000000000;;				if len(statuses) > i && statuses[i].Pods != nil {
+0000000000000000000000000000000000000000;;					current = statuses[i].Pods.CurrentAverageValue.String()
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				list = append(list, fmt.Sprintf("%s / %s", current, spec.Pods.TargetAverageValue.String()))
+0000000000000000000000000000000000000000;;			case autoscaling.ObjectMetricSourceType:
+0000000000000000000000000000000000000000;;				current := "<unknown>"
+0000000000000000000000000000000000000000;;				if len(statuses) > i && statuses[i].Object != nil {
+0000000000000000000000000000000000000000;;					current = statuses[i].Object.CurrentValue.String()
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				list = append(list, fmt.Sprintf("%s / %s", current, spec.Object.TargetValue.String()))
+0000000000000000000000000000000000000000;;			case autoscaling.ResourceMetricSourceType:
+0000000000000000000000000000000000000000;;				if spec.Resource.TargetAverageValue != nil {
+0000000000000000000000000000000000000000;;					current := "<unknown>"
+0000000000000000000000000000000000000000;;					if len(statuses) > i && statuses[i].Resource != nil {
+0000000000000000000000000000000000000000;;						current = statuses[i].Resource.CurrentAverageValue.String()
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					list = append(list, fmt.Sprintf("%s / %s", current, spec.Resource.TargetAverageValue.String()))
+0000000000000000000000000000000000000000;;				} else {
+0000000000000000000000000000000000000000;;					current := "<unknown>"
+0000000000000000000000000000000000000000;;					if len(statuses) > i && statuses[i].Resource != nil && statuses[i].Resource.CurrentAverageUtilization != nil {
+0000000000000000000000000000000000000000;;						current = fmt.Sprintf("%d%%", *statuses[i].Resource.CurrentAverageUtilization)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;					target := "<auto>"
+0000000000000000000000000000000000000000;;					if spec.Resource.TargetAverageUtilization != nil {
+0000000000000000000000000000000000000000;;						target = fmt.Sprintf("%d%%", *spec.Resource.TargetAverageUtilization)
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					list = append(list, fmt.Sprintf("%s / %s", current, target))
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;			default:
+0000000000000000000000000000000000000000;;				list = append(list, "<unknown type>")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;			count++
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if count > max {
+0000000000000000000000000000000000000000;;			list = list[:max]
+0000000000000000000000000000000000000000;;			more = true
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		ret := strings.Join(list, ", ")
+0000000000000000000000000000000000000000;;		if more {
+0000000000000000000000000000000000000000;;			return fmt.Sprintf("%s + %d more...", ret, count-max)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return ret
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printHorizontalPodAutoscaler(hpa *autoscaling.HorizontalPodAutoscaler, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		namespace := hpa.Namespace
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, hpa.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		reference := fmt.Sprintf("%s/%s",
+0000000000000000000000000000000000000000;;			hpa.Spec.ScaleTargetRef.Kind,
+0000000000000000000000000000000000000000;;			hpa.Spec.ScaleTargetRef.Name)
+0000000000000000000000000000000000000000;;		minPods := "<unset>"
+0000000000000000000000000000000000000000;;		metrics := formatHPAMetrics(hpa.Spec.Metrics, hpa.Status.CurrentMetrics)
+0000000000000000000000000000000000000000;;		if hpa.Spec.MinReplicas != nil {
+0000000000000000000000000000000000000000;;			minPods = fmt.Sprintf("%d", *hpa.Spec.MinReplicas)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		maxPods := hpa.Spec.MaxReplicas
+0000000000000000000000000000000000000000;;		currentReplicas := hpa.Status.CurrentReplicas
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%d\t%s",
+0000000000000000000000000000000000000000;;			name,
+0000000000000000000000000000000000000000;;			reference,
+0000000000000000000000000000000000000000;;			metrics,
+0000000000000000000000000000000000000000;;			minPods,
+0000000000000000000000000000000000000000;;			maxPods,
+0000000000000000000000000000000000000000;;			currentReplicas,
+0000000000000000000000000000000000000000;;			translateTimestamp(hpa.CreationTimestamp),
+0000000000000000000000000000000000000000;;		); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(hpa.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, hpa.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printHorizontalPodAutoscalerList(list *autoscaling.HorizontalPodAutoscalerList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printHorizontalPodAutoscaler(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printConfigMap(configMap *api.ConfigMap, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, configMap.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := configMap.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%v\t%s", name, len(configMap.Data), translateTimestamp(configMap.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(configMap.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, configMap.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printConfigMapList(list *api.ConfigMapList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printConfigMap(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodSecurityPolicy(item *extensions.PodSecurityPolicy, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, item.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprintf(w, "%s\t%t\t%v\t%s\t%s\t%s\t%s\t%t\t%v\n", name, item.Spec.Privileged,
+0000000000000000000000000000000000000000;;			item.Spec.AllowedCapabilities, item.Spec.SELinux.Rule,
+0000000000000000000000000000000000000000;;			item.Spec.RunAsUser.Rule, item.Spec.FSGroup.Rule, item.Spec.SupplementalGroups.Rule, item.Spec.ReadOnlyRootFilesystem, item.Spec.Volumes)
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printPodSecurityPolicyList(list *extensions.PodSecurityPolicyList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printPodSecurityPolicy(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printExtensionsNetworkPolicy(networkPolicy *extensions.NetworkPolicy, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, networkPolicy.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := networkPolicy.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%v\t%s", name, metav1.FormatLabelSelector(&networkPolicy.Spec.PodSelector), translateTimestamp(networkPolicy.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(networkPolicy.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, networkPolicy.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printExtensionsNetworkPolicyList(list *extensions.NetworkPolicyList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printExtensionsNetworkPolicy(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNetworkPolicy(networkPolicy *networking.NetworkPolicy, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, networkPolicy.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		namespace := networkPolicy.Namespace
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%v\t%s", name, metav1.FormatLabelSelector(&networkPolicy.Spec.PodSelector), translateTimestamp(networkPolicy.CreationTimestamp)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(networkPolicy.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, networkPolicy.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printNetworkPolicyList(list *networking.NetworkPolicyList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for i := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printNetworkPolicy(&list.Items[i], w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printStorageClass(sc *storage.StorageClass, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := sc.Name
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			return fmt.Errorf("storageclass is not namespaced")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if storageutil.IsDefaultAnnotation(sc.ObjectMeta) {
+0000000000000000000000000000000000000000;;			name += " (default)"
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		provtype := sc.Provisioner
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t", name, provtype); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(sc.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, sc.Labels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printStorageClassList(scList *storage.StorageClassList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, sc := range scList.Items {
+0000000000000000000000000000000000000000;;			if err := printStorageClass(&sc, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printStatus(status *metav1.Status, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", status.Status, status.Reason, status.Message); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Lay out all the containers on eone line if use wide output.
+0000000000000000000000000000000000000000;;	// DEPRECATED: convert to TableHandler and use layoutContainerCells
+0000000000000000000000000000000000000000;;	func layoutContainers(containers []api.Container, w io.Writer) error {
+0000000000000000000000000000000000000000;;		var namesBuffer bytes.Buffer
+0000000000000000000000000000000000000000;;		var imagesBuffer bytes.Buffer
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for i, container := range containers {
+0000000000000000000000000000000000000000;;			namesBuffer.WriteString(container.Name)
+0000000000000000000000000000000000000000;;			imagesBuffer.WriteString(container.Image)
+0000000000000000000000000000000000000000;;			if i != len(containers)-1 {
+0000000000000000000000000000000000000000;;				namesBuffer.WriteString(",")
+0000000000000000000000000000000000000000;;				imagesBuffer.WriteString(",")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprintf(w, "\t%s\t%s", namesBuffer.String(), imagesBuffer.String())
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Lay out all the containers on one line if use wide output.
+0000000000000000000000000000000000000000;;	func layoutContainerCells(containers []api.Container) (names string, images string) {
+0000000000000000000000000000000000000000;;		var namesBuffer bytes.Buffer
+0000000000000000000000000000000000000000;;		var imagesBuffer bytes.Buffer
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		for i, container := range containers {
+0000000000000000000000000000000000000000;;			namesBuffer.WriteString(container.Name)
+0000000000000000000000000000000000000000;;			imagesBuffer.WriteString(container.Image)
+0000000000000000000000000000000000000000;;			if i != len(containers)-1 {
+0000000000000000000000000000000000000000;;				namesBuffer.WriteString(",")
+0000000000000000000000000000000000000000;;				imagesBuffer.WriteString(",")
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return namesBuffer.String(), imagesBuffer.String()
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// formatEventSource formats EventSource as a comma separated string excluding Host when empty
+0000000000000000000000000000000000000000;;	func formatEventSource(es api.EventSource) string {
+0000000000000000000000000000000000000000;;		EventSourceString := []string{es.Component}
+0000000000000000000000000000000000000000;;		if len(es.Host) > 0 {
+0000000000000000000000000000000000000000;;			EventSourceString = append(EventSourceString, es.Host)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return strings.Join(EventSourceString, ", ")
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printControllerRevision(history *apps.ControllerRevision, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		name := printers.FormatResourceName(options.Kind, history.Name, options.WithKind)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if options.WithNamespace {
+0000000000000000000000000000000000000000;;			if _, err := fmt.Fprintf(w, "%s\t", history.Namespace); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		controllerRef := controller.GetControllerOf(history)
+0000000000000000000000000000000000000000;;		controllerName := "<none>"
+0000000000000000000000000000000000000000;;		if controllerRef != nil {
+0000000000000000000000000000000000000000;;			withKind := true
+0000000000000000000000000000000000000000;;			controllerName = printers.FormatResourceName(controllerRef.Kind, controllerRef.Name, withKind)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		revision := history.Revision
+0000000000000000000000000000000000000000;;		age := translateTimestamp(history.CreationTimestamp)
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprintf(w, "%s\t%s\t%d\t%s", name, controllerName, revision, age); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		if _, err := fmt.Fprint(w, printers.AppendLabels(history.Labels, options.ColumnLabels)); err != nil {
+0000000000000000000000000000000000000000;;			return err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, err := fmt.Fprint(w, printers.AppendAllLabels(options.ShowLabels, history.Labels))
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func printControllerRevisionList(list *apps.ControllerRevisionList, w io.Writer, options printers.PrintOptions) error {
+0000000000000000000000000000000000000000;;		for _, item := range list.Items {
+0000000000000000000000000000000000000000;;			if err := printControllerRevision(&item, w, options); err != nil {
+0000000000000000000000000000000000000000;;				return err
+0000000000000000000000000000000000000000;;			}
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return nil
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,10 @@
+0000000000000000000000000000000000000000;;	package bootfromvolume
+54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/results.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/results.go][vendor/github.com/rackspace/gophercloud/openstack/compute/v2/extensions/bootfromvolume/results.go];	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		os "github.com/rackspace/gophercloud/openstack/compute/v2/servers"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// CreateResult temporarily contains the response from a Create call.
+0000000000000000000000000000000000000000;;	type CreateResult struct {
+0000000000000000000000000000000000000000;;		os.CreateResult
+0000000000000000000000000000000000000000;;	}

@@ -1,0 +1,13 @@
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	language: go
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	go:
+edbcd7131459086bebd8b977925afcb7a234f8d4;;	  - tip
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	install:
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	  - export GOPATH="$HOME/gopath"
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	  - mkdir -p "$GOPATH/src/golang.org/x"
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	  - mv "$TRAVIS_BUILD_DIR" "$GOPATH/src/golang.org/x/oauth2"
+ebf43e4ef7c9c1b2ea6bf70710d9b269028e79a0;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	  - go get -v -t -d golang.org/x/oauth2/...
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	
+fb07fa00004c1f8a445543653f60d38694101f82;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	script:
+ebf43e4ef7c9c1b2ea6bf70710d9b269028e79a0;Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml[Godeps/_workspace/src/golang.org/x/oauth2/.travis.yml][vendor/golang.org/x/oauth2/.travis.yml];	  - go test -v golang.org/x/oauth2/...

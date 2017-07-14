@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000;;	// Copyright 2013 The Go Authors. All rights reserved.
+0000000000000000000000000000000000000000;;	// Use of this source code is governed by a BSD-style
+0000000000000000000000000000000000000000;;	// license that can be found in the LICENSE file.
+12a86164cdbf8548dc1c57ea2633daf61c4daab0;Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/syscall_no_getwd.go[Godeps/_workspace/src/github.com/fsouza/go-dockerclient/external/golang.org/x/sys/unix/syscall_no_getwd.go][vendor/golang.org/x/sys/unix/syscall_no_getwd.go];	
+0000000000000000000000000000000000000000;;	// +build dragonfly freebsd netbsd openbsd
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package unix
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const ImplementsGetwd = false
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func Getwd() (string, error) { return "", ENOTSUP }

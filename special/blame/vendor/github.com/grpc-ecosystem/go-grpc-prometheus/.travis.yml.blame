@@ -1,0 +1,18 @@
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	sudo: false
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	language: go
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	go:
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - 1.6.x
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - 1.7.x
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - 1.8.x
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	install:
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - go get github.com/prometheus/client_golang/prometheus
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - go get google.golang.org/grpc
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - go get golang.org/x/net/context
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - go get github.com/stretchr/testify
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	script:
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	 - ./test_all.sh
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	after_success:
+550be6508d59ea184bfb64f8ae23c177b9e6d1c9;;	  - bash <(curl -s https://codecov.io/bash)

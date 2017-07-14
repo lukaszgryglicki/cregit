@@ -1,0 +1,22 @@
+0000000000000000000000000000000000000000;;	The
+0000000000000000000000000000000000000000;;	[SaltStack pillar](http://docs.saltstack.com/en/latest/topics/pillar/)
+0000000000000000000000000000000000000000;;	data is partially statically derived from the contents of this
+0000000000000000000000000000000000000000;;	directory. The bulk of the pillars are hard to perceive from browsing
+0000000000000000000000000000000000000000;;	this directory, though, because they are written into
+0000000000000000000000000000000000000000;;	[cluster-params.sls](cluster-params.sls) at cluster inception.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* [cluster-params.sls](cluster-params.sls) is generated entirely at cluster inception. See e.g. [configure-vm.sh](../../gce/configure-vm.sh#L262)
+0000000000000000000000000000000000000000;;	* [docker-images.sls](docker-images.sls) stores the Docker tags of the current Docker-wrapped server binaries, twiddling by the Salt install script
+0000000000000000000000000000000000000000;;	* [logging.sls](logging.sls) defines the cluster log level
+0000000000000000000000000000000000000000;;	* [mine.sls](mine.sls): defines the variables shared across machines in the Salt
+0000000000000000000000000000000000000000;;	  mine. It is starting to be largely deprecated in use, and is totally
+0000000000000000000000000000000000000000;;	  unavailable on GCE, which runs standalone.
+0000000000000000000000000000000000000000;;	* [privilege.sls](privilege.sls) defines whether privileged containers are allowed.
+0000000000000000000000000000000000000000;;	* [top.sls](top.sls) defines which pillars are active across the cluster.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	## Future work
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Document the current pillars across providers
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/saltbase/pillar/README.md?pixel)]()

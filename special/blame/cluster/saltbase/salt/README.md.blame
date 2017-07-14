@@ -1,0 +1,29 @@
+0000000000000000000000000000000000000000;;	This directory forms the base of the main SaltStack configuration. The
+0000000000000000000000000000000000000000;;	place to start with any SaltStack configuration is
+0000000000000000000000000000000000000000;;	[top.sls](top.sls). However, unless you are particularly keen on
+0000000000000000000000000000000000000000;;	reading Jinja templates, the following tables break down what
+0000000000000000000000000000000000000000;;	configurations run on what providers. (NB: The [_states](_states/)
+0000000000000000000000000000000000000000;;	directory is a special directory included by Salt for `ensure` blocks,
+0000000000000000000000000000000000000000;;	and is only used for the [docker](docker/) config.)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Key: M = Config applies to master, n = config applies to nodes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Config                                              | GCE   | Vagrant | AWS | Azure
+0000000000000000000000000000000000000000;;	----------------------------------------------------|-------|---------|-----|------
+0000000000000000000000000000000000000000;;	[debian-auto-upgrades](debian-auto-upgrades/)       | M n   | M n     | M n | M n
+0000000000000000000000000000000000000000;;	[docker](docker/)                                   | M n   | M n     | M n | M n
+0000000000000000000000000000000000000000;;	[etcd](etcd/)                                       | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[generate-cert](generate-cert/)                     | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[kube-addons](kube-addons/)                         | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[kube-apiserver](kube-apiserver/)                   | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[kube-controller-manager](kube-controller-manager/) | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[kube-proxy](kube-proxy/)                           |   n   |   n     |   n |   n
+0000000000000000000000000000000000000000;;	[kube-scheduler](kube-scheduler/)                   | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	[kubelet](kubelet/)                                 | M n   | M n     | M n | M n
+0000000000000000000000000000000000000000;;	[logrotate](logrotate/)                             | M n   |   n     | M n | M n
+0000000000000000000000000000000000000000;;	[supervisord](supervisor/)                          | M n   | M n     | M n | M n
+0000000000000000000000000000000000000000;;	[base](base.sls)                                    | M n   | M n     | M n | M n
+0000000000000000000000000000000000000000;;	[kube-client-tools](kube-client-tools.sls)          | M     | M       | M   | M
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/saltbase/salt/README.md?pixel)]()

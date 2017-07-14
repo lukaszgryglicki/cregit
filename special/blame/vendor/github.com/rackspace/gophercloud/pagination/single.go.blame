@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000;;	package pagination
+54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/pagination/single.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/pagination/single.go][vendor/github.com/rackspace/gophercloud/pagination/single.go];	
+0000000000000000000000000000000000000000;;	// SinglePageBase may be embedded in a Page that contains all of the results from an operation at once.
+0000000000000000000000000000000000000000;;	type SinglePageBase PageResult
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// NextPageURL always returns "" to indicate that there are no more pages to return.
+0000000000000000000000000000000000000000;;	func (current SinglePageBase) NextPageURL() (string, error) {
+0000000000000000000000000000000000000000;;		return "", nil
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// GetBody returns the single page's body. This method is needed to satisfy the
+0000000000000000000000000000000000000000;;	// Page interface.
+0000000000000000000000000000000000000000;;	func (current SinglePageBase) GetBody() interface{} {
+0000000000000000000000000000000000000000;;		return current.Body
+0000000000000000000000000000000000000000;;	}

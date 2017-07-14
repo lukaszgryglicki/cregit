@@ -1,0 +1,42 @@
+20a23b516161fc6e4e2d00ed067520ad63629162;;	clone:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	  path: github.com/go-openapi/runtime
+20a23b516161fc6e4e2d00ed067520ad63629162;;	
+20a23b516161fc6e4e2d00ed067520ad63629162;;	matrix:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	  GO_VERSION:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    - "1.6"
+20a23b516161fc6e4e2d00ed067520ad63629162;;	
+20a23b516161fc6e4e2d00ed067520ad63629162;;	build:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	  integration:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    image: golang:$$GO_VERSION
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    pull: true
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    commands:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/axw/gocov/gocov
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u gopkg.in/matm/v1/gocov-html
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/cee-dub/go-junit-report
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/stretchr/testify/assert
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u golang.org/x/net/context
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u gopkg.in/yaml.v2
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/gorilla/context
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/go-openapi/analysis
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/go-openapi/errors
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/go-openapi/loads
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - go get -u github.com/go-openapi/strfmt
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - mkdir -p /drone/src/github.com/go-openapi/validate
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - git clone https://github.com/go-openapi/validate /drone/src/github.com/go-openapi/validate
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      - ./hack/build-drone.sh
+20a23b516161fc6e4e2d00ed067520ad63629162;;	
+20a23b516161fc6e4e2d00ed067520ad63629162;;	notify:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	  slack:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    channel: bots
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    webhook_url: $$SLACK_URL
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    username: drone
+20a23b516161fc6e4e2d00ed067520ad63629162;;	
+20a23b516161fc6e4e2d00ed067520ad63629162;;	publish:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	  coverage:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    server: https://coverage.vmware.run
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    token: $$GITHUB_TOKEN
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    # threshold: 70
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    # must_increase: true
+20a23b516161fc6e4e2d00ed067520ad63629162;;	    when:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	      matrix:
+20a23b516161fc6e4e2d00ed067520ad63629162;;	        GO_VERSION: "1.6"

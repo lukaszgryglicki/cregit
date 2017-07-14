@@ -1,0 +1,12 @@
+0000000000000000000000000000000000000000;;	package jmespath
+7381c378252ae8f66befb472cf056371ba4be46a;Godeps/_workspace/src/github.com/jmespath/go-jmespath/api.go[Godeps/_workspace/src/github.com/jmespath/go-jmespath/api.go][vendor/github.com/jmespath/go-jmespath/api.go];	
+0000000000000000000000000000000000000000;;	// Search evaluates a JMESPath expression against input data and returns the result.
+0000000000000000000000000000000000000000;;	func Search(expression string, data interface{}) (interface{}, error) {
+0000000000000000000000000000000000000000;;		intr := newInterpreter()
+0000000000000000000000000000000000000000;;		parser := NewParser()
+0000000000000000000000000000000000000000;;		ast, err := parser.Parse(expression)
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			return nil, err
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return intr.Execute(ast, data)
+0000000000000000000000000000000000000000;;	}

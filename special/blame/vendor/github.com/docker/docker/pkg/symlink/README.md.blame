@@ -1,0 +1,6 @@
+0000000000000000000000000000000000000000;;	Package symlink implements EvalSymlinksInScope which is an extension of filepath.EvalSymlinks,
+0000000000000000000000000000000000000000;;	as well as a Windows long-path aware version of filepath.EvalSymlinks
+0000000000000000000000000000000000000000;;	from the [Go standard library](https://golang.org/pkg/path/filepath).
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	The code from filepath.EvalSymlinks has been adapted in fs.go.
+0000000000000000000000000000000000000000;;	Please read the LICENSE.BSD file that governs fs.go and LICENSE.APACHE for fs_test.go.

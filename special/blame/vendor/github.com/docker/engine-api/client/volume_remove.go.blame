@@ -1,0 +1,10 @@
+0000000000000000000000000000000000000000;;	package client
+4fd292dfb7492cc1ce958d1370115de07503bc67;Godeps/_workspace/src/github.com/docker/engine-api/client/volume_remove.go[Godeps/_workspace/src/github.com/docker/engine-api/client/volume_remove.go][vendor/github.com/docker/engine-api/client/volume_remove.go];	
+0000000000000000000000000000000000000000;;	import "golang.org/x/net/context"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeRemove removes a volume from the docker host.
+0000000000000000000000000000000000000000;;	func (cli *Client) VolumeRemove(ctx context.Context, volumeID string) error {
+0000000000000000000000000000000000000000;;		resp, err := cli.delete(ctx, "/volumes/"+volumeID, nil, nil)
+0000000000000000000000000000000000000000;;		ensureReaderClosed(resp)
+0000000000000000000000000000000000000000;;		return err
+0000000000000000000000000000000000000000;;	}

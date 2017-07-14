@@ -1,0 +1,91 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+063acfdf728e2ec7ae59ae0167a11e5152c504b4;pkg/controller/persistentvolume/options/options.go[pkg/controller/persistentvolume/options/options.go][pkg/controller/volume/persistentvolume/options/options.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package options
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"github.com/spf13/pflag"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// VolumeConfigFlags is used to bind CLI flags to variables.  This top-level struct contains *all* enumerated
+0000000000000000000000000000000000000000;;	// CLI flags meant to configure all volume plugins.  From this config, the binary will create many instances
+0000000000000000000000000000000000000000;;	// of volume.VolumeConfig which are then passed to the appropriate plugin. The ControllerManager binary is the only
+0000000000000000000000000000000000000000;;	// part of the code which knows what plugins are supported and which CLI flags correspond to each plugin.
+0000000000000000000000000000000000000000;;	type VolumeConfigFlags struct {
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerMaximumRetry                int
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerMinimumTimeoutNFS           int
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerPodTemplateFilePathNFS      string
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerIncrementTimeoutNFS         int
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerPodTemplateFilePathHostPath string
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerMinimumTimeoutHostPath      int
+0000000000000000000000000000000000000000;;		PersistentVolumeRecyclerIncrementTimeoutHostPath    int
+0000000000000000000000000000000000000000;;		EnableHostPathProvisioning                          bool
+0000000000000000000000000000000000000000;;		EnableDynamicProvisioning                           bool
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type PersistentVolumeControllerOptions struct {
+0000000000000000000000000000000000000000;;		PVClaimBinderSyncPeriod time.Duration
+0000000000000000000000000000000000000000;;		VolumeConfigFlags       VolumeConfigFlags
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func NewPersistentVolumeControllerOptions() PersistentVolumeControllerOptions {
+0000000000000000000000000000000000000000;;		return PersistentVolumeControllerOptions{
+0000000000000000000000000000000000000000;;			PVClaimBinderSyncPeriod: 15 * time.Second,
+0000000000000000000000000000000000000000;;			VolumeConfigFlags: VolumeConfigFlags{
+0000000000000000000000000000000000000000;;				// default values here
+0000000000000000000000000000000000000000;;				PersistentVolumeRecyclerMaximumRetry:             3,
+0000000000000000000000000000000000000000;;				PersistentVolumeRecyclerMinimumTimeoutNFS:        300,
+0000000000000000000000000000000000000000;;				PersistentVolumeRecyclerIncrementTimeoutNFS:      30,
+0000000000000000000000000000000000000000;;				PersistentVolumeRecyclerMinimumTimeoutHostPath:   60,
+0000000000000000000000000000000000000000;;				PersistentVolumeRecyclerIncrementTimeoutHostPath: 30,
+0000000000000000000000000000000000000000;;				EnableHostPathProvisioning:                       false,
+0000000000000000000000000000000000000000;;				EnableDynamicProvisioning:                        true,
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (o *PersistentVolumeControllerOptions) AddFlags(fs *pflag.FlagSet) {
+0000000000000000000000000000000000000000;;		fs.DurationVar(&o.PVClaimBinderSyncPeriod, "pvclaimbinder-sync-period", o.PVClaimBinderSyncPeriod,
+0000000000000000000000000000000000000000;;			"The period for syncing persistent volumes and persistent volume claims")
+0000000000000000000000000000000000000000;;		fs.StringVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathNFS,
+0000000000000000000000000000000000000000;;			"pv-recycler-pod-template-filepath-nfs", o.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathNFS,
+0000000000000000000000000000000000000000;;			"The file path to a pod definition used as a template for NFS persistent volume recycling")
+0000000000000000000000000000000000000000;;		fs.IntVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutNFS, "pv-recycler-minimum-timeout-nfs",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutNFS, "The minimum ActiveDeadlineSeconds to use for an NFS Recycler pod")
+0000000000000000000000000000000000000000;;		fs.IntVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutNFS, "pv-recycler-increment-timeout-nfs",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutNFS, "the increment of time added per Gi to ActiveDeadlineSeconds for an NFS scrubber pod")
+0000000000000000000000000000000000000000;;		fs.StringVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathHostPath, "pv-recycler-pod-template-filepath-hostpath",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathHostPath,
+0000000000000000000000000000000000000000;;			"The file path to a pod definition used as a template for HostPath persistent volume recycling. "+
+0000000000000000000000000000000000000000;;				"This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.IntVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutHostPath, "pv-recycler-minimum-timeout-hostpath",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutHostPath,
+0000000000000000000000000000000000000000;;			"The minimum ActiveDeadlineSeconds to use for a HostPath Recycler pod. This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.IntVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutHostPath, "pv-recycler-timeout-increment-hostpath",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutHostPath,
+0000000000000000000000000000000000000000;;			"the increment of time added per Gi to ActiveDeadlineSeconds for a HostPath scrubber pod. "+
+0000000000000000000000000000000000000000;;				"This is for development and testing only and will not work in a multi-node cluster.")
+0000000000000000000000000000000000000000;;		fs.IntVar(&o.VolumeConfigFlags.PersistentVolumeRecyclerMaximumRetry, "pv-recycler-maximum-retry",
+0000000000000000000000000000000000000000;;			o.VolumeConfigFlags.PersistentVolumeRecyclerMaximumRetry,
+0000000000000000000000000000000000000000;;			"Maximum number of attempts to recycle or delete a persistent volume")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&o.VolumeConfigFlags.EnableHostPathProvisioning, "enable-hostpath-provisioner", o.VolumeConfigFlags.EnableHostPathProvisioning,
+0000000000000000000000000000000000000000;;			"Enable HostPath PV provisioning when running without a cloud provider. This allows testing and development of provisioning features. "+
+0000000000000000000000000000000000000000;;				"HostPath provisioning is not supported in any way, won't work in a multi-node cluster, and should not be used for anything other than testing or development.")
+0000000000000000000000000000000000000000;;		fs.BoolVar(&o.VolumeConfigFlags.EnableDynamicProvisioning, "enable-dynamic-provisioning", o.VolumeConfigFlags.EnableDynamicProvisioning,
+0000000000000000000000000000000000000000;;			"Enable dynamic provisioning for environments that support it.")
+0000000000000000000000000000000000000000;;	}

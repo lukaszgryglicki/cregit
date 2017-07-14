@@ -1,0 +1,5 @@
+0000000000000000000000000000000000000000;;	package libcontainer
+d130243057bea8ebcfa3fdfcb8c3aeaf4ca246bf;Godeps/_workspace/src/github.com/docker/libcontainer/stats_freebsd.go[Godeps/_workspace/src/github.com/docker/libcontainer/stats_freebsd.go][vendor/github.com/opencontainers/runc/libcontainer/stats_freebsd.go];	
+0000000000000000000000000000000000000000;;	type Stats struct {
+0000000000000000000000000000000000000000;;		Interfaces []*NetworkInterface
+0000000000000000000000000000000000000000;;	}

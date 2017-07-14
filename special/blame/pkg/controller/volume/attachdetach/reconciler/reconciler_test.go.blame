@@ -1,0 +1,749 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+9a0cc299ef22f0ec7bb0c4adfa4212843ec620a7;pkg/controller/volume/reconciler/reconciler_test.go[pkg/controller/volume/reconciler/reconciler_test.go][pkg/controller/volume/attachdetach/reconciler/reconciler_test.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package reconciler
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		"testing"
+0000000000000000000000000000000000000000;;		"time"
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		"k8s.io/api/core/v1"
+0000000000000000000000000000000000000000;;		k8stypes "k8s.io/apimachinery/pkg/types"
+0000000000000000000000000000000000000000;;		"k8s.io/apimachinery/pkg/util/wait"
+0000000000000000000000000000000000000000;;		"k8s.io/client-go/tools/record"
+0000000000000000000000000000000000000000;;		informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/controller"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/controller/volume/attachdetach/cache"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/controller/volume/attachdetach/statusupdater"
+0000000000000000000000000000000000000000;;		controllervolumetesting "k8s.io/kubernetes/pkg/controller/volume/attachdetach/testing"
+0000000000000000000000000000000000000000;;		volumetesting "k8s.io/kubernetes/pkg/volume/testing"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/volume/util/types"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	const (
+0000000000000000000000000000000000000000;;		reconcilerLoopPeriod      time.Duration = 0 * time.Millisecond
+0000000000000000000000000000000000000000;;		syncLoopPeriod            time.Duration = 100 * time.Minute
+0000000000000000000000000000000000000000;;		maxWaitForUnmountDuration time.Duration = 50 * time.Millisecond
+0000000000000000000000000000000000000000;;		resyncPeriod              time.Duration = 5 * time.Minute
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there are no calls to attach or detach.
+0000000000000000000000000000000000000000;;	func Test_Run_Positive_DoNothing(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		informerFactory := informers.NewSharedInformerFactory(fakeKubeClient, controller.NoResyncPeriodFunc())
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewNodeStatusUpdater(
+0000000000000000000000000000000000000000;;			fakeKubeClient, informerFactory.Core().V1().Nodes().Lister(), asw)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 0 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, true /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 0 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with one node/volume/pod tuple.
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there is one attach call and no detach calls.
+0000000000000000000000000000000000000000;;	func Test_Run_Positive_OneDesiredVolumeAttach(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName := "pod-uid"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		nodeName := k8stypes.NodeName("node-name")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(volumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Volume %q/node %q should not exist, but it does.",
+0000000000000000000000000000000000000000;;				volumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		_, podErr := dsw.AddPod(types.UniquePodName(podName), controllervolumetesting.NewPod(podName, podName), volumeSpec, nodeName)
+0000000000000000000000000000000000000000;;		if podErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with one node/volume/pod tuple.
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there is one attach call and no detach calls.
+0000000000000000000000000000000000000000;;	// Marks the node/volume as unmounted.
+0000000000000000000000000000000000000000;;	// Deletes the node/volume/pod tuple from desiredStateOfWorld cache.
+0000000000000000000000000000000000000000;;	// Verifies there is one detach call and no (new) attach calls.
+0000000000000000000000000000000000000000;;	func Test_Run_Positive_OneDesiredVolumeAttachThenDetachWithUnmountedVolume(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName := "pod-uid"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		nodeName := k8stypes.NodeName("node-name")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(volumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Volume %q/node %q should not exist, but it does.",
+0000000000000000000000000000000000000000;;				volumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		generatedVolumeName, podAddErr := dsw.AddPod(types.UniquePodName(podName), controllervolumetesting.NewPod(podName, podName), volumeSpec, nodeName)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podName), generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		volumeExists = dsw.VolumeExists(generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podName,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		asw.SetVolumeMountedByNode(generatedVolumeName, nodeName, true /* mounted */, false)
+0000000000000000000000000000000000000000;;		asw.SetVolumeMountedByNode(generatedVolumeName, nodeName, false /* mounted */, false)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewDetacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with one node/volume/pod tuple.
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there is one attach call and no detach calls.
+0000000000000000000000000000000000000000;;	// Deletes the node/volume/pod tuple from desiredStateOfWorld cache without first marking the node/volume as unmounted.
+0000000000000000000000000000000000000000;;	// Verifies there is one detach call and no (new) attach calls.
+0000000000000000000000000000000000000000;;	func Test_Run_Positive_OneDesiredVolumeAttachThenDetachWithMountedVolume(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName := "pod-uid"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		nodeName := k8stypes.NodeName("node-name")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(volumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Volume %q/node %q should not exist, but it does.",
+0000000000000000000000000000000000000000;;				volumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		generatedVolumeName, podAddErr := dsw.AddPod(types.UniquePodName(podName), controllervolumetesting.NewPod(podName, podName), volumeSpec, nodeName)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podName), generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		volumeExists = dsw.VolumeExists(generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podName,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert -- Timer will triger detach
+0000000000000000000000000000000000000000;;		waitForNewDetacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with one node/volume/pod tuple.
+0000000000000000000000000000000000000000;;	// Has node update fail
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there is one attach call and no detach calls.
+0000000000000000000000000000000000000000;;	// Marks the node/volume as unmounted.
+0000000000000000000000000000000000000000;;	// Deletes the node/volume/pod tuple from desiredStateOfWorld cache.
+0000000000000000000000000000000000000000;;	// Verifies there are NO detach call and no (new) attach calls.
+0000000000000000000000000000000000000000;;	func Test_Run_Negative_OneDesiredVolumeAttachThenDetachWithUnmountedVolumeUpdateStatusFail(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(true /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName := "pod-uid"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		nodeName := k8stypes.NodeName("node-name")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(volumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Volume %q/node %q should not exist, but it does.",
+0000000000000000000000000000000000000000;;				volumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		generatedVolumeName, podAddErr := dsw.AddPod(types.UniquePodName(podName), controllervolumetesting.NewPod(podName, podName), volumeSpec, nodeName)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podName), generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		volumeExists = dsw.VolumeExists(generatedVolumeName, nodeName)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podName,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodeName)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		asw.SetVolumeMountedByNode(generatedVolumeName, nodeName, true /* mounted */, false)
+0000000000000000000000000000000000000000;;		asw.SetVolumeMountedByNode(generatedVolumeName, nodeName, false /* mounted */, false)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Creates a volume with accessMode ReadWriteMany
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with two ode/volume/pod tuples pointing to the created volume
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there are two attach calls and no detach calls.
+0000000000000000000000000000000000000000;;	// Deletes the first node/volume/pod tuple from desiredStateOfWorld cache without first marking the node/volume as unmounted.
+0000000000000000000000000000000000000000;;	// Verifies there is one detach call and no (new) attach calls.
+0000000000000000000000000000000000000000;;	// Deletes the second node/volume/pod tuple from desiredStateOfWorld cache without first marking the node/volume as unmounted.
+0000000000000000000000000000000000000000;;	// Verifies there are two detach calls and no (new) attach calls.
+0000000000000000000000000000000000000000;;	func Test_Run_OneVolumeAttachAndDetachMultipleNodesWithReadWriteMany(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName1 := "pod-uid1"
+0000000000000000000000000000000000000000;;		podName2 := "pod-uid2"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		volumeSpec.PersistentVolume.Spec.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteMany}
+0000000000000000000000000000000000000000;;		nodeName1 := k8stypes.NodeName("node-name1")
+0000000000000000000000000000000000000000;;		nodeName2 := k8stypes.NodeName("node-name2")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName1, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName2, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		generatedVolumeName, podAddErr := dsw.AddPod(types.UniquePodName(podName1), controllervolumetesting.NewPod(podName1, podName1), volumeSpec, nodeName1)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, podAddErr = dsw.AddPod(types.UniquePodName(podName2), controllervolumetesting.NewPod(podName2, podName2), volumeSpec, nodeName2)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 2 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalAttachCallCount(t, 2 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachedToNodesCount(t, 2 /* expectedNodeCount */, generatedVolumeName, asw)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podName1), generatedVolumeName, nodeName1)
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(generatedVolumeName, nodeName1)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podName1,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodeName1)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert -- Timer will triger detach
+0000000000000000000000000000000000000000;;		waitForNewDetacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalAttachCallCount(t, 2 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podName2), generatedVolumeName, nodeName2)
+0000000000000000000000000000000000000000;;		volumeExists = dsw.VolumeExists(generatedVolumeName, nodeName2)
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podName2,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodeName2)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert -- Timer will triger detach
+0000000000000000000000000000000000000000;;		waitForNewDetacherCallCount(t, 2 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalAttachCallCount(t, 2 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalDetachCallCount(t, 2 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Creates a volume with accessMode ReadWriteOnce
+0000000000000000000000000000000000000000;;	// Populates desiredStateOfWorld cache with two ode/volume/pod tuples pointing to the created volume
+0000000000000000000000000000000000000000;;	// Calls Run()
+0000000000000000000000000000000000000000;;	// Verifies there is one attach call and no detach calls.
+0000000000000000000000000000000000000000;;	// Deletes the node/volume/pod tuple from desiredStateOfWorld which succeeded in attaching
+0000000000000000000000000000000000000000;;	// Verifies there are two attach call and one detach call.
+0000000000000000000000000000000000000000;;	func Test_Run_OneVolumeAttachAndDetachMultipleNodesWithReadWriteOnce(t *testing.T) {
+0000000000000000000000000000000000000000;;		// Arrange
+0000000000000000000000000000000000000000;;		volumePluginMgr, fakePlugin := volumetesting.GetTestVolumePluginMgr(t)
+0000000000000000000000000000000000000000;;		dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		asw := cache.NewActualStateOfWorld(volumePluginMgr)
+0000000000000000000000000000000000000000;;		fakeKubeClient := controllervolumetesting.CreateTestClient()
+0000000000000000000000000000000000000000;;		fakeRecorder := &record.FakeRecorder{}
+0000000000000000000000000000000000000000;;		ad := operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(fakeKubeClient, volumePluginMgr, fakeRecorder, false /* checkNodeCapabilitiesBeforeMount */))
+0000000000000000000000000000000000000000;;		nsu := statusupdater.NewFakeNodeStatusUpdater(false /* returnError */)
+0000000000000000000000000000000000000000;;		reconciler := NewReconciler(
+0000000000000000000000000000000000000000;;			reconcilerLoopPeriod, maxWaitForUnmountDuration, syncLoopPeriod, false, dsw, asw, ad, nsu, fakeRecorder)
+0000000000000000000000000000000000000000;;		podName1 := "pod-uid1"
+0000000000000000000000000000000000000000;;		podName2 := "pod-uid2"
+0000000000000000000000000000000000000000;;		volumeName := v1.UniqueVolumeName("volume-name")
+0000000000000000000000000000000000000000;;		volumeSpec := controllervolumetesting.GetTestVolumeSpec(string(volumeName), volumeName)
+0000000000000000000000000000000000000000;;		volumeSpec.PersistentVolume.Spec.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+0000000000000000000000000000000000000000;;		nodeName1 := k8stypes.NodeName("node-name1")
+0000000000000000000000000000000000000000;;		nodeName2 := k8stypes.NodeName("node-name2")
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName1, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;		dsw.AddNode(nodeName2, false /*keepTerminatedPodVolumes*/)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Add both pods at the same time to provoke a potential race condition in the reconciler
+0000000000000000000000000000000000000000;;		generatedVolumeName, podAddErr := dsw.AddPod(types.UniquePodName(podName1), controllervolumetesting.NewPod(podName1, podName1), volumeSpec, nodeName1)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		_, podAddErr = dsw.AddPod(types.UniquePodName(podName2), controllervolumetesting.NewPod(podName2, podName2), volumeSpec, nodeName2)
+0000000000000000000000000000000000000000;;		if podAddErr != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf("AddPod failed. Expected: <no error> Actual: <%v>", podAddErr)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		ch := make(chan struct{})
+0000000000000000000000000000000000000000;;		go reconciler.Run(ch)
+0000000000000000000000000000000000000000;;		defer close(ch)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalAttachCallCount(t, 1 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, true /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForDetachCallCount(t, 0 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForAttachedToNodesCount(t, 1 /* expectedNodeCount */, generatedVolumeName, asw)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		nodesForVolume := asw.GetNodesForVolume(generatedVolumeName)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Act
+0000000000000000000000000000000000000000;;		podToDelete := ""
+0000000000000000000000000000000000000000;;		if nodesForVolume[0] == nodeName1 {
+0000000000000000000000000000000000000000;;			podToDelete = podName1
+0000000000000000000000000000000000000000;;		} else if nodesForVolume[0] == nodeName2 {
+0000000000000000000000000000000000000000;;			podToDelete = podName2
+0000000000000000000000000000000000000000;;		} else {
+0000000000000000000000000000000000000000;;			t.Fatal("Volume attached to unexpected node")
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		dsw.DeletePod(types.UniquePodName(podToDelete), generatedVolumeName, nodesForVolume[0])
+0000000000000000000000000000000000000000;;		volumeExists := dsw.VolumeExists(generatedVolumeName, nodesForVolume[0])
+0000000000000000000000000000000000000000;;		if volumeExists {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Deleted pod %q from volume %q/node %q. Volume should also be deleted but it still exists.",
+0000000000000000000000000000000000000000;;				podToDelete,
+0000000000000000000000000000000000000000;;				generatedVolumeName,
+0000000000000000000000000000000000000000;;				nodesForVolume[0])
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		// Assert
+0000000000000000000000000000000000000000;;		waitForNewDetacherCallCount(t, 1 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewDetacherCallCount(t, false /* expectZeroNewDetacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalDetachCallCount(t, 1 /* expectedDetachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForNewAttacherCallCount(t, 2 /* expectedCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		verifyNewAttacherCallCount(t, false /* expectZeroNewAttacherCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;		waitForTotalAttachCallCount(t, 2 /* expectedAttachCallCount */, fakePlugin)
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForNewAttacherCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				actualCallCount := fakePlugin.GetNewAttacherCallCount()
+0000000000000000000000000000000000000000;;				if actualCallCount >= expectedCallCount {
+0000000000000000000000000000000000000000;;					return true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: Wrong NewAttacherCallCount. Expected: <%v> Actual: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedCallCount,
+0000000000000000000000000000000000000000;;					actualCallCount)
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Timed out waiting for NewAttacherCallCount. Expected: <%v> Actual: <%v>",
+0000000000000000000000000000000000000000;;				expectedCallCount,
+0000000000000000000000000000000000000000;;				fakePlugin.GetNewAttacherCallCount())
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForNewDetacherCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				actualCallCount := fakePlugin.GetNewDetacherCallCount()
+0000000000000000000000000000000000000000;;				if actualCallCount >= expectedCallCount {
+0000000000000000000000000000000000000000;;					return true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: Wrong NewDetacherCallCount. Expected: <%v> Actual: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedCallCount,
+0000000000000000000000000000000000000000;;					actualCallCount)
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Timed out waiting for NewDetacherCallCount. Expected: <%v> Actual: <%v>",
+0000000000000000000000000000000000000000;;				expectedCallCount,
+0000000000000000000000000000000000000000;;				fakePlugin.GetNewDetacherCallCount())
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForAttachCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedAttachCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		if len(fakePlugin.GetAttachers()) == 0 && expectedAttachCallCount == 0 {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				for i, attacher := range fakePlugin.GetAttachers() {
+0000000000000000000000000000000000000000;;					actualCallCount := attacher.GetAttachCallCount()
+0000000000000000000000000000000000000000;;					if actualCallCount == expectedAttachCallCount {
+0000000000000000000000000000000000000000;;						return true, nil
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					t.Logf(
+0000000000000000000000000000000000000000;;						"Warning: Wrong attacher[%v].GetAttachCallCount(). Expected: <%v> Actual: <%v>. Will try next attacher.",
+0000000000000000000000000000000000000000;;						i,
+0000000000000000000000000000000000000000;;						expectedAttachCallCount,
+0000000000000000000000000000000000000000;;						actualCallCount)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: No attachers have expected AttachCallCount. Expected: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedAttachCallCount)
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"No attachers have expected AttachCallCount. Expected: <%v>",
+0000000000000000000000000000000000000000;;				expectedAttachCallCount)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForTotalAttachCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedAttachCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		if len(fakePlugin.GetAttachers()) == 0 && expectedAttachCallCount == 0 {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				totalCount := 0
+0000000000000000000000000000000000000000;;				for _, attacher := range fakePlugin.GetAttachers() {
+0000000000000000000000000000000000000000;;					totalCount += attacher.GetAttachCallCount()
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				if totalCount == expectedAttachCallCount {
+0000000000000000000000000000000000000000;;					return true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: Wrong total GetAttachCallCount(). Expected: <%v> Actual: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedAttachCallCount,
+0000000000000000000000000000000000000000;;					totalCount)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Total AttachCallCount does not match expected value. Expected: <%v>",
+0000000000000000000000000000000000000000;;				expectedAttachCallCount)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForDetachCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedDetachCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		if len(fakePlugin.GetDetachers()) == 0 && expectedDetachCallCount == 0 {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				for i, detacher := range fakePlugin.GetDetachers() {
+0000000000000000000000000000000000000000;;					actualCallCount := detacher.GetDetachCallCount()
+0000000000000000000000000000000000000000;;					if actualCallCount == expectedDetachCallCount {
+0000000000000000000000000000000000000000;;						return true, nil
+0000000000000000000000000000000000000000;;					}
+0000000000000000000000000000000000000000;;					t.Logf(
+0000000000000000000000000000000000000000;;						"Wrong detacher[%v].GetDetachCallCount(). Expected: <%v> Actual: <%v>. Will try next detacher.",
+0000000000000000000000000000000000000000;;						i,
+0000000000000000000000000000000000000000;;						expectedDetachCallCount,
+0000000000000000000000000000000000000000;;						actualCallCount)
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: No detachers have expected DetachCallCount. Expected: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedDetachCallCount)
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"No detachers have expected DetachCallCount. Expected: <%v>",
+0000000000000000000000000000000000000000;;				expectedDetachCallCount)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForTotalDetachCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedDetachCallCount int,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;		if len(fakePlugin.GetDetachers()) == 0 && expectedDetachCallCount == 0 {
+0000000000000000000000000000000000000000;;			return
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				totalCount := 0
+0000000000000000000000000000000000000000;;				for _, detacher := range fakePlugin.GetDetachers() {
+0000000000000000000000000000000000000000;;					totalCount += detacher.GetDetachCallCount()
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				if totalCount == expectedDetachCallCount {
+0000000000000000000000000000000000000000;;					return true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: Wrong total GetDetachCallCount(). Expected: <%v> Actual: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					expectedDetachCallCount,
+0000000000000000000000000000000000000000;;					totalCount)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Total DetachCallCount does not match expected value. Expected: <%v>",
+0000000000000000000000000000000000000000;;				expectedDetachCallCount)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func waitForAttachedToNodesCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectedNodeCount int,
+0000000000000000000000000000000000000000;;		volumeName v1.UniqueVolumeName,
+0000000000000000000000000000000000000000;;		asw cache.ActualStateOfWorld) {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		err := retryWithExponentialBackOff(
+0000000000000000000000000000000000000000;;			time.Duration(5*time.Millisecond),
+0000000000000000000000000000000000000000;;			func() (bool, error) {
+0000000000000000000000000000000000000000;;				count := len(asw.GetNodesForVolume(volumeName))
+0000000000000000000000000000000000000000;;				if count == expectedNodeCount {
+0000000000000000000000000000000000000000;;					return true, nil
+0000000000000000000000000000000000000000;;				}
+0000000000000000000000000000000000000000;;				t.Logf(
+0000000000000000000000000000000000000000;;					"Warning: Wrong number of nodes having <%v> attached. Expected: <%v> Actual: <%v>. Will retry.",
+0000000000000000000000000000000000000000;;					volumeName,
+0000000000000000000000000000000000000000;;					expectedNodeCount,
+0000000000000000000000000000000000000000;;					count)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;				return false, nil
+0000000000000000000000000000000000000000;;			},
+0000000000000000000000000000000000000000;;		)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if err != nil {
+0000000000000000000000000000000000000000;;			count := len(asw.GetNodesForVolume(volumeName))
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Wrong number of nodes having <%v> attached. Expected: <%v> Actual: <%v>",
+0000000000000000000000000000000000000000;;				volumeName,
+0000000000000000000000000000000000000000;;				expectedNodeCount,
+0000000000000000000000000000000000000000;;				count)
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func verifyNewAttacherCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectZeroNewAttacherCallCount bool,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if expectZeroNewAttacherCallCount &&
+0000000000000000000000000000000000000000;;			fakePlugin.GetNewAttacherCallCount() != 0 {
+0000000000000000000000000000000000000000;;			t.Fatalf(
+0000000000000000000000000000000000000000;;				"Wrong NewAttacherCallCount. Expected: <0> Actual: <%v>",
+0000000000000000000000000000000000000000;;				fakePlugin.GetNewAttacherCallCount())
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func verifyNewDetacherCallCount(
+0000000000000000000000000000000000000000;;		t *testing.T,
+0000000000000000000000000000000000000000;;		expectZeroNewDetacherCallCount bool,
+0000000000000000000000000000000000000000;;		fakePlugin *volumetesting.FakeVolumePlugin) {
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;		if expectZeroNewDetacherCallCount &&
+0000000000000000000000000000000000000000;;			fakePlugin.GetNewDetacherCallCount() != 0 {
+0000000000000000000000000000000000000000;;			t.Fatalf("Wrong NewDetacherCallCount. Expected: <0> Actual: <%v>",
+0000000000000000000000000000000000000000;;				fakePlugin.GetNewDetacherCallCount())
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func retryWithExponentialBackOff(initialDuration time.Duration, fn wait.ConditionFunc) error {
+0000000000000000000000000000000000000000;;		backoff := wait.Backoff{
+0000000000000000000000000000000000000000;;			Duration: initialDuration,
+0000000000000000000000000000000000000000;;			Factor:   3,
+0000000000000000000000000000000000000000;;			Jitter:   0,
+0000000000000000000000000000000000000000;;			Steps:    6,
+0000000000000000000000000000000000000000;;		}
+0000000000000000000000000000000000000000;;		return wait.ExponentialBackoff(backoff, fn)
+0000000000000000000000000000000000000000;;	}

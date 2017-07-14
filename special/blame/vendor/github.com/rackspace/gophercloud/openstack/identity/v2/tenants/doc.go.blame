@@ -1,0 +1,7 @@
+0000000000000000000000000000000000000000;;	// Package tenants provides information and interaction with the
+0000000000000000000000000000000000000000;;	// tenants API resource for the OpenStack Identity service.
+0000000000000000000000000000000000000000;;	//
+0000000000000000000000000000000000000000;;	// See http://developer.openstack.org/api-ref-identity-v2.html#identity-auth-v2
+0000000000000000000000000000000000000000;;	// and http://developer.openstack.org/api-ref-identity-v2.html#admin-tenants
+0000000000000000000000000000000000000000;;	// for more information.
+0000000000000000000000000000000000000000;;	package tenants

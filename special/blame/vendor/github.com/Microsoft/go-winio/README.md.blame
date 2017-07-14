@@ -1,0 +1,22 @@
+0000000000000000000000000000000000000000;;	# go-winio
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This repository contains utilities for efficiently performing Win32 IO operations in
+0000000000000000000000000000000000000000;;	Go. Currently, this is focused on accessing named pipes and other file handles, and
+0000000000000000000000000000000000000000;;	for using named pipes as a net transport.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This code relies on IO completion ports to avoid blocking IO on system threads, allowing Go
+0000000000000000000000000000000000000000;;	to reuse the thread to schedule another goroutine. This limits support to Windows Vista and
+0000000000000000000000000000000000000000;;	newer operating systems. This is similar to the implementation of network sockets in Go's net
+0000000000000000000000000000000000000000;;	package.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Please see the LICENSE file for licensing information.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This project has adopted the [Microsoft Open Source Code of
+0000000000000000000000000000000000000000;;	Conduct](https://opensource.microsoft.com/codeofconduct/). For more information
+0000000000000000000000000000000000000000;;	see the [Code of Conduct
+0000000000000000000000000000000000000000;;	FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
+0000000000000000000000000000000000000000;;	[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
+0000000000000000000000000000000000000000;;	questions or comments.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Thanks to natefinch for the inspiration for this library. See https://github.com/natefinch/npipe
+0000000000000000000000000000000000000000;;	for another named pipe implementation.

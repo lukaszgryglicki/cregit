@@ -1,0 +1,38 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+a14a857b6054e63c7317a72ffb64c14bcbe12407;pkg/client/clientset_generated/internalclientset/typed/core/unversioned/pod_expansion.go[pkg/client/clientset_generated/internalclientset/typed/core/unversioned/pod_expansion.go][pkg/client/clientset_generated/internalclientset/typed/core/internalversion/pod_expansion.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package internalversion
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		restclient "k8s.io/client-go/rest"
+0000000000000000000000000000000000000000;;		"k8s.io/kubernetes/pkg/api"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// The PodExpansion interface allows manually adding extra methods to the PodInterface.
+0000000000000000000000000000000000000000;;	type PodExpansion interface {
+0000000000000000000000000000000000000000;;		Bind(binding *api.Binding) error
+0000000000000000000000000000000000000000;;		GetLogs(name string, opts *api.PodLogOptions) *restclient.Request
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Bind applies the provided binding to the named pod in the current namespace (binding.Namespace is ignored).
+0000000000000000000000000000000000000000;;	func (c *pods) Bind(binding *api.Binding) error {
+0000000000000000000000000000000000000000;;		return c.client.Post().Namespace(c.ns).Resource("pods").Name(binding.Name).SubResource("binding").Body(binding).Do().Error()
+0000000000000000000000000000000000000000;;	}
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	// Get constructs a request for getting the logs for a pod
+0000000000000000000000000000000000000000;;	func (c *pods) GetLogs(name string, opts *api.PodLogOptions) *restclient.Request {
+0000000000000000000000000000000000000000;;		return c.client.Get().Namespace(c.ns).Name(name).Resource("pods").SubResource("log").VersionedParams(opts, api.ParameterCodec)
+0000000000000000000000000000000000000000;;	}

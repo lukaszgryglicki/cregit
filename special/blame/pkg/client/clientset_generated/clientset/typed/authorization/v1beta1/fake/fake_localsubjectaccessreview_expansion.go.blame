@@ -1,0 +1,27 @@
+0000000000000000000000000000000000000000;;	/*
+0000000000000000000000000000000000000000;;	Copyright 2016 The Kubernetes Authors.
+159bef6be418b4710bdaa2fddf4811a98abdbc4b;pkg/client/clientset_generated/release_1_5/typed/authorization/v1beta1/fake/fake_localsubjectaccessreview_expansion.go[pkg/client/clientset_generated/release_1_5/typed/authorization/v1beta1/fake/fake_localsubjectaccessreview_expansion.go][pkg/client/clientset_generated/clientset/typed/authorization/v1beta1/fake/fake_localsubjectaccessreview_expansion.go];	
+0000000000000000000000000000000000000000;;	Licensed under the Apache License, Version 2.0 (the "License");
+0000000000000000000000000000000000000000;;	you may not use this file except in compliance with the License.
+0000000000000000000000000000000000000000;;	You may obtain a copy of the License at
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	    http://www.apache.org/licenses/LICENSE-2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Unless required by applicable law or agreed to in writing, software
+0000000000000000000000000000000000000000;;	distributed under the License is distributed on an "AS IS" BASIS,
+0000000000000000000000000000000000000000;;	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+0000000000000000000000000000000000000000;;	See the License for the specific language governing permissions and
+0000000000000000000000000000000000000000;;	limitations under the License.
+0000000000000000000000000000000000000000;;	*/
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	package fake
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	import (
+0000000000000000000000000000000000000000;;		authorizationapi "k8s.io/api/authorization/v1beta1"
+0000000000000000000000000000000000000000;;		core "k8s.io/client-go/testing"
+0000000000000000000000000000000000000000;;	)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	func (c *FakeLocalSubjectAccessReviews) Create(sar *authorizationapi.LocalSubjectAccessReview) (result *authorizationapi.LocalSubjectAccessReview, err error) {
+0000000000000000000000000000000000000000;;		obj, err := c.Fake.Invokes(core.NewCreateAction(authorizationapi.SchemeGroupVersion.WithResource("localsubjectaccessreviews"), c.ns, sar), &authorizationapi.SubjectAccessReview{})
+0000000000000000000000000000000000000000;;		return obj.(*authorizationapi.LocalSubjectAccessReview), err
+0000000000000000000000000000000000000000;;	}

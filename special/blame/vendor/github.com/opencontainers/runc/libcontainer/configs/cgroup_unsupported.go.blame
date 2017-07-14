@@ -1,0 +1,6 @@
+0000000000000000000000000000000000000000;;	// +build !windows,!linux,!freebsd
+387c5391f1ede5bc68630622494ee305c01f96bb;Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/configs/cgroup_unsupported.go[Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/configs/cgroup_unsupported.go][vendor/github.com/opencontainers/runc/libcontainer/configs/cgroup_unsupported.go];	
+0000000000000000000000000000000000000000;;	package configs
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	type Cgroup struct {
+0000000000000000000000000000000000000000;;	}

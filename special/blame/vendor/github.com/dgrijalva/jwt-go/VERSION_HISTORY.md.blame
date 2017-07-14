@@ -1,0 +1,105 @@
+0000000000000000000000000000000000000000;;	## `jwt-go` Version History
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 3.0.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* **Compatibility Breaking Changes**: See MIGRATION_GUIDE.md for tips on updating your code
+0000000000000000000000000000000000000000;;		* Dropped support for `[]byte` keys when using RSA signing methods.  This convenience feature could contribute to security vulnerabilities involving mismatched key types with signing methods.
+0000000000000000000000000000000000000000;;		* `ParseFromRequest` has been moved to `request` subpackage and usage has changed
+0000000000000000000000000000000000000000;;		* The `Claims` property on `Token` is now type `Claims` instead of `map[string]interface{}`.  The default value is type `MapClaims`, which is an alias to `map[string]interface{}`.  This makes it possible to use a custom type when decoding claims.
+0000000000000000000000000000000000000000;;	* Other Additions and Changes
+0000000000000000000000000000000000000000;;		* Added `Claims` interface type to allow users to decode the claims into a custom type
+0000000000000000000000000000000000000000;;		* Added `ParseWithClaims`, which takes a third argument of type `Claims`.  Use this function instead of `Parse` if you have a custom type you'd like to decode into.
+0000000000000000000000000000000000000000;;		* Dramatically improved the functionality and flexibility of `ParseFromRequest`, which is now in the `request` subpackage
+0000000000000000000000000000000000000000;;		* Added `ParseFromRequestWithClaims` which is the `FromRequest` equivalent of `ParseWithClaims`
+0000000000000000000000000000000000000000;;		* Added new interface type `Extractor`, which is used for extracting JWT strings from http requests.  Used with `ParseFromRequest` and `ParseFromRequestWithClaims`.
+0000000000000000000000000000000000000000;;		* Added several new, more specific, validation errors to error type bitmask
+0000000000000000000000000000000000000000;;		* Moved examples from README to executable example files
+0000000000000000000000000000000000000000;;		* Signing method registry is now thread safe
+0000000000000000000000000000000000000000;;		* Added new property to `ValidationError`, which contains the raw error returned by calls made by parse/verify (such as those returned by keyfunc or json parser)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.7.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	This will likely be the last backwards compatible release before 3.0.0, excluding essential bug fixes.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added new option `-show` to the `jwt` command that will just output the decoded token without verifying
+0000000000000000000000000000000000000000;;	* Error text for expired tokens includes how long it's been expired
+0000000000000000000000000000000000000000;;	* Fixed incorrect error returned from `ParseRSAPublicKeyFromPEM`
+0000000000000000000000000000000000000000;;	* Documentation updates
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.6.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Exposed inner error within ValidationError
+0000000000000000000000000000000000000000;;	* Fixed validation errors when using UseJSONNumber flag
+0000000000000000000000000000000000000000;;	* Added several unit tests
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.5.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added support for signing method none.  You shouldn't use this.  The API tries to make this clear.
+0000000000000000000000000000000000000000;;	* Updated/fixed some documentation
+0000000000000000000000000000000000000000;;	* Added more helpful error message when trying to parse tokens that begin with `BEARER `
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.4.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added new type, Parser, to allow for configuration of various parsing parameters
+0000000000000000000000000000000000000000;;		* You can now specify a list of valid signing methods.  Anything outside this set will be rejected.
+0000000000000000000000000000000000000000;;		* You can now opt to use the `json.Number` type instead of `float64` when parsing token JSON
+0000000000000000000000000000000000000000;;	* Added support for [Travis CI](https://travis-ci.org/dgrijalva/jwt-go)
+0000000000000000000000000000000000000000;;	* Fixed some bugs with ECDSA parsing
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.3.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Added support for ECDSA signing methods
+0000000000000000000000000000000000000000;;	* Added support for RSA PSS signing methods (requires go v1.4)
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.2.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Gracefully handle a `nil` `Keyfunc` being passed to `Parse`.  Result will now be the parsed token and an error, instead of a panic.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.1.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	Backwards compatible API change that was missed in 2.0.0.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* The `SignedString` method on `Token` now takes `interface{}` instead of `[]byte`
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 2.0.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	There were two major reasons for breaking backwards compatibility with this update.  The first was a refactor required to expand the width of the RSA and HMAC-SHA signing implementations.  There will likely be no required code changes to support this change.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	The second update, while unfortunately requiring a small change in integration, is required to open up this library to other signing methods.  Not all keys used for all signing methods have a single standard on-disk representation.  Requiring `[]byte` as the type for all keys proved too limiting.  Additionally, this implementation allows for pre-parsed tokens to be reused, which might matter in an application that parses a high volume of tokens with a small set of keys.  Backwards compatibilty has been maintained for passing `[]byte` to the RSA signing methods, but they will also accept `*rsa.PublicKey` and `*rsa.PrivateKey`.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	It is likely the only integration change required here will be to change `func(t *jwt.Token) ([]byte, error)` to `func(t *jwt.Token) (interface{}, error)` when calling `Parse`.
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* **Compatibility Breaking Changes**
+0000000000000000000000000000000000000000;;		* `SigningMethodHS256` is now `*SigningMethodHMAC` instead of `type struct`
+0000000000000000000000000000000000000000;;		* `SigningMethodRS256` is now `*SigningMethodRSA` instead of `type struct`
+0000000000000000000000000000000000000000;;		* `KeyFunc` now returns `interface{}` instead of `[]byte`
+0000000000000000000000000000000000000000;;		* `SigningMethod.Sign` now takes `interface{}` instead of `[]byte` for the key
+0000000000000000000000000000000000000000;;		* `SigningMethod.Verify` now takes `interface{}` instead of `[]byte` for the key
+0000000000000000000000000000000000000000;;	* Renamed type `SigningMethodHS256` to `SigningMethodHMAC`.  Specific sizes are now just instances of this type.
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodHS256`
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodHS384`
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodHS512`
+0000000000000000000000000000000000000000;;	* Renamed type `SigningMethodRS256` to `SigningMethodRSA`.  Specific sizes are now just instances of this type.
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodRS256`
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodRS384`
+0000000000000000000000000000000000000000;;	    * Added public package global `SigningMethodRS512`
+0000000000000000000000000000000000000000;;	* Moved sample private key for HMAC tests from an inline value to a file on disk.  Value is unchanged.
+0000000000000000000000000000000000000000;;	* Refactored the RSA implementation to be easier to read
+0000000000000000000000000000000000000000;;	* Exposed helper methods `ParseRSAPrivateKeyFromPEM` and `ParseRSAPublicKeyFromPEM`
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 1.0.2
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Fixed bug in parsing public keys from certificates
+0000000000000000000000000000000000000000;;	* Added more tests around the parsing of keys for RS256
+0000000000000000000000000000000000000000;;	* Code refactoring in RS256 implementation.  No functional changes
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 1.0.1
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* Fixed panic if RS256 signing method was passed an invalid key
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	#### 1.0.0
+0000000000000000000000000000000000000000;;	
+0000000000000000000000000000000000000000;;	* First versioned release
+0000000000000000000000000000000000000000;;	* API stabilized
+0000000000000000000000000000000000000000;;	* Supports creating, signing, parsing, and validating JWT tokens
+0000000000000000000000000000000000000000;;	* Supports RS256 and HS256 signing methods
