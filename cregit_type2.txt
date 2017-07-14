@@ -19,6 +19,7 @@ goto: http://www.srcml.org/, get deb package (Ubuntu 14.04 64-bit DEB)
 sftp it to lgcncf
 dpkg -i /root/srcml.deb
 apt-get install libarchive13
+apt-get install psmisc
 srcML should be OK by now.
 BFG patched:
 cd ../bfg-repo-cleaner/
@@ -42,7 +43,7 @@ cp srcml2token /usr/bin/
 Back to creagit:
 cd ../../
 mkdir /tmp/memo
-apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl
+apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl libdbd-sqlite3-perl
 chmod +x ./tokenize/kuber-tokenize.pl
 ./run_tokenize.sh (will take long!)
 eventually:

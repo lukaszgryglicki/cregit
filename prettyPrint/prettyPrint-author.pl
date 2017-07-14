@@ -52,6 +52,9 @@ use File::Temp qw/ tempfile tempdir mkstemp/;
 use File::Path qw(make_path remove_tree);
 use File::Copy;
 
+my $logfile = "perllog.txt";
+open(LOG,">>","$logfile") || die ("Error : can't open log file");
+
 my $commandPath = dirname(__FILE__);
 
 my %memoCidMeta;
@@ -739,6 +742,7 @@ sub Get_Author {
 sub Simple_Query {
     my ($dbh, $query, @params) = @_;
 
+    print LOG "$query\n";
     my $meta = $dbh->prepare($query);
     
     $meta->execute(@params);
