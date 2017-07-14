@@ -45,6 +45,7 @@ cp srcml2token /usr/bin/
 Back to creagit:
 cd ../../
 mkdir /tmp/memo
+mkdir /home/justa/dev/k8s_memo
 apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl libdbd-sqlite3-perl sqlite3
 chmod +x ./tokenize/kuber-tokenize.pl
 ./run_tokenize.sh (will take long!)
@@ -61,3 +62,15 @@ apt-get install libparallel-forkmanager-perl
 ./remapcommits.sh 
 ./html.sh (takes a long time)
 apt-get install links lynx
+Visualize:
+apt-get install apache2
+vim /etc/apache2/apache2.conf
+Apache:
+vim /etc/apache2/sites-enabled/000-default.conf
+ln -s /home/justa/dev/cregit_k8s_html/ /var/www/html/cregit
+find /home/justa/dev/cregit_k8s_html/ -type f -iname "*.html" -exec chmod ugo+r "{}" \;
+service apache2 restart
+For small repo:
+./all_small.sh
+ln -s /home/justa/dev/cregit_small_html/ /var/www/html/small
+find /home/justa/dev/cregit_small_html/ -type f -iname "*.html" -exec chmod ugo+r "{}" \;

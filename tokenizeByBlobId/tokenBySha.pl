@@ -54,6 +54,7 @@ my %mapLang = (
                "md" => "Markdown",
                "sh" => "Shell",
                "yaml" => "Yaml",
+               "yml" => "Yaml",
               );
 
 my $logfile = "perllog.txt";

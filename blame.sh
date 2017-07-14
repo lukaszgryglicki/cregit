@@ -1,3 +1,4 @@
 #!/bin/sh
 cd blameRepo
-perl blameRepoFilesMT.pl --verbose --formatBlame=./formatBlame.pl /home/justa/dev/kubernetes /home/justa/dev/kubernetes_blame '\.([ch]|go|md|sh|yaml)$'
+mkdir /home/justa/dev/kubernetes_blame 2>/dev/null
+perl blameRepoFilesMT.pl --verbose --formatBlame=./formatBlame.pl /home/justa/dev/kubernetes /home/justa/dev/kubernetes_blame '\.([ch]|go|md|sh|yml|yaml)$'
