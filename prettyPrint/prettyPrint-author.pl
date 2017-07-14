@@ -712,7 +712,7 @@ sub Get_Cid_Meta {
         $ret = $memoCidMeta{$cid};
         return @$ret;
     } else {
-#        print STDERR "$cid\n";
+        print STDERR "$cid\n";
         my @meta = Simple_Query($dbh, "
 select coalesce(personname, personid, 'Unknown'), autdate, summary,originalcid, repo  
 from commits  natural left join commitmap 

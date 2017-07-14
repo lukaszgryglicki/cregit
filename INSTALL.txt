@@ -1,3 +1,5 @@
+To install on Packet's Type 2 server.
+
 pbcopy ~/.ssh/id_rsa.pub --> Packet server config
 get IP --> /etc/hosts/
 ssh root@lgcncf
@@ -43,7 +45,7 @@ cp srcml2token /usr/bin/
 Back to creagit:
 cd ../../
 mkdir /tmp/memo
-apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl libdbd-sqlite3-perl
+apt-get install libhtml-fromtext-perl libdbi-perl libset-scalar-perl libdbd-sqlite3-perl sqlite3
 chmod +x ./tokenize/kuber-tokenize.pl
 ./run_tokenize.sh (will take long!)
 eventually:
