@@ -5,3 +5,4 @@
 ./blame_small.sh
 ./remapcommits_small.sh
 ./html_small.sh
+find /home/justa/dev/cregit_small_html/ -type f -iname "*.html" -exec chmod ugo+r "{}" \;
