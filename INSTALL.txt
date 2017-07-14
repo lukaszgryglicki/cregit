@@ -56,5 +56,8 @@ results: vim ../kubernetes.bfg-report/
 ./slickgitlog.sh
 ./persons.sh
 mkdir /home/justa/dev/kubernetes_blame
+apt-get install libparallel-forkmanager-perl
 ./blame.sh (also takes long when running for 1st time)
 ./remapcommits.sh 
+./html.sh (takes a long time)
+apt-get install links lynx
