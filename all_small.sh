@@ -1,4 +1,8 @@
 #!/bin/sh
+cd ..
+git clone https://github.com/lukaszgryglicki/testing_robot.git
+mv testing_robot small
+cd cregit
 ./run_tokenize_small.sh
 ./slickgitlog_small.sh
 ./persons_small.sh

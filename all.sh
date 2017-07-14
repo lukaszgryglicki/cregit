@@ -1,4 +1,7 @@
 #!/bin/sh
+cd ..
+git clone https://github.com/kubernetes/kubernetes.git
+cd cregit
 ./run_tokenize.sh
 ./slickgitlog.sh
 ./persons.sh
