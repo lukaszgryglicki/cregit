@@ -8,4 +8,4 @@ rm perllog.txt
 sbt clean
 sbt bfg/assembly
 FILE=`find . -iname "*.jar"`
-java -jar $FILE '--blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$' --no-blob-protection /home/justa/dev/small
+java $SBT_OPTS -jar $FILE '--blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$' --no-blob-protection /home/justa/dev/small
