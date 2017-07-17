@@ -1,8 +1,0 @@
-0000000000000000000000000000000000000000;;	# Kubernetes Monitoring
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	[Heapster](https://github.com/kubernetes/heapster) enables monitoring and performance analysis in Kubernetes Clusters.
-0000000000000000000000000000000000000000;;	Heapster collects signals from kubelets and the api server, processes them, and exports them via REST APIs or to a configurable timeseries storage backend.
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	More details can be found in [Monitoring user guide](http://kubernetes.io/docs/user-guide/monitoring/).
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/addons/cluster-monitoring/README.md?pixel)]()

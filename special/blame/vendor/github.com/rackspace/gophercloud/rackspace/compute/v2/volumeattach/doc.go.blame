@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package volumeattach provides the ability to attach and detach volume
-0000000000000000000000000000000000000000;;	// to instances to Rackspace servers
-0000000000000000000000000000000000000000;;	package volumeattach

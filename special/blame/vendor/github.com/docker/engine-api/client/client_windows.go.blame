@@ -1,4 +1,0 @@
-0000000000000000000000000000000000000000;;	package client
-4fd292dfb7492cc1ce958d1370115de07503bc67;Godeps/_workspace/src/github.com/docker/engine-api/client/client_windows.go[Godeps/_workspace/src/github.com/docker/engine-api/client/client_windows.go][vendor/github.com/docker/engine-api/client/client_windows.go];	
-0000000000000000000000000000000000000000;;	// DefaultDockerHost defines os specific default if DOCKER_HOST is unset
-0000000000000000000000000000000000000000;;	const DefaultDockerHost = "npipe:////./pipe/docker_engine"

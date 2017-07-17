@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	package codec
-d889ac23bcdf2804cc23257941dbc2c4eda70036;Godeps/_workspace/src/github.com/ugorji/go/codec/prebuild.go[Godeps/_workspace/src/github.com/ugorji/go/codec/prebuild.go][vendor/github.com/ugorji/go/codec/prebuild.go];	
-0000000000000000000000000000000000000000;;	//go:generate bash prebuild.sh

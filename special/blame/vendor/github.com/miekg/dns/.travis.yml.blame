@@ -1,7 +1,0 @@
-7b453296e4ade7a4f2c9d7f5717f0f864e37dcac;Godeps/_workspace/src/github.com/miekg/dns/.travis.yml[Godeps/_workspace/src/github.com/miekg/dns/.travis.yml][vendor/github.com/miekg/dns/.travis.yml];	language: go
-b9f13aaa534682ec2030ddaa4366d37857ab7cbb;;	sudo: false
-7b453296e4ade7a4f2c9d7f5717f0f864e37dcac;Godeps/_workspace/src/github.com/miekg/dns/.travis.yml[Godeps/_workspace/src/github.com/miekg/dns/.travis.yml][vendor/github.com/miekg/dns/.travis.yml];	go:
-b9f13aaa534682ec2030ddaa4366d37857ab7cbb;;	  - 1.5
-b9f13aaa534682ec2030ddaa4366d37857ab7cbb;;	  - 1.6
-7b453296e4ade7a4f2c9d7f5717f0f864e37dcac;Godeps/_workspace/src/github.com/miekg/dns/.travis.yml[Godeps/_workspace/src/github.com/miekg/dns/.travis.yml][vendor/github.com/miekg/dns/.travis.yml];	script:
-b9f13aaa534682ec2030ddaa4366d37857ab7cbb;;	  - go test -race -v -bench=.

@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	package winio
-4fd292dfb7492cc1ce958d1370115de07503bc67;Godeps/_workspace/src/github.com/Microsoft/go-winio/syscall.go[Godeps/_workspace/src/github.com/Microsoft/go-winio/syscall.go][vendor/github.com/Microsoft/go-winio/syscall.go];	
-0000000000000000000000000000000000000000;;	//go:generate go run $GOROOT/src/syscall/mksyscall_windows.go -output zsyscall_windows.go file.go pipe.go sd.go fileinfo.go privilege.go backup.go

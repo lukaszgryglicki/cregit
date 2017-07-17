@@ -1,5 +1,0 @@
-0000000000000000000000000000000000000000;;	package configs
-a32493865be4f7e35896c83bdc29fed7e53478df;Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces.go[Godeps/_workspace/src/github.com/docker/libcontainer/configs/namespaces.go][vendor/github.com/opencontainers/runc/libcontainer/configs/namespaces.go];	
-0000000000000000000000000000000000000000;;	type NamespaceType string
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	type Namespaces []Namespace

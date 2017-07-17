@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	// +build !linux
-d130243057bea8ebcfa3fdfcb8c3aeaf4ca246bf;Godeps/_workspace/src/github.com/docker/libcontainer/cgroups/cgroups_unsupported.go[Godeps/_workspace/src/github.com/docker/libcontainer/cgroups/cgroups_unsupported.go][vendor/github.com/opencontainers/runc/libcontainer/cgroups/cgroups_unsupported.go];	
-0000000000000000000000000000000000000000;;	package cgroups

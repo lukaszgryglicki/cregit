@@ -1,3 +1,4 @@
 #!/bin/sh
 cd slickGitLog
-sbt 'run ../small-slickgitlog.db /home/justa/dev/small/'
+sbt 'run ../small-token.db /home/justa/dev/small_token/'
+sbt 'run ../small-original.db /home/justa/dev/small_original/'

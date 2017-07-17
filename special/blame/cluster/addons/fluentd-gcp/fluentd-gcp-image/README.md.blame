@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	# Collecting Docker Log Files with Fluentd and sending to GCP.
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	The image was moved to the
-0000000000000000000000000000000000000000;;	[new location](https://github.com/kubernetes/contrib/tree/master/fluentd/fluentd-gcp-image).
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	[![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/cluster/addons/fluentd-gcp/fluentd-gcp-image/README.md?pixel)]()

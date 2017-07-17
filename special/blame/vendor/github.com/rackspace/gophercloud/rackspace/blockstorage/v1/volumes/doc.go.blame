@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package volumes provides information and interaction with the volume
-0000000000000000000000000000000000000000;;	// API resource for the Rackspace Block Storage service.
-0000000000000000000000000000000000000000;;	package volumes

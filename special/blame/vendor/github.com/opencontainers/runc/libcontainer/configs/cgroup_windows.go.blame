@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	package configs
-a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/configs/cgroup_windows.go[Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/configs/cgroup_windows.go][vendor/github.com/opencontainers/runc/libcontainer/configs/cgroup_windows.go];	
-0000000000000000000000000000000000000000;;	// TODO Windows: This can ultimately be entirely factored out on Windows as
-0000000000000000000000000000000000000000;;	// cgroups are a Unix-specific construct.
-0000000000000000000000000000000000000000;;	type Cgroup struct {
-0000000000000000000000000000000000000000;;	}

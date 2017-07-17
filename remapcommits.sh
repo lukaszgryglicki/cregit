@@ -1,3 +1,3 @@
 #!/bin/sh
 cd remapCommits
-sbt 'run ../kubernetes-slickgitlog.db /home/justa/dev/kubernetes'
+sbt 'run ../kubernetes-token.db /home/justa/dev/kubernetes_token'

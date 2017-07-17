@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package servers provides information and interaction with the server
-0000000000000000000000000000000000000000;;	// API resource for the Rackspace Cloud Servers service.
-0000000000000000000000000000000000000000;;	package servers

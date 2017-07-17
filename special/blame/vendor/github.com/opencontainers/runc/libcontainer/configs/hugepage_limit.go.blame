@@ -1,9 +1,0 @@
-0000000000000000000000000000000000000000;;	package configs
-d130243057bea8ebcfa3fdfcb8c3aeaf4ca246bf;Godeps/_workspace/src/github.com/docker/libcontainer/configs/hugepage_limit.go[Godeps/_workspace/src/github.com/docker/libcontainer/configs/hugepage_limit.go][vendor/github.com/opencontainers/runc/libcontainer/configs/hugepage_limit.go];	
-0000000000000000000000000000000000000000;;	type HugepageLimit struct {
-0000000000000000000000000000000000000000;;		// which type of hugepage to limit.
-0000000000000000000000000000000000000000;;		Pagesize string `json:"page_size"`
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;		// usage limit for hugepage.
-0000000000000000000000000000000000000000;;		Limit uint64 `json:"limit"`
-0000000000000000000000000000000000000000;;	}

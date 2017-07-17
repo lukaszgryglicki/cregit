@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	package dbus
-d1c42c1e3fb3b408449f892c0d575bb4d9d885bd;Godeps/_workspace/src/github.com/godbus/dbus/transport_darwin.go[Godeps/_workspace/src/github.com/godbus/dbus/transport_darwin.go][vendor/github.com/godbus/dbus/transport_darwin.go];	
-0000000000000000000000000000000000000000;;	func (t *unixTransport) SendNullByte() error {
-0000000000000000000000000000000000000000;;		_, err := t.Write([]byte{0})
-0000000000000000000000000000000000000000;;		return err
-0000000000000000000000000000000000000000;;	}

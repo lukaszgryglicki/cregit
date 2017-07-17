@@ -4,8 +4,11 @@ BFG_TOKENIZE_CMD='/home/justa/dev/cregit/tokenize/tokenizeSrcMl.pl --go2token=/h
 SBT_OPTS='-Xms100g -Xmx100g -XX:ReservedCodeCacheSize=2048m -XX:MaxMetaspaceSize=25g'; export SBT_OPTS
 cd ../bfg-repo-cleaner/
 rm perllog.txt
-# sbt 'bfg/run --blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$ --no-blob-protection /home/justa/dev/small'
+# sbt 'bfg/run --blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$ --no-blob-protection /home/justa/dev/small_token'
 sbt clean
 sbt bfg/assembly
 FILE=`find . -iname "*.jar"`
-java $SBT_OPTS -jar $FILE '--blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$' --no-blob-protection /home/justa/dev/small
+java $SBT_OPTS -jar $FILE '--blob-exec:/home/justa/dev/cregit/tokenizeByBlobId/tokenBySha.pl=\.([ch]|go|md|sh|yml|yaml)$' --no-blob-protection /home/justa/dev/small_token
+cd /home/justa/dev/small_token
+git reset --hard
+git reflog expire --expire=now --all && git gc --prune=now --aggressive

@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	// +build linux freebsd solaris openbsd
-4fd292dfb7492cc1ce958d1370115de07503bc67;Godeps/_workspace/src/github.com/docker/engine-api/client/client_unix.go[Godeps/_workspace/src/github.com/docker/engine-api/client/client_unix.go][vendor/github.com/docker/engine-api/client/client_unix.go];	
-0000000000000000000000000000000000000000;;	package client
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	// DefaultDockerHost defines os specific default if DOCKER_HOST is unset
-0000000000000000000000000000000000000000;;	const DefaultDockerHost = "unix:///var/run/docker.sock"

@@ -1,7 +1,0 @@
-0000000000000000000000000000000000000000;;	package util
-b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/gomega/matchers/support/goraph/util/util.go[Godeps/_workspace/src/github.com/onsi/gomega/matchers/support/goraph/util/util.go][vendor/github.com/onsi/gomega/matchers/support/goraph/util/util.go];	
-0000000000000000000000000000000000000000;;	import "math"
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	func Odd(n int) bool {
-0000000000000000000000000000000000000000;;		return math.Mod(float64(n), 2.0) == 1.0
-0000000000000000000000000000000000000000;;	}

@@ -1,8 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package ports contains functionality for working with Neutron port resources.
-0000000000000000000000000000000000000000;;	// A port represents a virtual switch port on a logical network switch. Virtual
-0000000000000000000000000000000000000000;;	// instances attach their interfaces into ports. The logical port also defines
-0000000000000000000000000000000000000000;;	// the MAC address and the IP address(es) to be assigned to the interfaces
-0000000000000000000000000000000000000000;;	// plugged into them. When IP addresses are associated to a port, this also
-0000000000000000000000000000000000000000;;	// implies the port is associated with a subnet, as the IP address was taken
-0000000000000000000000000000000000000000;;	// from the allocation pool for a specific subnet.
-0000000000000000000000000000000000000000;;	package ports

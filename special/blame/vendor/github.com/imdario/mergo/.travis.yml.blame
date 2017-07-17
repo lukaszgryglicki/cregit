@@ -1,2 +1,0 @@
-383101117971b41477d8721be12d3ae8a8a46839;Godeps/_workspace/src/github.com/imdario/mergo/.travis.yml[Godeps/_workspace/src/github.com/imdario/mergo/.travis.yml][vendor/github.com/imdario/mergo/.travis.yml];	language: go
-383101117971b41477d8721be12d3ae8a8a46839;Godeps/_workspace/src/github.com/imdario/mergo/.travis.yml[Godeps/_workspace/src/github.com/imdario/mergo/.travis.yml][vendor/github.com/imdario/mergo/.travis.yml];	install: go get -t

@@ -1,8 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package aws provides core functionality for making requests to AWS services.
-0000000000000000000000000000000000000000;;	package aws
-b5a369483575c99a3598125e51d2fb065a91c6de;Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/aws/version.go[Godeps/_workspace/src/github.com/awslabs/aws-sdk-go/aws/version.go][vendor/github.com/aws/aws-sdk-go/aws/version.go];	
-0000000000000000000000000000000000000000;;	// SDKName is the name of this AWS SDK
-0000000000000000000000000000000000000000;;	const SDKName = "aws-sdk-go"
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	// SDKVersion is the version of this SDK
-0000000000000000000000000000000000000000;;	const SDKVersion = "1.6.10"

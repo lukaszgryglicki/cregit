@@ -1,7 +1,0 @@
-0000000000000000000000000000000000000000;;	// +build windows
-b73404a9ae80480b33bb3fbee1057ced8f9e176a;Godeps/_workspace/src/github.com/onsi/ginkgo/ginkgo/interrupthandler/sigquit_swallower_windows.go[Godeps/_workspace/src/github.com/onsi/ginkgo/ginkgo/interrupthandler/sigquit_swallower_windows.go][vendor/github.com/onsi/ginkgo/ginkgo/interrupthandler/sigquit_swallower_windows.go];	
-0000000000000000000000000000000000000000;;	package interrupthandler
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	func SwallowSigQuit() {
-0000000000000000000000000000000000000000;;		//noop
-0000000000000000000000000000000000000000;;	}

@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	package libcontainer
-a15085f256eebbe1e0d714ff4882a7611c12d312;Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/criu_opts_windows.go[Godeps/_workspace/src/github.com/opencontainers/runc/libcontainer/criu_opts_windows.go][vendor/github.com/opencontainers/runc/libcontainer/criu_opts_windows.go];	
-0000000000000000000000000000000000000000;;	// TODO Windows: This can ultimately be entirely factored out as criu is
-0000000000000000000000000000000000000000;;	// a Unix concept not relevant on Windows.
-0000000000000000000000000000000000000000;;	type CriuOpts struct {
-0000000000000000000000000000000000000000;;	}

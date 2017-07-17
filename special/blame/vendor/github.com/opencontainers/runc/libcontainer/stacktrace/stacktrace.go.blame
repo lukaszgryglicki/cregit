@@ -1,5 +1,0 @@
-0000000000000000000000000000000000000000;;	package stacktrace
-a32493865be4f7e35896c83bdc29fed7e53478df;Godeps/_workspace/src/github.com/docker/libcontainer/stacktrace/stacktrace.go[Godeps/_workspace/src/github.com/docker/libcontainer/stacktrace/stacktrace.go][vendor/github.com/opencontainers/runc/libcontainer/stacktrace/stacktrace.go];	
-0000000000000000000000000000000000000000;;	type Stacktrace struct {
-0000000000000000000000000000000000000000;;		Frames []Frame
-0000000000000000000000000000000000000000;;	}

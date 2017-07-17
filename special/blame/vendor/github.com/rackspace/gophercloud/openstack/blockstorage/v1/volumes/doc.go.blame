@@ -1,5 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package volumes provides information and interaction with volumes in the
-0000000000000000000000000000000000000000;;	// OpenStack Block Storage service. A volume is a detachable block storage
-0000000000000000000000000000000000000000;;	// device, akin to a USB hard drive. It can only be attached to one instance at
-0000000000000000000000000000000000000000;;	// a time.
-0000000000000000000000000000000000000000;;	package volumes

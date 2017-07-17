@@ -1,6 +1,0 @@
-0000000000000000000000000000000000000000;;	/*
-0000000000000000000000000000000000000000;;	Package grpc implements an RPC system called gRPC.
-5da4772d7eee0df4a5bf872fd32f72643fc2e5c9;Godeps/_workspace/src/google.golang.org/grpc/doc.go[Godeps/_workspace/src/google.golang.org/grpc/doc.go][vendor/google.golang.org/grpc/doc.go];	
-0000000000000000000000000000000000000000;;	See www.grpc.io for more information about gRPC.
-0000000000000000000000000000000000000000;;	*/
-0000000000000000000000000000000000000000;;	package grpc

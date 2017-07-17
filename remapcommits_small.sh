@@ -1,3 +1,3 @@
 #!/bin/sh
 cd remapCommits
-sbt 'run ../small-slickgitlog.db /home/justa/dev/small'
+sbt 'run ../small-token.db /home/justa/dev/small_token'

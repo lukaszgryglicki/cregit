@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package apiversions provides information and interaction with the different
-0000000000000000000000000000000000000000;;	// API versions for the OpenStack Block Storage service, code-named Cinder.
-0000000000000000000000000000000000000000;;	package apiversions

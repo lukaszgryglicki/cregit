@@ -1,7 +1,0 @@
-0000000000000000000000000000000000000000;;	package tokens
-54f55c92d2241cbee62ced42c2bb584275ee6601;Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/urls.go[Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/urls.go][vendor/github.com/rackspace/gophercloud/openstack/identity/v3/tokens/urls.go];	
-0000000000000000000000000000000000000000;;	import "github.com/rackspace/gophercloud"
-0000000000000000000000000000000000000000;;	
-0000000000000000000000000000000000000000;;	func tokenURL(c *gophercloud.ServiceClient) string {
-0000000000000000000000000000000000000000;;		return c.ServiceURL("auth", "tokens")
-0000000000000000000000000000000000000000;;	}

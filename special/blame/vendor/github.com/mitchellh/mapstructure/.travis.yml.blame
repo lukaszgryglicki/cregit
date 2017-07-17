@@ -1,7 +1,0 @@
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	language: go 
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	go: 
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	  - 1.4
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	  
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	script:
-2306bb93fcab3af2010e1f09babd8142cd78cba3;;	  - go test 

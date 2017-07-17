@@ -1,3 +1,0 @@
-0000000000000000000000000000000000000000;;	package oidc
-d9a6899387940336fd1a655128b4b3486f75c7ee;Godeps/_workspace/src/github.com/coreos/go-oidc/oidc/interface.go[Godeps/_workspace/src/github.com/coreos/go-oidc/oidc/interface.go][vendor/github.com/coreos/go-oidc/oidc/interface.go];	
-0000000000000000000000000000000000000000;;	type LoginFunc func(ident Identity, sessionKey string) (redirectURL string, err error)

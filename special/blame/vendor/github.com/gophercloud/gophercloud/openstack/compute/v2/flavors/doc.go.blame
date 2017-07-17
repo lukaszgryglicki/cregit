@@ -1,7 +1,0 @@
-0000000000000000000000000000000000000000;;	// Package flavors provides information and interaction with the flavor API
-0000000000000000000000000000000000000000;;	// resource in the OpenStack Compute service.
-0000000000000000000000000000000000000000;;	//
-0000000000000000000000000000000000000000;;	// A flavor is an available hardware configuration for a server. Each flavor
-0000000000000000000000000000000000000000;;	// has a unique combination of disk space, memory capacity and priority for CPU
-0000000000000000000000000000000000000000;;	// time.
-0000000000000000000000000000000000000000;;	package flavors
