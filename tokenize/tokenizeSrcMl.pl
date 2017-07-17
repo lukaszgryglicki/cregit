@@ -79,7 +79,7 @@ if ($output ne "") {
 
 
 if ($language eq "Yaml" or $language eq "Markdown" or $language eq "Shell") {
-    open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
+    open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$simpleTokenizer] on file [$filename]";
     print "begin_unit\n";
     while(<parser>) {
         print("text|" . $_);
