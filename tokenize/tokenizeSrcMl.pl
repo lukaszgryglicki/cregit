@@ -25,7 +25,9 @@ my %languages = ("C" => 1,
                  "Go" => 1,
                  "Markdown" => 1,
                  "Shell" => 1,
-                 "Yaml" => 1);
+                 "Yaml" => 1,
+                 "Json" => 1
+);
 
 use Getopt::Long;
 
@@ -37,24 +39,28 @@ Options:
    --srcml=<path to srcml>
    --go2token=<path to go2token>
    --simpleTokenizer=<path to simpleTokenizer.pl>
-   --language=<C/C++/Java/Go/Markdown/Yaml/Shell>
+   --rtokenizer=<path to ruby tokenizer>
+   --language=<C/C++/Java/Go/Markdown/Yaml/Shell/Json>
    --ctags=-<path to ctags-exuberant>
 ";
 
 
 my $go2token = "./tokenize/goTokenizer/gotoken";
 my $simpleTokenizer = "./tokenize/text/simpleTokenizer.pl";
+my $rTokenizer = 'rtokenize.rb';
 my $srcml   = "srcml";
 my $srcml2token = "srcml2token";
 my $ctags = "ctags-exuberant";
 my $language = "C";
 my $verbose;
+
 GetOptions ("srcml=s" => \$srcml, 
             "srcml2token=s" => \$srcml2token,
             "language=s" => \$language,
             "ctags=s" => \$ctags,
             "go2token=s" => \$go2token,
             "simpleTokenizer=s" => \$simpleTokenizer,
+            "rtokenizer=s" => \$rTokenizer,
             "verbose" => \$verbose)   # flag
   or die($usage);
 
@@ -78,7 +84,8 @@ if ($output ne "") {
 }
 
 
-if ($language eq "Yaml" or $language eq "Markdown" or $language eq "Shell") {
+if ($language eq "Markdown" or $language eq "Shell") {
+# if ($language eq "Markdown" or $language eq "Shell" or $language eq "Yaml") {
     open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$simpleTokenizer] on file [$filename]";
     print "begin_unit\n";
     while(<parser>) {
@@ -87,7 +94,9 @@ if ($language eq "Yaml" or $language eq "Markdown" or $language eq "Shell") {
     close(parser);
     print "end_unit\n";
 } else {
-    Read_Declarations($filename, $language);
+    if ($language eq 'C' or $language eq 'C++' or $language eq 'Java' or $language eq 'Go') {
+        Read_Declarations($filename, $language);
+    }
 
     #Declarations_Test();
 
@@ -111,6 +120,10 @@ sub Tokenize
     my ($filename) = @_;
     if ($language eq "Go") {
         open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
+    } elsif ($language eq "Yaml") {
+        open(parser, "$rTokenizer -y < '$filename' |") or die "Unable to execute [$rTokenizer -y] on file [$filename]";
+    } elsif ($language eq "Json") {
+        open(parser, "$rTokenizer -j < '$filename' |") or die "Unable to execute [$rTokenizer -j] on file [$filename]";
     } else {
         open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
     }

@@ -23,6 +23,11 @@ dpkg -i /root/srcml.deb
 apt-get install libarchive13
 apt-get install psmisc
 srcML should be OK by now.
+rtokenize in ruby is needed too:
+apt-get install ruby
+git clone https://github.com/lukaszgryglicki/rtokenize.git
+cd rtokenize
+cp rtokenize.rb /usr/bin
 BFG patched:
 cd ../bfg-repo-cleaner/
 apt-get install default-jre

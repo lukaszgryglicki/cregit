@@ -55,6 +55,7 @@ my %mapLang = (
                "sh" => "Shell",
                "yaml" => "Yaml",
                "yml" => "Yaml",
+               "json" => "Json",
               );
 
 my $logfile = "perllog.txt";
@@ -136,6 +137,7 @@ if (-f $filename) {
   }
 
   while (<PROC>) {
+      print LOG "> $_\n";
       print $_;
       print $fout $_;
   }
@@ -147,6 +149,7 @@ if (-f $filename) {
 
   move( $outfile, $filename) or die "The move operation to memoized directory failed: $!";
 
+  # print LOG "$tokenizeCmd $langOp $file --> $filename\n";
   unlink($file)
 
 }
