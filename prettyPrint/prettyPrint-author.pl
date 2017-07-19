@@ -79,6 +79,10 @@ my $help = 0;
 my $man = 0;
 my $verbose = 0;
 my $cregitRepoURL = "https://github.com/REPO_URL/commit/";
+my $fileType = '';
+my $filePos = 0;
+my $srcContents = '';
+my $srcLength = 0;
 
 GetOptions ("header=s" => \$headerFileName,
             "footer=s" => \$footerFileName,
@@ -290,6 +294,52 @@ my %total;
 my %totalCommitsPerFunc;
 my %totalCommits;
 my $funNameBy;
+my @tokens = ();
+
+# Preprocess for tokenized YAML or JSON
+my $i = 0;
+while (<TOKEN>) {
+    my $token;
+    my $file;
+    my $cid;
+
+    chomp;
+    $i ++;
+    if ($i > 3 and $fileType eq '') {
+        last;
+    }
+
+    $token = $_;
+    my @f = split(/;/, $_);
+    $cid = shift @f;
+    $file = shift @f;
+    my $temp = join(';', $cid, $file);
+    $token = substr($_, length($temp)+1);
+    $token =~ s/^\s*//;
+    $token =~ /^(.+?)\|(.+)$/;
+    my ($type, $value) = ($1,$2);
+    #print STDERR "i=$i, type=$type, value=$value, token=$token\n";
+
+    if ($type eq "FILETYPE") {
+        $fileType = Get_File_Type($value);
+        $srcContents = `cat "$source"`;
+        $srcLength = length($srcContents);
+    } elsif ($fileType eq "yaml" or $fileType eq "json") {
+        my $line = Extract_Name_From_DECL($value);
+        my $len = $line - $filePos;
+        if ($len > 0) {
+            #print STDERR "line=$line\n";
+            push(@tokens, $line);
+        }
+        $filePos = $line;
+    }
+}
+close TOKEN;
+open(TOKEN, $token);
+$filePos = 0;
+
+my $ti = 1;
+my $tl = scalar @tokens;
 while (<TOKEN>) {
     my $token;
     my $file;
@@ -328,7 +378,6 @@ while (<TOKEN>) {
     }
 
 
-#    print STDERR "aaaaaa[$token]\n";
 #    my $token = $_;
 
     if (not $token =~ /^(.+?)\|(.+)$/) {
@@ -345,12 +394,33 @@ while (<TOKEN>) {
         next;
     }
 #    print STDERR "Cid :$cid\n";
+    # print STDERR "FileType: $fileType --> $rrr\n";
     my ($person,$autdate,$sum, $originalcid, $repo) = Get_Cid_Meta($cid);
     print Get_Author_Color_From_Cid($dbh,$cid);
     
     my ($type, $value) = ($1,$2);
 
-    if ($type eq "comment") {
+    if ($fileType eq "yaml" or $fileType eq "json") {
+        my $line = Extract_Name_From_DECL($value);
+        my $len = $line - $filePos;
+        if ($len > 0) {
+            my $end = $tokens[$ti];
+            if ($ti == $tl) {
+                $end = $srcLength;
+            }
+            $len = $end - $line;
+            my $token_text = substr($srcContents, $line - 1, $len);
+            #print STDERR "$line --> $end\n";
+            #print STDERR "$token> $token_text\n";
+            if ($ti == 1 && $line > 1) {
+                Output_Token(substr($srcContents, 0, $line - 1), $originalcid, $repo);
+            }
+            $ti ++;
+            Output_Token($token_text, $originalcid, $repo);
+        }
+        Add_Contribution($person, $cid);
+        $filePos = $line;
+    } elsif ($type eq "comment") {
         my $text = Skip_Comment($value);
         #        print "<t>$text</t>";
 
@@ -377,7 +447,7 @@ while (<TOKEN>) {
         print "<hr>";
         next;
     } else {
-#        print "Token [$token]\n";
+        # print STDERR "Token [$token], Value [$value]\n";
         my $text = Skip_Token($value);
         #        print "<t>$text</t>";
         Output_Token($text, $originalcid, $repo);
@@ -390,6 +460,8 @@ while (<TOKEN>) {
     print "</span>";
     Skip_Whitespace();
 }
+
+# print STDERR $srcContents;
 
 Print_File_Stats();
 Print_Footer();
@@ -433,6 +505,7 @@ sub Output_Token {
     print("<a class=\"cregit\" target='_blank' onclick=\"return $fun('$originalcid')\">");
     Print($text);
     print("</a>");
+    # print STDERR "> '$text'";
 }
 
 
@@ -651,13 +724,17 @@ sub Skip_Token2 {
 
 sub Skip_Token {
     my ($token) = @_;
+    # print STDERR "TOKEN: $token\n";
     my $text;
     $token =~ s/\s//g;
     my $l = length($token);
     my $match ;
+    # print STDERR "TOKEN: $token\n";
     while ($l > 0) {
         my $ch = Read_Src_Char();
+        # print STDERR "CH: $ch\n";
         $text .= $ch;
+        # print STDERR "TEXT: $text\n";
 
         if (Is_Not_Whitespace($ch)) {
             $l--;
@@ -712,7 +789,7 @@ sub Get_Cid_Meta {
         $ret = $memoCidMeta{$cid};
         return @$ret;
     } else {
-        print STDERR "$cid\n";
+        # print STDERR "$cid\n";
         my @meta = Simple_Query($dbh, "
 select coalesce(personname, personid, 'Unknown'), autdate, summary,originalcid, repo  
 from commits  natural left join commitmap 
@@ -933,6 +1010,12 @@ sub Extract_Name_From_DECL {
     return pop @fields;
 }
 
+sub Get_File_Type {
+    my ($value) = @_;
+    my @fields = split('\|', $value);
+    return $fields[-2] =~ s/"//gr
+}
+
 sub signal_handler{
     print STDERR "Program interrupted. Deleting [$outputFile]\n";
     close (STDOUT);
@@ -953,7 +1036,7 @@ sub copy_file
 
     if (not -d $toDir) {
         printf("Creating directory [$toDir]\n");
-	make_path($toDir) or "die unable to create directory $toDir";
+        make_path($toDir) or "die unable to create directory $toDir";
     } 
     move($from, $toName) or
             (unlink($toName),  "unable to move [$from] to [$toName]");

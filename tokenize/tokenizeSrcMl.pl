@@ -47,7 +47,7 @@ Options:
 
 my $go2token = "./tokenize/goTokenizer/gotoken";
 my $simpleTokenizer = "./tokenize/text/simpleTokenizer.pl";
-my $rTokenizer = 'rtokenize.rb';
+my $rTokenizer = 'rtokenize.sh';
 my $srcml   = "srcml";
 my $srcml2token = "srcml2token";
 my $ctags = "ctags-exuberant";
@@ -84,12 +84,26 @@ if ($output ne "") {
 }
 
 
+# if ($language eq "Markdown" or $language eq "Shell" or $language eq "Yaml" or $language eq "Json") {
 if ($language eq "Markdown" or $language eq "Shell") {
-# if ($language eq "Markdown" or $language eq "Shell" or $language eq "Yaml") {
     open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$simpleTokenizer] on file [$filename]";
     print "begin_unit\n";
     while(<parser>) {
         print("text|" . $_);
+    }
+    close(parser);
+    print "end_unit\n";
+} elsif ($language eq "Yaml" or $language eq "Json") {
+    if ($language eq "Yaml") {
+        open(parser, "$rTokenizer y < '$filename' |") or die "Unable to execute [$rTokenizer y] on file [$filename]";
+    } elsif ($language eq "Json") {
+        open(parser, "$rTokenizer j < '$filename' |") or die "Unable to execute [$rTokenizer j] on file [$filename]";
+    } else {
+        die "Unsupported language $language";
+    }
+    print "begin_unit\n";
+    while(<parser>) {
+        print $_;
     }
     close(parser);
     print "end_unit\n";
@@ -121,9 +135,9 @@ sub Tokenize
     if ($language eq "Go") {
         open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
     } elsif ($language eq "Yaml") {
-        open(parser, "$rTokenizer -y < '$filename' |") or die "Unable to execute [$rTokenizer -y] on file [$filename]";
+        open(parser, "$rTokenizer y < '$filename' |") or die "Unable to execute [$rTokenizer y] on file [$filename]";
     } elsif ($language eq "Json") {
-        open(parser, "$rTokenizer -j < '$filename' |") or die "Unable to execute [$rTokenizer -j] on file [$filename]";
+        open(parser, "$rTokenizer j < '$filename' |") or die "Unable to execute [$rTokenizer j] on file [$filename]";
     } else {
         open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
     }

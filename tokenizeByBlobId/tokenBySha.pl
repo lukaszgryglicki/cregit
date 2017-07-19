@@ -137,7 +137,6 @@ if (-f $filename) {
   }
 
   while (<PROC>) {
-      print LOG "> $_\n";
       print $_;
       print $fout $_;
   }
