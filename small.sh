@@ -69,5 +69,6 @@ echo 'Final permissions...'
 # Apache permissions
 rm -rf prettyPrint/tmpfile*
 find /home/justa/dev/cregit_${REPO}_html/ -type f -iname "*.html" -exec chmod ugo+r "{}" \;
+find /home/justa/dev/${REPO}_token/ -type f -iname "*.html" -exec chmod ugo+r "{}" \;
 
 echo 'All done.'
