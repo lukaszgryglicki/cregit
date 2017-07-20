@@ -16,6 +16,10 @@
 use strict;
 use File::Basename;
 
+my $logfile = "perllog.txt";
+my $degugLog = 0;
+open(LOG,">>","$logfile") || die ("Error : can't open log file");
+
 my %declarations;
 my %listDeclarations;
 
@@ -86,7 +90,9 @@ if ($output ne "") {
 
 # if ($language eq "Markdown" or $language eq "Shell" or $language eq "Yaml" or $language eq "Json") {
 if ($language eq "Markdown" or $language eq "Shell") {
+    print LOG "start: $simpleTokenizer '$filename' |\n" if $degugLog;
     open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$simpleTokenizer] on file [$filename]";
+    print LOG "end: $simpleTokenizer '$filename' |\n" if $degugLog;
     print "begin_unit\n";
     while(<parser>) {
         print("text|" . $_);
@@ -95,9 +101,13 @@ if ($language eq "Markdown" or $language eq "Shell") {
     print "end_unit\n";
 } elsif ($language eq "Yaml" or $language eq "Json") {
     if ($language eq "Yaml") {
+        print LOG "start: $rTokenizer y < '$filename' |\n" if $degugLog;
         open(parser, "$rTokenizer y < '$filename' |") or die "Unable to execute [$rTokenizer y] on file [$filename]";
+        print LOG "end: $rTokenizer y < '$filename' |\n" if $degugLog;
     } elsif ($language eq "Json") {
+        print LOG "start: $rTokenizer j < '$filename' |\n" if $degugLog;
         open(parser, "$rTokenizer j < '$filename' |") or die "Unable to execute [$rTokenizer j] on file [$filename]";
+        print LOG "end: $rTokenizer j < '$filename' |\n" if $degugLog;
     } else {
         die "Unsupported language $language";
     }
@@ -133,13 +143,13 @@ sub Tokenize
     chomp $saveDir;
     my ($filename) = @_;
     if ($language eq "Go") {
+        print LOG "start: $go2token '$filename' |\n" if $degugLog;
         open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
-    } elsif ($language eq "Yaml") {
-        open(parser, "$rTokenizer y < '$filename' |") or die "Unable to execute [$rTokenizer y] on file [$filename]";
-    } elsif ($language eq "Json") {
-        open(parser, "$rTokenizer j < '$filename' |") or die "Unable to execute [$rTokenizer j] on file [$filename]";
+        print LOG "end: $go2token '$filename' |\n" if $degugLog;
     } else {
+        print LOG "start: $srcml -l $language --position '$filename' | $srcml2token |\n" if $degugLog;
         open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
+        print LOG "end: $srcml -l $language --position '$filename' | $srcml2token |\n" if $degugLog;
     }
 
     my $lastLine = -1;
@@ -228,7 +238,9 @@ sub Read_Declarations
     my ($filename, $language) = @_;
     my $CTAGS = "$ctags --language-force=$language -x -u";
 
+    print LOG "start: $CTAGS '$filename'|\n" if $degugLog;
     open(ctags, "$CTAGS '$filename'|") or die "Unable to execute ctags on file [$filename]";
+    print LOG "end: $CTAGS '$filename'|\n" if $degugLog;
 
     while (<ctags>) {
         my %decl;

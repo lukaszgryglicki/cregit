@@ -4,7 +4,7 @@ MASK='\.([ch]|go|md|sh|yml|yaml|json)$'
 
 # Clean up
 echo 'Cleaning up...'
-rm -rf /home/justa/dev/$REPO /home/justa/dev/${REPO}_token /home/justa/dev/${REPO}_blame /home/justa/dev/cregit_${REPO}_html /home/justa/dev/${REPO}_memo /home/justa/dev/${REPO}_token.bfg-report ${REPO}-*.db ${REPO}-*.xls
+rm -rf /tmp/tmp.* /home/justa/dev/$REPO /home/justa/dev/${REPO}_token /home/justa/dev/${REPO}_blame /home/justa/dev/cregit_${REPO}_html /home/justa/dev/${REPO}_memo /home/justa/dev/${REPO}_token.bfg-report ${REPO}-*.db ${REPO}-*.xls
 cd ..
 # git clone https://github.com/lukaszgryglicki/testing_robot.git
 # mv testing_robot ${REPO}_original
@@ -17,7 +17,7 @@ BFG_MEMO_DIR=/home/justa/dev/${REPO}_memo; export BFG_MEMO_DIR
 BFG_TOKENIZE_CMD='/home/justa/dev/cregit/tokenize/tokenizeSrcMl.pl --rtokenizer=/home/justa/dev/rtokenize/rtokenize.sh --go2token=/home/justa/dev/cregit/tokenize/goTokenizer/gotoken --simpleTokenizer=/home/justa/dev/cregit/tokenize/text/simpleTokenizer.pl --srcml2token=srcml2token --srcml=srcml --ctags=ctags-exuberant'; export BFG_TOKENIZE_CMD
 SBT_OPTS='-Xms100g -Xmx100g -XX:ReservedCodeCacheSize=2048m -XX:MaxMetaspaceSize=25g'; export SBT_OPTS
 cd ../bfg-repo-cleaner/
-rm perllog.txt
+rm perllog.txt rtokenize.log tmpfile* 2>/dev/null
 echo 'Uncomment next two lines to have BFG compiled in every run'
 # sbt clean
 # sbt bfg/assembly
