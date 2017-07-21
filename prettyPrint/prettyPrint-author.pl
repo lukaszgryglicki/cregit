@@ -328,7 +328,7 @@ while (<TOKEN>) {
         my $line = Extract_Name_From_DECL($value);
         my $len = $line - $filePos;
         if ($len > 0) {
-            #print STDERR "line=$line\n";
+	    #print STDERR "line=$line/$srcLength\n";
             push(@tokens, $line);
         }
         $filePos = $line;
@@ -340,6 +340,7 @@ $filePos = 0;
 
 my $ti = 1;
 my $tl = scalar @tokens;
+my $ftext = '';
 while (<TOKEN>) {
     my $token;
     my $file;
@@ -407,6 +408,7 @@ while (<TOKEN>) {
             my $end = $tokens[$ti];
             if ($ti == $tl) {
                 $end = $srcLength;
+		# print STDERR "ET: $end\n";
             }
             $len = $end - $line;
 	    #my $token_text = substr($srcContents, $line - 1, $len);
@@ -414,10 +416,14 @@ while (<TOKEN>) {
             #print STDERR "$line --> $end\n";
             #print STDERR "$token> $token_text\n";
             if ($ti == 1 && $line > 1) {
-                Output_Token(substr($srcContents, 0, $line - 1), $originalcid, $repo);
+                # print STDERR "FT: 0-$line: " . substr($srcContents, 0, $line) . "\n";
+                Output_Token(substr($srcContents, 0, $line), $originalcid, $repo);
+		# $ftext .= substr($srcContents, 0, $line);
             }
             $ti ++;
+	    # print STDERR "MT: $line-$end: $token_text\n";
             Output_Token($token_text, $originalcid, $repo);
+	    # $ftext .= $token_text;
         }
         Add_Contribution($person, $cid);
         $filePos = $line;
@@ -462,6 +468,9 @@ while (<TOKEN>) {
     Skip_Whitespace();
 }
 
+# print STDERR "Sum tokens:\n";
+# print STDERR $ftext;
+# print STDERR "Source:\n";
 # print STDERR $srcContents;
 
 Print_File_Stats();
@@ -506,7 +515,7 @@ sub Output_Token {
     print("<a class=\"cregit\" target='_blank' onclick=\"return $fun('$originalcid')\">");
     Print($text);
     print("</a>");
-    # print STDERR "> '$text'";
+    # print STDERR $text;
 }
 
 
@@ -730,20 +739,22 @@ sub Skip_Token {
     $token =~ s/\s//g;
     my $l = length($token);
     my $match ;
-    # print STDERR "TOKEN: $token\n";
+    #print STDERR "TOKEN: $token\n";
     while ($l > 0) {
         my $ch = Read_Src_Char();
-        # print STDERR "CH: $ch\n";
+	#print STDERR "CH: $ch, $l\n";
         $text .= $ch;
-        # print STDERR "TEXT: $text\n";
+	#print STDERR "TEXT: $text\n";
 
         if (Is_Not_Whitespace($ch)) {
             $l--;
             $match .= $ch;
+	    #print STDERR "MATCH($l): $match\n";
         }
     }
     $match =~ s/\n/ /g;
-    die "Difference [$text] token [$token] match [$match]" unless $token eq $match;
+    die "Difference [$text]\ntoken [$token]\nmatch [$match]" unless $token eq $match;
+    #print STDERR "Success!\n";
     return $text;
 }
 

@@ -38,6 +38,9 @@ git reset --hard
 git reflog expire --expire=now --all && git gc --prune=now --aggressive
 cd /home/justa/dev/cregit
 
+# cat ../bfg-repo-cleaner/perllog.txt
+# exit 1
+
 # Slick Git Log
 echo 'SLick Git Log...'
 cd slickGitLog

@@ -17,7 +17,7 @@ use strict;
 use File::Basename;
 
 my $logfile = "perllog.txt";
-my $degugLog = 0;
+my $debugLog = 0;
 open(LOG,">>","$logfile") || die ("Error : can't open log file");
 
 my %declarations;
@@ -90,9 +90,9 @@ if ($output ne "") {
 
 # if ($language eq "Markdown" or $language eq "Shell" or $language eq "Yaml" or $language eq "Json") {
 if ($language eq "Markdown" or $language eq "Shell") {
-    print LOG "start: $simpleTokenizer '$filename' |\n" if $degugLog;
+    print LOG "start: $simpleTokenizer '$filename' |\n" if $debugLog;
     open(parser, "$simpleTokenizer '$filename' |") or die "Unable to execute [$simpleTokenizer] on file [$filename]";
-    print LOG "end: $simpleTokenizer '$filename' |\n" if $degugLog;
+    print LOG "end: $simpleTokenizer '$filename' |\n" if $debugLog;
     print "begin_unit\n";
     while(<parser>) {
         print("text|" . $_);
@@ -101,13 +101,13 @@ if ($language eq "Markdown" or $language eq "Shell") {
     print "end_unit\n";
 } elsif ($language eq "Yaml" or $language eq "Json") {
     if ($language eq "Yaml") {
-        print LOG "start: $rTokenizer y < '$filename' |\n" if $degugLog;
+        print LOG "start: $rTokenizer y < '$filename' |\n" if $debugLog;
         open(parser, "$rTokenizer y < '$filename' |") or die "Unable to execute [$rTokenizer y] on file [$filename]";
-        print LOG "end: $rTokenizer y < '$filename' |\n" if $degugLog;
+        print LOG "end: $rTokenizer y < '$filename' |\n" if $debugLog;
     } elsif ($language eq "Json") {
-        print LOG "start: $rTokenizer j < '$filename' |\n" if $degugLog;
+        print LOG "start: $rTokenizer j < '$filename' |\n" if $debugLog;
         open(parser, "$rTokenizer j < '$filename' |") or die "Unable to execute [$rTokenizer j] on file [$filename]";
-        print LOG "end: $rTokenizer j < '$filename' |\n" if $degugLog;
+        print LOG "end: $rTokenizer j < '$filename' |\n" if $debugLog;
     } else {
         die "Unsupported language $language";
     }
@@ -143,13 +143,13 @@ sub Tokenize
     chomp $saveDir;
     my ($filename) = @_;
     if ($language eq "Go") {
-        print LOG "start: $go2token '$filename' |\n" if $degugLog;
+        print LOG "start: $go2token '$filename' |\n" if $debugLog;
         open(parser, "$go2token '$filename' |") or die "Unable to execute [$go2token] on file [$filename]";
-        print LOG "end: $go2token '$filename' |\n" if $degugLog;
+        print LOG "end: $go2token '$filename' |\n" if $debugLog;
     } else {
-        print LOG "start: $srcml -l $language --position '$filename' | $srcml2token |\n" if $degugLog;
+        print LOG "start: $srcml -l $language --position '$filename' | $srcml2token |\n" if $debugLog;
         open(parser, "$srcml -l $language --position '$filename' | $srcml2token |") or die "Unable to execute srcml on file [$filename]";
-        print LOG "end: $srcml -l $language --position '$filename' | $srcml2token |\n" if $degugLog;
+        print LOG "end: $srcml -l $language --position '$filename' | $srcml2token |\n" if $debugLog;
     }
 
     my $lastLine = -1;
@@ -160,7 +160,7 @@ sub Tokenize
         my $line =$_;
         die "unable to parse srcml line [$line]" unless $line =~ /^([0-9]+|-):([0-9]+|-)\s+(.+)$/;
         my ($line, $col, $token) = ($1, $2, $3);
-        $token = Remap_Token($token) if ($language eq "Go");
+	$token = Remap_Token($token) if ($language eq "Go");
 #        print STDERR "$line:$col:[$token]\n";
         die "ilegall line [$line] with [$line][$col]" if $line eq '' ;
         if ($line != $lastLine) {
@@ -238,9 +238,9 @@ sub Read_Declarations
     my ($filename, $language) = @_;
     my $CTAGS = "$ctags --language-force=$language -x -u";
 
-    print LOG "start: $CTAGS '$filename'|\n" if $degugLog;
+    print LOG "start: $CTAGS '$filename'|\n" if $debugLog;
     open(ctags, "$CTAGS '$filename'|") or die "Unable to execute ctags on file [$filename]";
-    print LOG "end: $CTAGS '$filename'|\n" if $degugLog;
+    print LOG "end: $CTAGS '$filename'|\n" if $debugLog;
 
     while (<ctags>) {
         my %decl;
@@ -275,8 +275,13 @@ sub Remap_Token {
     }
 
     if ($token =~ /^(.+)\|(.+)$/) {
-        my ($left, $right) = ($1, $2);
-        return $left . "|" . Unquote($right, $left);
+        #my ($left, $right) = ($1, $2);
+	#return $left . "|" . Unquote($right, $left);
+        my @ary = split /\|/, $token;
+	my $alen = scalar @ary;
+	my $ttype = @ary[0];
+	my $tvalue = join('|', @ary[1..$alen-1]);
+        return $ttype . "|" . Unquote($tvalue, $ttype);
     } elsif ($token eq "begin_unit" or $token eq "end_unit") {
         # these tokens should have no text
         return $token;
@@ -289,6 +294,7 @@ sub Remap_Token {
 sub Unquote {
     my ($token, $type) = @_;
 
+    # print LOG "type=$type, token=$token\n";
     if ($type eq "STRING" or
         $type eq "COMMENT" 
        ) {
