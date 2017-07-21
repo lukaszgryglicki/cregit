@@ -75,11 +75,8 @@ while (<FILES>) {
     if ($fileRegExpr ne "") {
         next unless /$fileRegExpr/;
     }
-
-            
-    
     my $name = $_;
-    
+
     if ($verbose) {
         print STDERR ("matched file: [$name]\n");
     }

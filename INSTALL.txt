@@ -7,7 +7,7 @@ root@lg:~# passwd root
 root@lg:~# mkdir /home/justa
 root@lg:~# mkdir /home/justa/dev
 root@lg:~# cd /home/justa/dev/
-root@lg:/home/justa/dev# 
+root@lg:/home/justa/dev#
 root@lg:/home/justa/dev# apt-get update
 root@lg:/home/justa/dev# apt-get install git
 root@lg:/home/justa/dev# git config --global user.email email@domain.com
@@ -64,7 +64,7 @@ results: vim ../kubernetes.bfg-report/
 mkdir /home/justa/dev/kubernetes_blame
 apt-get install libparallel-forkmanager-perl
 ./blame.sh (also takes long when running for 1st time)
-./remapcommits.sh 
+./remapcommits.sh
 ./html.sh (takes a long time)
 apt-get install links lynx
 Visualize:
