@@ -760,7 +760,7 @@ sub Skip_Token {
     }
     # print STDERR "trials\n";
     seek SRC, $fpos, 0;
-    my @trials = (0, -1, 1);
+    my @trials = (0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5);
     for (@trials) {
         my $try = $_;
 	# print STDERR "trial $try\n";
