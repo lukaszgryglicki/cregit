@@ -106,12 +106,12 @@ die "BFG_FILENAME environment variable not set " if $blobFN eq "";
 
 my $fileExt;
 
-if ($blobFN =~ /\.([^.]+)/) {
+if ($blobFN =~ /\.([^.]+)$/) {
     $fileExt = $1;
 }
 
 if (not defined($mapLang{$fileExt})) {
-    # print LOG "UNKNOWN_EXT: $fileExt\n" if $debugLog;
+    print LOG "UNKNOWN_EXT: $fileExt\n" if $debugLog;
     die "unknown file extension [$fileExt]";
 }
 

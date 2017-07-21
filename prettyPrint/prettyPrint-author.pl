@@ -409,7 +409,8 @@ while (<TOKEN>) {
                 $end = $srcLength;
             }
             $len = $end - $line;
-            my $token_text = substr($srcContents, $line - 1, $len);
+	    #my $token_text = substr($srcContents, $line - 1, $len);
+            my $token_text = substr($srcContents, $line, $len);
             #print STDERR "$line --> $end\n";
             #print STDERR "$token> $token_text\n";
             if ($ti == 1 && $line > 1) {
