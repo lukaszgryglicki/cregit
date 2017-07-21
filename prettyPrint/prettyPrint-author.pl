@@ -734,12 +734,14 @@ sub Skip_Token2 {
 
 sub Skip_Token {
     my ($token) = @_;
-    # print STDERR "TOKEN: $token\n";
-    my $text;
+    my $fpos = tell SRC;
+    #print STDERR "TOKEN>: $token\n";
+    my $text = '';
+    my $origToken = $token;
     $token =~ s/\s//g;
     my $l = length($token);
     my $match ;
-    #print STDERR "TOKEN: $token\n";
+    #print STDERR "TOKEN<: $token\n";
     while ($l > 0) {
         my $ch = Read_Src_Char();
 	#print STDERR "CH: $ch, $l\n";
@@ -753,9 +755,58 @@ sub Skip_Token {
         }
     }
     $match =~ s/\n/ /g;
+    if ($token eq $match) {
+        return $text;
+    }
+    # print STDERR "trials\n";
+    seek SRC, $fpos, 0;
+    my @trials = (0, -1, 1);
+    for (@trials) {
+        my $try = $_;
+	# print STDERR "trial $try\n";
+	my $res = Skip_Token_SkipN($try, $origToken);
+	if (not ($res eq 0)) {
+            # print STDERR "good: $res\n";
+            return $res;
+        }
+    }
     die "Difference [$text]\ntoken [$token]\nmatch [$match]" unless $token eq $match;
-    #print STDERR "Success!\n";
     return $text;
+}
+
+sub Skip_Token_SkipN {
+    my ($foff, $token) = @_;
+    my $fpos = tell SRC;
+    if ($foff != 0) {
+        seek SRC, $foff, 1;
+    }
+    # print STDERR "foff: $foff\n";
+    # print STDERR "TOKEN>: $token\n";
+    my $text = '';
+    $token =~ s/[\s\\n]//g;
+    my $l = length($token);
+    my $match ;
+    # print STDERR "TOKEN<: $token\n";
+    while ($l > 0) {
+        my $ch = Read_Src_Char();
+	#print STDERR "CH: $ch, $l\n";
+        $text .= $ch;
+	#print STDERR "TEXT: $text\n";
+
+        if (not ($ch =~ /^[\s\\n]+$/)) {
+            $l--;
+            $match .= $ch;
+	    #print STDERR "MATCH($l): $match\n";
+	}
+    }
+    $match =~ s/\n/ /g;
+    if ($token eq $match) {
+        return $text;
+    } else {
+        seek SRC, $fpos, 0;
+	# print STDERR "WARNING [$text]\ntoken [$token]\nmatch [$match]\n";
+	return 0;
+    }
 }
 
 

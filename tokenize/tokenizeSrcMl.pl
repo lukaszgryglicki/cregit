@@ -295,9 +295,18 @@ sub Unquote {
     my ($token, $type) = @_;
 
     # print LOG "type=$type, token=$token\n";
-    if ($type eq "STRING" or
-        $type eq "COMMENT" 
-       ) {
+    if ($type eq "STRING") {
+        $token =~ s/^"(.+)"$/$1/;
+        $token =~ s/\\"/"/g;
+        $token =~ s/\\r/ /g;
+        $token =~ s/\\t/ /g;
+        $token =~ s/\\n/ /g;
+        $token =~ s/\\\\u/\\u/g;
+        $token =~ s/\\\\x/\\x/g;
+
+        # this must be the very last one
+        $token =~ s/\\\\/\\/g;
+    } elsif ($type eq "COMMENT") {
         $token =~ s/^"(.+)"$/$1/;
         $token =~ s/\\"/"/g;
         $token =~ s/\\r/ /g;

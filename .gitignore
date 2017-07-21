@@ -4,5 +4,4 @@ jars
 */target
 *.db
 *.xls
-input
-output
+*.swp
