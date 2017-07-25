@@ -104,6 +104,8 @@ my $blobFN = $ENV{BFG_FILENAME};
 print LOG "BFG_FILENAME\n" if $blobFN eq "" and $debugLog;
 die "BFG_FILENAME environment variable not set " if $blobFN eq "";
 
+# die if $blobFN eq "Godeps.json";
+
 my $fileExt;
 
 if ($blobFN =~ /\.([^.]+)$/) {
